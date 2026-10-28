@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agents · Switchyard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Switchyard</h1>
+      <nav class="nav" aria-label="Pages">
+        <a href="/" aria-current="page">Agents <span class="nav-badge" data-badge="agents" hidden></span></a>
+        <a href="/worktrees">Worktrees</a>
+        <a href="/prs">Pull requests <span class="nav-badge" data-badge="prs" hidden></span></a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <span id="updated" class="muted" aria-live="polite">Loading…</span>
+      <button id="refresh" type="button" class="btn">Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="errors" class="errors" hidden></div>
+
+    <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+    <section class="panel" aria-labelledby="running-title">
+      <div class="panel-head">
+        <h2 id="running-title">Running</h2>
+        <div class="filters">
+          <input id="search" type="search" placeholder="Filter name, repo, branch, prompt…" aria-label="Filter sessions">
+          <div class="segmented" role="radiogroup" aria-label="Show" id="views"></div>
+        </div>
+      </div>
+      <div id="running"></div>
+    </section>
+
+    <section class="panel" id="ended-panel" aria-labelledby="ended-title">
+      <div class="panel-head">
+        <h2 id="ended-title">Recently ended</h2>
+        <span id="ended-count" class="muted"></span>
+      </div>
+      <div id="ended"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="/agents.js"></script>
+</body>
+</html>

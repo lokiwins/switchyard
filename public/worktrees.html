@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Worktrees · Switchyard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Switchyard</h1>
+      <nav class="nav" aria-label="Pages">
+        <a href="/">Agents <span class="nav-badge" data-badge="agents" hidden></span></a>
+        <a href="/worktrees" aria-current="page">Worktrees</a>
+        <a href="/prs">Pull requests <span class="nav-badge" data-badge="prs" hidden></span></a>
+      </nav>
+      <span id="roots" class="muted"></span>
+    </div>
+    <div class="topbar-actions">
+      <span id="updated" class="muted" aria-live="polite">Loading…</span>
+      <button id="refresh" type="button" class="btn">Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="errors" class="errors" hidden></div>
+
+    <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+    <section class="panel" aria-labelledby="worktrees-title">
+      <div class="panel-head">
+        <h2 id="worktrees-title">Worktrees</h2>
+        <div class="filters">
+          <input id="search" type="search" placeholder="Filter branch, path, PR…" aria-label="Filter worktrees">
+          <div class="segmented" role="radiogroup" aria-label="Show" id="views"></div>
+        </div>
+      </div>
+      <div id="repos"></div>
+    </section>
+
+    <section class="panel" id="orphans-panel" hidden aria-labelledby="orphans-title">
+      <div class="panel-head">
+        <h2 id="orphans-title">My open PRs without a local worktree</h2>
+      </div>
+      <ul id="orphans" class="plain-list"></ul>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

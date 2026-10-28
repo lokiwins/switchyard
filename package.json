@@ -1,0 +1,14 @@
+{
+  "name": "switchyard",
+  "version": "0.1.0",
+  "description": "Local status board for AI agent sessions, git worktrees and pull requests",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/"
+  }
+}
