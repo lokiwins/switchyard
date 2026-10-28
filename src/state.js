@@ -1,22 +1,19 @@
 import { mapLimit, run } from './exec.js';
 import { discoverRepos, getBranchRefs, getRemoteUrl, getStatuses } from './git.js';
 import { fetchPrDetails, fetchRepoPrs, parseGithubRemote } from './github.js';
+import { DEFAULT_SETTINGS } from './settings.js';
 
 const STATE_TTL_MS = 10_000;
 const REPOS_TTL_MS = 60_000;
 const PR_TTL_MS = 60_000;
 const CHECKS_TTL_MS = 90_000;
 const REPO_CONCURRENCY = 4;
-// PRs from forks or long-lived branches often reuse these names, so they are
-// never matched to a worktree by branch alone.
-const UNMATCHABLE_BRANCHES = new Set(['main', 'master', 'develop', 'dev', 'trunk']);
-// An idle session untouched this long is treated as parked, not waiting on you.
-export const PARKED_AFTER_MS = 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Defaults; config.json can change each of these (see settings.js).
+// An idle session untouched this long is treated as parked, not waiting on you.
+export const PARKED_AFTER_MS = DEFAULT_SETTINGS.agents.parkedAfterMs;
 // An interrupted session flags its worktree for this long; after that it's history, not a to-do.
-export const INTERRUPTED_ATTENTION_MS = 3 * DAY_MS;
-// How far back the Agents page lists ended sessions.
-export const ENDED_HISTORY_MS = 7 * DAY_MS;
+export const INTERRUPTED_ATTENTION_MS = DEFAULT_SETTINGS.agents.interruptedAttentionMs;
 const ATTENTION_FLAGS = new Set([
   'agent-waiting', 'agent-interrupted', 'checks-failing', 'changes-requested', 'merge-conflict', 'conflicted',
 ]);
@@ -28,33 +25,40 @@ export function findWorktreeForPath(worktreePaths, cwd) {
     .reduce((best, path) => (!best || path.length > best.length ? path : best), null);
 }
 
-/** Pick the PR for a branch: open beats merged/closed, then most recently updated. */
-export function matchPr(prs, branch) {
-  if (!branch || UNMATCHABLE_BRANCHES.has(branch)) return null;
+/**
+ * Pick the PR for a branch: open beats merged/closed, then most recently updated.
+ * Long-lived branch names are often reused by PRs from forks, so they never match.
+ */
+export function matchPr(prs, branch, isLongLivedBranch = DEFAULT_SETTINGS.git.isLongLivedBranch) {
+  if (!branch || isLongLivedBranch(branch)) return null;
   const rank = (pr) => (pr.state === 'OPEN' ? 1 : 0);
   return prs
     .filter((pr) => pr.headRefName === branch)
     .sort((a, b) => rank(b) - rank(a) || Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] ?? null;
 }
 
-export function isParked(session, now = Date.now()) {
-  return session.status === 'idle' && Boolean(session.statusUpdatedAt) && now - session.statusUpdatedAt > PARKED_AFTER_MS;
+export function isParked(session, now = Date.now(), parkedAfterMs = PARKED_AFTER_MS) {
+  return session.status === 'idle' && Boolean(session.statusUpdatedAt) && now - session.statusUpdatedAt > parkedAfterMs;
 }
 
 /** Short, UI-facing labels describing what needs doing in a worktree. */
 /** A worktree's most recent session died mid-turn, recently, and nothing is running there now. */
-export function wasInterrupted(lastSession, liveSessions, now = Date.now()) {
+export function wasInterrupted(lastSession, liveSessions, now = Date.now(), attentionMs = INTERRUPTED_ATTENTION_MS) {
   return liveSessions.length === 0
     && lastSession?.transcript?.endState === 'interrupted'
-    && now - lastSession.updatedAt <= INTERRUPTED_ATTENTION_MS;
+    && now - lastSession.updatedAt <= attentionMs;
 }
 
-export function deriveFlags({ isMain, status, pr, liveSessions, lastSession = null }, now = Date.now()) {
+export function deriveFlags(
+  { isMain, status, pr, liveSessions, lastSession = null },
+  now = Date.now(),
+  { parkedAfterMs, interruptedAttentionMs } = DEFAULT_SETTINGS.agents,
+) {
   const flags = [];
   const dirty = Boolean(status && (status.changed || status.untracked || status.conflicted));
   if (liveSessions.some((s) => s.status === 'busy')) flags.push('agent-busy');
-  if (liveSessions.some((s) => s.status === 'idle' && !isParked(s, now))) flags.push('agent-waiting');
-  if (wasInterrupted(lastSession, liveSessions, now)) flags.push('agent-interrupted');
+  if (liveSessions.some((s) => s.status === 'idle' && !isParked(s, now, parkedAfterMs))) flags.push('agent-waiting');
+  if (wasInterrupted(lastSession, liveSessions, now, interruptedAttentionMs)) flags.push('agent-interrupted');
   if (status?.conflicted) flags.push('conflicted');
   if (dirty) flags.push('dirty');
   if (status?.behind) flags.push('behind');
@@ -80,6 +84,8 @@ function latestOf(...timestamps) {
 }
 
 export function createStateService({ config, claude, cache }) {
+  const settings = config.settings ?? DEFAULT_SETTINGS;
+
   async function fetchMyOpenPrs(force) {
     return cache.get('my-open-prs', PR_TTL_MS, async () => JSON.parse(await run('gh', [
       'search', 'prs', '--author=@me', '--state=open', '--limit', '100',
@@ -98,16 +104,16 @@ export function createStateService({ config, claude, cache }) {
   async function attachChecks(github, pr, force) {
     if (!pr || pr.state !== 'OPEN') return pr;
     const key = `checks:${github}#${pr.number}`;
-    const [detail] = await cache.get(key, CHECKS_TTL_MS, () => fetchPrDetails([{ repo: github, number: pr.number }]), { force });
+    const [detail] = await cache.get(key, CHECKS_TTL_MS, () => fetchPrDetails([{ repo: github, number: pr.number }], settings.ci), { force });
     return { ...pr, ...(detail ?? {}) };
   }
 
   async function buildWorktree({ repo, github, worktree, status, refs, prs, liveSessions, force }) {
     const isMain = worktree.path === repo.mainPath;
-    const pr = github ? await attachChecks(github, matchPr(prs, worktree.branch), force) : null;
+    const pr = github ? await attachChecks(github, matchPr(prs, worktree.branch, settings.git.isLongLivedBranch), force) : null;
     const lastSession = await claude.latestSession(worktree.path);
     const lastCommit = worktree.branch ? refs.get(worktree.branch) ?? null : null;
-    const flags = deriveFlags({ isMain, status, pr, liveSessions, lastSession });
+    const flags = deriveFlags({ isMain, status, pr, liveSessions, lastSession }, Date.now(), settings.agents);
     return {
       ...worktree,
       isMain,
@@ -189,10 +195,10 @@ export function createStateService({ config, claude, cache }) {
 
     const worktreePaths = discovered.repos.flatMap((r) => r.worktrees.map((w) => w.path));
     const now = Date.now();
-    const liveSessions = (await claude.liveSessions()).map((s) => ({ ...s, parked: isParked(s, now) }));
+    const liveSessions = (await claude.liveSessions()).map((s) => ({ ...s, parked: isParked(s, now, settings.agents.parkedAfterMs) }));
     const { byWorktree, unmatched } = groupSessions(liveSessions, worktreePaths);
     const ended = await claude.endedSessions({
-      since: now - ENDED_HISTORY_MS,
+      since: now - settings.agents.endedHistoryMs,
       liveSessionIds: new Set(liveSessions.map((s) => s.sessionId)),
     });
 
@@ -219,9 +225,9 @@ export function createStateService({ config, claude, cache }) {
       unmatchedSessions: unmatched,
       endedSessions: locateEnded(ended, repos).map((s) => ({
         ...s,
-        needsAttention: s.endState === 'interrupted' && now - s.endedAt <= INTERRUPTED_ATTENTION_MS,
+        needsAttention: s.endState === 'interrupted' && now - s.endedAt <= settings.agents.interruptedAttentionMs,
       })),
-      endedHistoryDays: ENDED_HISTORY_MS / DAY_MS,
+      endedHistoryDays: Math.round((settings.agents.endedHistoryMs / DAY_MS) * 10) / 10,
       prsWithoutWorktree: myOpenPrs.filter((pr) => !matchedPrUrls.has(pr.url)),
       errors: [...new Map(errors.map((e) => [e.message, e])).values()],
     };

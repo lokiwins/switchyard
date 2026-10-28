@@ -1,10 +1,12 @@
-import { h, readPref, timeAgo, toast, writePref } from './dom.js';
+import { h, liveTime, readPref, refreshLiveTimes, toast, writePref } from './dom.js';
 import { startNavBadges } from './nav.js';
 import {
   FILTERS, matchesQuery, prTiles, renderPrList, renderPrTiles, renderTeamList,
 } from './pr-views.js';
 
-const POLL_MS = 30_000;
+// The page listens to /api/prs/stream; polling is only a fallback while that is down.
+const FALLBACK_POLL_MS = 60_000;
+const CLOCK_MS = 5_000;
 const FILTER_PREF = 'switchyard.prFilter';
 
 const ui = {
@@ -12,6 +14,7 @@ const ui = {
   filter: FILTERS[readPref(FILTER_PREF, 'all')] ? readPref(FILTER_PREF, 'all') : 'all',
   query: '',
   loading: false,
+  live: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -55,7 +58,7 @@ function visible(prs) {
 function render() {
   const { data } = ui;
   if (!data) return;
-  $('updated').textContent = `Updated ${timeAgo(data.generatedAt)}`;
+  renderStatus();
   renderErrors(data.errors);
   $('tiles').replaceChildren(...renderPrTiles(prTiles(data), ui.filter, setFilter));
 
@@ -64,15 +67,27 @@ function render() {
     emptyText: data.authored.length ? `No PRs${filtered}.` : 'You have no open pull requests.',
     showAuthor: false,
     onCopilot: requestCopilotReview,
+    caps: data.capabilities,
   }));
   $('review-count').textContent = `${data.reviewRequested.length} open`;
   $('review').replaceChildren(...renderPrList(visible(data.reviewRequested), {
     emptyText: data.reviewRequested.length ? `No review requests${filtered}.` : 'No one is waiting on your review.',
     showAuthor: true,
+    caps: data.capabilities,
   }));
   const team = data.teamReviewRequested.filter((pr) => matchesQuery(pr, ui.query));
   $('team-count').textContent = `${team.length} open`;
   $('team').replaceChildren(...renderTeamList(team));
+}
+
+/** "● Live · GitHub checked 12s ago" while the stream is connected. */
+function renderStatus() {
+  const synced = ui.data?.syncedAt;
+  $('updated').replaceChildren(
+    h('span', { class: `live-dot${ui.live ? ' on' : ''}`, title: ui.live ? 'Receiving updates as they happen' : 'Reconnecting…' }),
+    ui.live ? 'Live · ' : 'Reconnecting · ',
+    synced ? liveTime(synced, 'GitHub checked ') : 'Loading…',
+  );
 }
 
 async function load({ force = false } = {}) {
@@ -94,17 +109,51 @@ async function load({ force = false } = {}) {
   }
 }
 
+let stream = null;
+
+/** Updates arrive as they happen; the browser reconnects on its own if the stream drops. */
+function connect() {
+  if (stream) return;
+  stream = new EventSource('/api/prs/stream');
+  stream.addEventListener('prs', (event) => {
+    ui.data = JSON.parse(event.data);
+    ui.live = true;
+    render();
+  });
+  stream.addEventListener('failure', (event) => {
+    renderErrors([{ source: 'monitor', message: JSON.parse(event.data).error }]);
+  });
+  stream.addEventListener('open', () => {
+    ui.live = true;
+    renderStatus();
+  });
+  stream.addEventListener('error', () => {
+    ui.live = false;
+    renderStatus();
+  });
+}
+
+/** Closing the stream while the tab is hidden lets the server stop asking GitHub. */
+function disconnect() {
+  stream?.close();
+  stream = null;
+  ui.live = false;
+}
+
 $('refresh').addEventListener('click', () => load({ force: true }));
 $('search').addEventListener('input', (event) => {
   ui.query = event.target.value.trim();
   render();
 });
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) load();
+  if (document.hidden) disconnect();
+  else connect();
 });
+setInterval(() => refreshLiveTimes(), CLOCK_MS);
 setInterval(() => {
-  if (!document.hidden) load();
-}, POLL_MS);
+  if (!document.hidden && !ui.live) load();
+}, FALLBACK_POLL_MS);
 
 startNavBadges();
-load();
+renderStatus();
+connect();

@@ -1,4 +1,5 @@
 import { mapLimit, run } from './exec.js';
+import { DEFAULT_SETTINGS } from './settings.js';
 
 const GH_CONCURRENCY = 4;
 // statusCheckRollup is expensive; requesting it for many PRs at once makes
@@ -53,37 +54,45 @@ export function latestChecks(rollup = []) {
   return [...byName.values()];
 }
 
-// CircleCI-style manual approval jobs stay "pending" until a human approves
-// them, as does every job queued behind them in the same workflow.
-const HOLD_PATTERN = /\b(hold|approve|approval)\b|_hold\b|^hold_/i;
-
 const leafName = (name) => name.slice(name.lastIndexOf('/') + 1).trim();
 const workflowOf = (name) => (name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : null);
 
-/** Reclassify pending checks in workflows that are waiting on a manual approval as "held". */
-function markHeld(checks) {
+/**
+ * Manual approval jobs stay "pending" until a human approves them, as does every
+ * job queued behind them in the same workflow; reclassify all of those as "held".
+ */
+function markHeld(checks, holdPatterns) {
+  const isHold = (name) => holdPatterns.some((re) => re.test(leafName(name)));
   const heldWorkflows = new Set(checks
-    .filter((c) => c.kind === 'pending' && HOLD_PATTERN.test(leafName(c.name)))
+    .filter((c) => c.kind === 'pending' && isHold(c.name))
     .map((c) => workflowOf(c.name) ?? c.name));
   return checks.map((c) => (c.kind === 'pending' && heldWorkflows.has(workflowOf(c.name) ?? c.name)
     ? { ...c, kind: 'held' }
     : c));
 }
 
-/** Collapse a statusCheckRollup into an overall state, counts, and the failing checks. */
-export function summarizeChecks(rollup = []) {
+const stripPrefix = (name, prefixes) => {
+  const prefix = prefixes.find((p) => name.startsWith(p));
+  return prefix ? name.slice(prefix.length) : name;
+};
+
+/**
+ * Collapse a statusCheckRollup into an overall state, counts, and the failing
+ * checks. Each check keeps its full `name` and a shorter display `label`.
+ */
+export function summarizeChecks(rollup = [], { holdPatterns, stripPrefixes } = DEFAULT_SETTINGS.ci) {
   const checks = markHeld(latestChecks(rollup ?? []).map((check) => ({
     name: checkName(check),
     url: check.detailsUrl ?? check.targetUrl ?? null,
     kind: classifyCheck(check),
-  })));
+  })), holdPatterns).map((c) => ({ ...c, label: stripPrefix(c.name, stripPrefixes) }));
   const count = (kind) => checks.filter((c) => c.kind === kind).length;
   const counts = { passing: count('passing'), failing: count('failing'), pending: count('pending'), heldCount: count('held') };
   const state = counts.failing > 0 ? 'failing'
     : counts.pending > 0 ? 'pending'
       : counts.passing > 0 ? 'passing'
         : 'none';
-  const pick = (kind) => checks.filter((c) => c.kind === kind).map(({ name, url }) => ({ name, url }));
+  const pick = (kind) => checks.filter((c) => c.kind === kind).map(({ name, label, url }) => ({ name, label, url }));
   return { state, ...counts, total: checks.length, failed: pick('failing'), running: pick('pending'), held: pick('held') };
 }
 
@@ -119,14 +128,14 @@ export async function fetchViewerLogin() {
   return (await run('gh', ['api', 'user', '--jq', '.login'])).trim();
 }
 
-async function fetchPrDetail({ repo, number }) {
+async function fetchPrDetail({ repo, number }, ciSettings) {
   const detail = JSON.parse(await run('gh', ['pr', 'view', String(number), '--repo', repo, '--json', DETAIL_FIELDS]));
-  return { checks: summarizeChecks(detail.statusCheckRollup), mergeStateStatus: detail.mergeStateStatus };
+  return { checks: summarizeChecks(detail.statusCheckRollup, ciSettings), mergeStateStatus: detail.mergeStateStatus };
 }
 
 /** Fetch check status for each { repo, number }, in order. Failures resolve to null. */
-export function fetchPrDetails(refs) {
-  return mapLimit(refs, GH_CONCURRENCY, (ref) => fetchPrDetail(ref).catch(() => null));
+export function fetchPrDetails(refs, ciSettings = DEFAULT_SETTINGS.ci) {
+  return mapLimit(refs, GH_CONCURRENCY, (ref) => fetchPrDetail(ref, ciSettings).catch(() => null));
 }
 
 /** Run `gh search prs` with extra qualifiers or flags; always open PRs. */
@@ -137,30 +146,28 @@ export async function searchOpenPrs(args) {
 }
 
 /** Everything the PR page shows for one PR, with checks and reviews summarized. */
-export async function fetchPrFull({ repo, number }) {
+export async function fetchPrFull({ repo, number }, ciSettings = DEFAULT_SETTINGS.ci) {
   const pr = JSON.parse(await run('gh', ['pr', 'view', String(number), '--repo', repo, '--json', FULL_FIELDS]));
   const { statusCheckRollup, latestReviews, reviewRequests, ...rest } = pr;
   return {
     ...rest,
     repo,
-    checks: summarizeChecks(statusCheckRollup),
+    checks: summarizeChecks(statusCheckRollup, ciSettings),
     ...summarizeReviews(latestReviews, reviewRequests),
   };
 }
 
-// The reviewer login GitHub uses for Copilot code review. Reviews it leaves
-// show up under the author login without the "[bot]" suffix.
-export const COPILOT_REVIEWER = 'copilot-pull-request-reviewer[bot]';
-const COPILOT_LOGIN_PATTERN = /^copilot-pull-request-reviewer(\[bot\])?$/i;
+const withoutBotSuffix = (login) => login.replace(/\[bot\]$/i, '').toLowerCase();
 
-export function isCopilotLogin(login) {
-  return COPILOT_LOGIN_PATTERN.test(login ?? '');
+/** Reviews from a bot appear under its login without the "[bot]" suffix, so compare without it. */
+export function isCopilotLogin(login, reviewer = DEFAULT_SETTINGS.github.copilotReviewer) {
+  return Boolean(login) && withoutBotSuffix(login) === withoutBotSuffix(reviewer);
 }
 
 /** Ask Copilot to (re-)review a pull request. */
-export async function requestCopilotReview({ repo, number }) {
+export async function requestCopilotReview({ repo, number }, reviewer = DEFAULT_SETTINGS.github.copilotReviewer) {
   await run('gh', [
     'api', '--method', 'POST', `repos/${repo}/pulls/${number}/requested_reviewers`,
-    '-f', `reviewers[]=${COPILOT_REVIEWER}`,
+    '-f', `reviewers[]=${reviewer}`,
   ]);
 }

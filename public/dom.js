@@ -34,6 +34,23 @@ export function timeAgo(timestamp, now = Date.now()) {
   return `${Math.floor(diff / DAY)}d ago`;
 }
 
+/** A "<prefix> 5m ago" label that refreshLiveTimes keeps current without re-rendering. */
+export function liveTime(timestamp, prefix = '', attrs = {}) {
+  return h('span', {
+    ...attrs,
+    'data-since': timestamp ?? '',
+    'data-prefix': prefix,
+    title: timestamp ? new Date(timestamp).toLocaleString() : undefined,
+  }, `${prefix}${timeAgo(timestamp)}`);
+}
+
+export function refreshLiveTimes(root = document) {
+  root.querySelectorAll('[data-since]').forEach((el) => {
+    const since = Number(el.dataset.since);
+    el.textContent = `${el.dataset.prefix ?? ''}${timeAgo(since || null)}`;
+  });
+}
+
 /** Display a path relative to the home directory when possible. */
 export function shortPath(path) {
   return path.replace(/^\/Users\/[^/]+|^\/home\/[^/]+/, '~');
@@ -54,11 +71,13 @@ export function toast(message) {
   toastTimer = setTimeout(() => { el.hidden = true; }, message.length > 60 ? 5000 : 1600);
 }
 
+/** Copies a command; marked with ⧉ so it reads as "copy", not "do". */
 export function copyButton(label, text, title) {
   return h('button', {
     type: 'button',
     class: 'btn btn-icon',
-    title: title ?? text,
+    title: `Copy: ${title ?? text}`,
+    'aria-label': `Copy ${label} command`,
     onclick: async () => {
       try {
         await navigator.clipboard.writeText(text);
@@ -67,7 +86,7 @@ export function copyButton(label, text, title) {
         toast('Clipboard unavailable');
       }
     },
-  }, label);
+  }, h('span', { class: 'copy-icon', 'aria-hidden': 'true' }, '⧉'), label);
 }
 
 export function readPref(key, fallback) {

@@ -1,4 +1,5 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
+import { editorLink, resumeButton, terminalButton } from './actions.js';
 import { sessionDot, sessionLabel } from './agent-views.js';
 import { endStateOf } from './ended-views.js';
 
@@ -43,12 +44,14 @@ export function summarize(state) {
   ];
 }
 
+/** Clicking a tile filters to it; clicking it again goes back to the full view. */
 export function renderTiles(tiles, currentView, onSelect) {
   return tiles.map((tile) => h('button', {
     type: 'button',
     class: ['tile', tile.tone && `tone-${tile.tone}`, tile.value > 0 && 'has-value'].filter(Boolean).join(' '),
     'aria-pressed': String(currentView === tile.view),
-    onclick: () => onSelect(tile.view),
+    title: currentView === tile.view ? 'Click again to show all worktrees' : undefined,
+    onclick: () => onSelect(currentView === tile.view ? 'all' : tile.view),
   }, h('div', { class: 'value' }, tile.value), h('div', { class: 'label' }, tile.label)));
 }
 
@@ -133,7 +136,7 @@ function renderInlineSession(s) {
     prompt && h('span', { class: 'secondary' }, prompt));
 }
 
-function renderAgentCell(w) {
+function renderAgentCell(w, caps) {
   const live = [...w.agents.live].sort((a, b) => (b.statusUpdatedAt ?? 0) - (a.statusUpdatedAt ?? 0));
   if (live.length > 0) {
     const hidden = live.length - MAX_INLINE_SESSIONS;
@@ -151,7 +154,7 @@ function renderAgentCell(w) {
       interrupted
         ? h('span', { class: 'pill amber', title: ending.hint }, `Interrupted ${timeAgo(last.updatedAt)}`)
         : h('span', { class: 'small muted', title: ending?.hint }, `Last session ${timeAgo(last.updatedAt)}`),
-      copyButton('resume', last.resumeCommand)),
+      resumeButton(last, caps) ?? copyButton('resume', last.resumeCommand)),
     prompt && h('span', { class: 'secondary', title: prompt }, prompt)));
 }
 
@@ -163,21 +166,22 @@ export function cleanupCommand(repo, w) {
   return steps.join(' && ');
 }
 
-function renderActionsCell(repo, w) {
+function renderActionsCell(repo, w, caps) {
   return h('td', {}, h('div', { class: 'actions' },
-    copyButton('cd', `cd ${shellQuote(w.path)}`),
+    w.prunable ? null : terminalButton(w.path, caps) ?? copyButton('cd', `cd ${shellQuote(w.path)}`),
+    !w.prunable && editorLink(w.path, caps),
     w.flags.includes('cleanup') && copyButton('clean up', cleanupCommand(repo, w),
       `PR ${w.pr.state.toLowerCase()} — copy: ${cleanupCommand(repo, w)}`)));
 }
 
-function renderRow(repo, w) {
+function renderRow(repo, w, caps) {
   return h('tr', { class: w.needsAttention ? 'attention' : undefined },
     renderBranchCell(w),
     renderLocalCell(w),
     renderPrCell(w),
-    renderAgentCell(w),
+    renderAgentCell(w, caps),
     h('td', { class: 'cell-activity', title: w.lastActivityAt ? new Date(w.lastActivityAt).toLocaleString() : undefined }, timeAgo(w.lastActivityAt)),
-    renderActionsCell(repo, w));
+    renderActionsCell(repo, w, caps));
 }
 
 function repoBadges(repo, rows) {
@@ -196,7 +200,7 @@ const COLUMNS = [
   ['Agent', 'col-agent'], ['Activity', 'col-activity'], ['', 'col-actions'],
 ];
 
-function renderRepo(repo, rows, { isCollapsed, onToggle }) {
+function renderRepo(repo, rows, { isCollapsed, onToggle, caps }) {
   const details = h('details', { class: 'repo', open: !isCollapsed },
     h('summary', {},
       h('span', { class: 'repo-name' }, repo.name),
@@ -205,21 +209,28 @@ function renderRepo(repo, rows, { isCollapsed, onToggle }) {
     h('div', { class: 'table-wrap' }, h('table', {},
       h('colgroup', {}, COLUMNS.map(([, col]) => h('col', { class: col }))),
       h('thead', {}, h('tr', {}, COLUMNS.map(([label]) => h('th', { scope: 'col' }, label)))),
-      h('tbody', {}, rows.map((w) => renderRow(repo, w))))));
+      h('tbody', {}, rows.map((w) => renderRow(repo, w, caps))))));
   details.addEventListener('toggle', () => onToggle(repo.mainPath, !details.open));
   return details;
 }
 
 const byActivity = (a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0);
 
-export function renderRepos(state, { view, query, collapsed, onToggle }) {
+export function renderRepos(state, { view, query, collapsed, onToggle, onShowAll }) {
   const test = VIEWS[view]?.test ?? VIEWS.active.test;
   const groups = state.repos
     .map((repo) => ({ repo, rows: repo.worktrees.filter((w) => test(w) && matchesSearch(w, query)).sort(byActivity) }))
     .filter((g) => g.rows.length > 0)
     .sort((a, b) => byActivity(a.rows[0], b.rows[0]));
-  if (groups.length === 0) return [h('div', { class: 'empty' }, 'Nothing matches this view.')];
-  return groups.map(({ repo, rows }) => renderRepo(repo, rows, { isCollapsed: collapsed.has(repo.mainPath), onToggle }));
+  if (groups.length === 0) {
+    const narrowed = view !== 'all' || query;
+    return [h('div', { class: 'empty' },
+      h('p', {}, 'No worktrees match this view.'),
+      narrowed && h('button', { type: 'button', class: 'btn btn-secondary btn-sm', onclick: onShowAll }, 'Show all worktrees'))];
+  }
+  return groups.map(({ repo, rows }) => renderRepo(repo, rows, {
+    isCollapsed: collapsed.has(repo.mainPath), onToggle, caps: state.capabilities,
+  }));
 }
 
 export function renderOrphanPrs(prs) {

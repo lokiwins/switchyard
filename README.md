@@ -42,25 +42,57 @@ Three pages share a header nav. Each nav link carries a badge counting what need
 - **Copilot review button** on your own PRs: *Request* / *Re-request Copilot review* (the tooltip shows when Copilot last reviewed). It calls `POST repos/{repo}/pulls/{n}/requested_reviewers` with `copilot-pull-request-reviewer[bot]` through `gh api`. While a request is outstanding, the button is disabled.
 - **Requested from your teams:** a lighter, collapsible list of PRs waiting on a team you're in.
 
+## Acting from the dashboard (macOS)
+
+A web page can't touch your terminal, but the switchyard server runs on your machine, so the buttons ask it to:
+
+- **Jump** (running sessions) gets you to the session as precisely as its host app allows. switchyard finds the host by walking up the session's parent processes:
+  - **iTerm / Terminal**: selects the exact tab running the session.
+  - **VS Code, Cursor, Windsurf**: brings forward the window for the session's folder. You pick the terminal there.
+  - **Other apps** (e.g. Codex in the ChatGPT app): brings the app to the front.
+
+  Jump never starts anything new. A running session always has its tab, and resuming it again would create a second copy of a live session.
+- **Resume** (ended sessions) opens a new tab that runs `cd <dir> && claude --resume <id>`.
+- **Terminal** (worktrees, PRs) opens a new tab in that folder.
+- **Code** opens the folder in your editor.
+- **⧉** buttons copy the command instead, for anywhere else.
+
+New tabs go into the front iTerm window. If iTerm has no windows, a new window opens; if it isn't running, it launches and uses the window it opens. Terminal.app always opens a new window, because it has no scriptable "new tab".
+
+The first time you use these, macOS asks whether to let switchyard's terminal control iTerm or Terminal (System Settings → Privacy & Security → Automation).
+
 ## Configuration
 
-Copy `config.example.json` to `config.json` (gitignored) or use environment variables:
+Everything works without a config file. To adjust it for your machine or workplace, copy `config.example.json` to `config.json`. That file is gitignored, so workplace-specific values (your CI's job names, your team's branches) stay local. Unknown keys and invalid values stop the server at startup with a message naming the key.
 
-| Setting | Env | Default |
+| Key | Default | What it does |
 |---|---|---|
-| `roots`: directories whose child folders are scanned for repositories | `SWITCHYARD_ROOTS` (colon-separated) | any of `~/work`, `~/code`, `~/src`, `~/projects`, `~/dev` that exist |
-| `port` | `PORT` | `4477` |
-| `claudeDir` | — | `~/.claude` |
+| `roots` | any of `~/work`, `~/code`, `~/src`, `~/projects`, `~/dev` that exist | Directories whose child folders are scanned for repositories. `SWITCHYARD_ROOTS` (colon-separated) overrides it. |
+| `port` | `4477` | Port to serve on. `PORT` overrides it. |
+| `claudeDir` | `~/.claude` | Where Claude Code keeps its session registry and transcripts. |
+| `ci.holdPatterns` | `\b(hold\|approve\|approval)\b`, `_hold\b`, `^hold_` | Regexes (case-insensitive) matched against the last segment of a pending check's name. A match marks that job and every pending job in the same workflow as *awaiting manual approval* rather than running. |
+| `ci.stripPrefixes` | `ci/circleci: ` | Prefixes removed from check names when displayed. The full name stays in the tooltip. |
+| `git.longLivedBranches` | `main`, `master`, `develop`, `dev`, `trunk` | Branches never matched to a PR by name, because PRs from forks often reuse them. `*` is a wildcard, e.g. `release/*`. |
+| `github.copilotReviewer` | `copilot-pull-request-reviewer[bot]` | Reviewer login used by the Copilot review button and to recognise Copilot's reviews. |
+| `terminal.app` | `auto` | Terminal used by **Resume** and **Terminal** buttons: `iTerm`, `Terminal`, or `none` to hide them. `auto` picks iTerm when switchyard was started from iTerm, otherwise Terminal. |
+| `editor.urlScheme` | `vscode` | Editor opened by **Code** buttons, as a URL scheme: `vscode`, `cursor`, `vscode-insiders`, `windsurf`, or `none`. |
+| `agents.parkedAfterHours` | `24` | An idle session untouched this long is *parked* rather than *waiting on you*. |
+| `agents.endedHistoryDays` | `7` | How far back the Agents page lists ended sessions. |
+| `agents.interruptedAttentionDays` | `3` | How long an interrupted session stays highlighted and flags its worktree. |
 
-## How it stays fast
+Lists replace the defaults rather than adding to them.
 
-- PR lists use light `gh pr list` fields. Asking for `statusCheckRollup` across many PRs makes GitHub's GraphQL API time out, so checks are fetched per PR, and only for open PRs that map to a local worktree.
-- GitHub is only queried for repositories that have linked worktrees, a live agent, or one of your open PRs.
-- All data sits behind a stale-while-revalidate cache, so after the first scan the page answers immediately and refreshes in the background. The **Refresh** button forces a full rescan.
+## How it stays fast and fresh
+
+- **Pull requests are refreshed on a schedule, not on request.** The server keeps your PRs in memory and asks GitHub again based on what each PR is doing: every **20s** while its checks are running, every **2 min** once they settle, and every **60s** for the lists of which PRs exist (team requests every 5 min). A failed refresh keeps the last good data, marks the PR's "checked" time amber, and retries after 60s.
+- **The pace follows who's watching.** It runs at full speed while a pull requests page is open, 3× slower while only a header badge on another page is asking, and stops entirely when no page is open. Opening the page again refreshes anything that went stale.
+- **Updates are pushed, not polled.** The PR page holds a server-sent events stream (`/api/prs/stream`) and redraws when the server has new data. Each PR shows when it was last checked, and the header shows **Live · GitHub checked 12s ago**. The page closes the stream while its tab is hidden, and falls back to polling once a minute if the stream drops.
+- PR lists use light `gh` fields. Asking for `statusCheckRollup` across many PRs makes GitHub's GraphQL API time out, so checks are fetched per PR. Even with several PRs running checks, this stays well under GitHub's hourly API limit.
+- Worktree data sits behind a stale-while-revalidate cache, so after the first scan the page answers immediately and refreshes in the background. **Refresh** forces a full rescan.
 - Transcript summaries are memoized by file size, since transcripts are append-only.
 
 ## Security
 
 The server binds to `127.0.0.1` and rejects requests whose `Host` header isn't `localhost`/`127.0.0.1`, which blocks DNS rebinding. Responses carry a strict CSP. The API exposes local paths and your prompts, so don't proxy it anywhere.
 
-The only action endpoint, `POST /api/prs/copilot-review`, also requires an `Origin` matching the dashboard and an `application/json` body, so other websites open in your browser can't trigger it. It only acts on PRs currently listed on the PR page.
+The action endpoints (`POST /api/prs/copilot-review` and `/api/terminal/*`) also require an `Origin` matching the dashboard and an `application/json` body, so other websites open in your browser can't trigger it. They only act on things the server itself discovered. The browser names a PR, a session ID or a worktree path, never a command. The server builds every command from a fixed template, passes values to AppleScript as arguments rather than splicing them into the script, and refuses multi-line commands.

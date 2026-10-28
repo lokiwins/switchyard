@@ -22,8 +22,8 @@ test('summarizeChecks reports failing when any check fails', () => {
   ]);
   assert.equal(summary.state, 'failing');
   assert.deepEqual([summary.passing, summary.failing, summary.pending, summary.total], [1, 1, 1, 3]);
-  assert.deepEqual(summary.failed, [{ name: 'ci/build', url: 'https://ci/1' }]);
-  assert.deepEqual(summary.running, [{ name: 'e2e', url: null }]);
+  assert.deepEqual(summary.failed, [{ name: 'ci/build', label: 'ci/build', url: 'https://ci/1' }]);
+  assert.deepEqual(summary.running, [{ name: 'e2e', label: 'e2e', url: null }]);
 });
 
 test('summarizeChecks treats skipped and neutral runs as passing', () => {

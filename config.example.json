@@ -1,4 +1,36 @@
 {
-  "roots": ["~/work"],
-  "port": 4477
+  "roots": [
+    "~/code"
+  ],
+  "port": 4477,
+  "ci": {
+    "holdPatterns": [
+      "_hold$",
+      "^Approve "
+    ],
+    "stripPrefixes": [
+      "ci/circleci: "
+    ]
+  },
+  "git": {
+    "longLivedBranches": [
+      "main",
+      "develop",
+      "release/*"
+    ]
+  },
+  "github": {
+    "copilotReviewer": "copilot-pull-request-reviewer[bot]"
+  },
+  "terminal": {
+    "app": "auto"
+  },
+  "editor": {
+    "urlScheme": "vscode"
+  },
+  "agents": {
+    "parkedAfterHours": 24,
+    "endedHistoryDays": 7,
+    "interruptedAttentionDays": 3
+  }
 }

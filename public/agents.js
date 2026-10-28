@@ -128,6 +128,7 @@ function renderEndedPanel(state, filter) {
       render();
     },
     prompts,
+    caps: state.capabilities,
     collapse: ui.filter === 'all' && !ui.query,
     emptyText: 'No ended sessions match.',
   }));

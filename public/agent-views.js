@@ -1,4 +1,5 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
+import { jumpButton } from './actions.js';
 import { sessionRow, statusBadge, whereLabel } from './session-row.js';
 
 const STATUS_LABELS = { busy: 'Working', idle: 'Waiting', shell: 'Shell' };
@@ -33,7 +34,7 @@ export function renderLiveRow(state, session, prompts = null) {
     className: session.parked ? 'is-parked' : null,
     badge: statusBadge({ tone: sessionTone(session), dot: sessionDot(session), label: sessionLabel(session) }),
     title: session.name ?? session.sessionId.slice(0, 8),
-    titleHint: session.cwd,
+    titleHint: session.host ? `${session.cwd} · running in ${session.host.label}` : session.cwd,
     where: whereLabel({
       repoName: where?.repo.name,
       branch: where?.worktree.branch ?? session.transcript?.gitBranch,
@@ -46,8 +47,8 @@ export function renderLiveRow(state, session, prompts = null) {
     timeHint: `${sessionLabel(session)} since ${new Date(session.statusUpdatedAt).toLocaleString()}`,
     actions: [
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),
+      jumpButton(session),
       copyButton('cd', `cd ${shellQuote(session.cwd)}`),
-      copyButton('resume', session.resumeCommand),
     ],
   });
 }

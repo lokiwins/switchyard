@@ -1,4 +1,5 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
+import { editorLink, resumeButton } from './actions.js';
 import { sessionRow, statusBadge, whereLabel } from './session-row.js';
 
 const COLLAPSED_LIMIT = 5;
@@ -15,7 +16,7 @@ export function endStateOf(session) {
   return END_STATES[session.endState] ?? END_STATES.unknown;
 }
 
-export function renderEndedRow(session, prompts = null) {
+export function renderEndedRow(session, prompts = null, caps = null) {
   const state = endStateOf(session);
   const t = session.transcript;
   return sessionRow({
@@ -32,8 +33,8 @@ export function renderEndedRow(session, prompts = null) {
     timeHint: `Ended ${new Date(session.endedAt).toLocaleString()}`,
     actions: [
       session.prUrl && h('a', { href: session.prUrl, target: '_blank', rel: 'noopener', class: 'small' }, `#${session.prNumber}`),
-      copyButton('cd', `cd ${shellQuote(session.cwd)}`),
-      copyButton('resume', session.resumeCommand),
+      resumeButton(session, caps) ?? copyButton('resume', session.resumeCommand),
+      editorLink(session.cwd, caps),
     ],
   });
 }
@@ -42,11 +43,11 @@ export function renderEndedRow(session, prompts = null) {
  * Interrupted sessions that still need attention always show; the rest
  * collapse behind a toggle unless `collapse` is off.
  */
-export function renderEnded(sessions, { expanded, onToggle, prompts = null, collapse = true, emptyText = null }) {
+export function renderEnded(sessions, { expanded, onToggle, prompts = null, collapse = true, emptyText = null, caps = null }) {
   if (sessions.length === 0) return emptyText ? [h('div', { class: 'empty' }, emptyText)] : [];
   const interrupted = sessions.filter((s) => s.needsAttention);
   const others = sessions.filter((s) => !s.needsAttention);
-  const row = (s) => renderEndedRow(s, prompts);
+  const row = (s) => renderEndedRow(s, prompts, caps);
   if (!collapse) return [h('ul', { class: 'list' }, [...interrupted, ...others].map(row))];
   const collapsedCount = Math.max(0, COLLAPSED_LIMIT - interrupted.length);
   const canCollapse = others.length > collapsedCount;

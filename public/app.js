@@ -39,13 +39,30 @@ function toggleCollapsed(path, isCollapsed) {
   writePref(COLLAPSED_PREF, JSON.stringify([...ui.collapsed]));
 }
 
+/**
+ * The segmented control, plus a removable chip when a tile picked a view that
+ * has no segment (e.g. "Uncommitted"), so every filter can be seen and cleared.
+ */
 function renderViews() {
-  $('views').replaceChildren(...SEGMENTED_VIEWS.map((view) => h('button', {
+  const extra = !SEGMENTED_VIEWS.includes(ui.view) && h('button', {
+    type: 'button',
+    class: 'filter-chip',
+    title: 'Clear this filter',
+    'aria-label': `Clear filter: ${VIEWS[ui.view].label}`,
+    onclick: () => setView('all'),
+  }, VIEWS[ui.view].label, h('span', { 'aria-hidden': 'true' }, '✕'));
+  $('views').replaceChildren(...[extra, ...SEGMENTED_VIEWS.map((view) => h('button', {
     type: 'button',
     role: 'radio',
     'aria-checked': String(ui.view === view),
     onclick: () => setView(view),
-  }, VIEWS[view].label)));
+  }, VIEWS[view].label))].filter(Boolean));
+}
+
+function showAll() {
+  ui.query = '';
+  $('search').value = '';
+  setView('all');
 }
 
 function renderErrors(errors) {
@@ -63,7 +80,7 @@ function render() {
   renderErrors(state.errors);
   $('tiles').replaceChildren(...renderTiles(summarize(state), ui.view, setView));
   $('repos').replaceChildren(...renderRepos(state, {
-    view: ui.view, query: ui.query, collapsed: ui.collapsed, onToggle: toggleCollapsed,
+    view: ui.view, query: ui.query, collapsed: ui.collapsed, onToggle: toggleCollapsed, onShowAll: showAll,
   }));
   $('orphans-panel').hidden = state.prsWithoutWorktree.length === 0;
   $('orphans').replaceChildren(...renderOrphanPrs(state.prsWithoutWorktree));

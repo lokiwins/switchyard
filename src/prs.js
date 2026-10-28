@@ -1,18 +1,15 @@
-import { mapLimit } from './exec.js';
-import { fetchPrFull, isCopilotLogin, requestCopilotReview, searchOpenPrs } from './github.js';
+import { ActionError } from './errors.js';
+import { isCopilotLogin, requestCopilotReview } from './github.js';
+import { BACKGROUND_FACTOR, createPrSync } from './pr-sync.js';
+import { DEFAULT_SETTINGS } from './settings.js';
 
-const SEARCH_TTL_MS = 60_000;
-const PR_TTL_MS = 60_000;
-const PR_CONCURRENCY = 4;
-const PAGE_KEY = 'prs-page';
+// How often the scheduler looks for due refreshes, and how long a page or badge
+// request keeps it running once no PR page stream is open.
+const TICK_MS = 5_000;
+const WATCH_GRACE_MS = 2 * 60_000;
 const REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-export class ActionError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
+export { ActionError };
 
 /** Most urgent first; the PR page sorts by this. */
 export const STAGE_ORDER = [
@@ -43,10 +40,10 @@ export function prStage(pr) {
 }
 
 /** Whether Copilot has reviewed this PR and whether a Copilot review is currently requested. */
-export function copilotStatus(pr) {
-  const review = (pr.reviews ?? []).find((r) => isCopilotLogin(r.login));
+export function copilotStatus(pr, reviewer = DEFAULT_SETTINGS.github.copilotReviewer) {
+  const review = (pr.reviews ?? []).find((r) => isCopilotLogin(r.login, reviewer));
   return {
-    requested: (pr.requested ?? []).some((r) => !r.isTeam && isCopilotLogin(r.name)),
+    requested: (pr.requested ?? []).some((r) => !r.isTeam && isCopilotLogin(r.name, reviewer)),
     lastReviewedAt: review?.submittedAt ?? null,
   };
 }
@@ -91,59 +88,97 @@ function lightPr(item) {
   };
 }
 
-export function createPrService({ cache, getLocalIndex }) {
-  async function loadFull(item, force) {
-    const ref = { repo: item.repository.nameWithOwner, number: item.number };
-    try {
-      return await cache.get(`pr:${ref.repo}#${ref.number}`, PR_TTL_MS, () => fetchPrFull(ref), { force });
-    } catch (error) {
-      return { ...lightPr(item), error: error.message };
-    }
-  }
+/** Details for a tracked PR, falling back to its search result if they never loaded. */
+function prFromEntry(item, entry) {
+  if (!entry?.pr) return { ...lightPr(item), error: entry?.error ?? 'Not loaded yet', fetchedAt: entry?.fetchedAt ?? null };
+  return { ...entry.pr, fetchedAt: entry.fetchedAt, refreshError: entry.error };
+}
 
-  async function build({ force = false } = {}) {
-    const errors = [];
-    const search = (key, args) => cache.get(key, SEARCH_TTL_MS, () => searchOpenPrs(args), { force })
-      .catch((error) => {
-        errors.push({ source: 'github', message: error.message });
-        return [];
-      });
+/**
+ * The pull requests page. Data comes from an in-memory copy kept fresh by a
+ * scheduler that runs at full pace while a PR page is streaming, slower while
+ * only header badges ask, and not at all when nothing is open.
+ */
+export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sync = null, now = Date.now }) {
+  const listeners = new Set();
+  let lastTouched = 0;
+  let timer = null;
+  const prSync = sync ?? createPrSync({ settings, onUpdate: () => notify() });
 
-    const [authored, direct, anyRequest] = await Promise.all([
-      search('search:authored', ['--author=@me']),
-      search('search:review-direct', ['user-review-requested:@me']),
-      search('search:review-any', ['--review-requested=@me']),
-    ]);
-    const detailed = new Set([...authored, ...direct].map((pr) => pr.url));
-
-    const [full, local] = await Promise.all([
-      mapLimit([...authored, ...direct], PR_CONCURRENCY, (item) => loadFull(item, force)),
-      getLocalIndex().catch((error) => {
-        errors.push({ source: 'local', message: error.message });
-        return new Map();
-      }),
-    ]);
-    const enrich = (pr) => ({
-      ...pr,
-      stage: prStage(pr),
-      copilot: pr.error ? null : copilotStatus(pr),
-      local: local.get(`${pr.repo}#${pr.headRefName}`) ?? null,
+  async function build() {
+    await prSync.ensureLoaded();
+    const snap = prSync.snapshot();
+    const errors = [...snap.errors];
+    const local = await getLocalIndex().catch((error) => {
+      errors.push({ source: 'local', message: error.message });
+      return new Map();
     });
-    const authoredUrls = new Set(authored.map((pr) => pr.url));
-
+    const key = (item) => `${item.repository.nameWithOwner}#${item.number}`;
+    const enrich = (item) => {
+      const pr = prFromEntry(item, snap.entries.get(key(item)));
+      return {
+        ...pr,
+        stage: prStage(pr),
+        copilot: pr.error ? null : copilotStatus(pr, settings.github.copilotReviewer),
+        local: local.get(`${pr.repo}#${pr.headRefName}`) ?? null,
+      };
+    };
+    const authoredKeys = new Set(snap.authored.map(key));
+    const detailedKeys = new Set([...snap.authored, ...snap.direct].map(key));
     return {
-      generatedAt: Date.now(),
-      authored: sortByStage(full.filter((pr) => authoredUrls.has(pr.url)).map(enrich)),
-      reviewRequested: sortByStage(full.filter((pr) => !authoredUrls.has(pr.url)).map(enrich)),
-      teamReviewRequested: anyRequest
-        .filter((pr) => !detailed.has(pr.url))
+      generatedAt: now(),
+      syncedAt: snap.syncedAt,
+      authored: sortByStage(snap.authored.map(enrich)),
+      reviewRequested: sortByStage(snap.direct.filter((item) => !authoredKeys.has(key(item))).map(enrich)),
+      teamReviewRequested: snap.team
+        .filter((item) => !detailedKeys.has(key(item)))
         .map(lightPr)
         .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
       errors,
     };
   }
 
-  const getPrs = ({ force = false } = {}) => cache.get(PAGE_KEY, 10_000, () => build({ force }), { force });
+  async function notify() {
+    if (listeners.size === 0) return;
+    try {
+      const page = await build();
+      listeners.forEach((listener) => listener(page));
+    } catch {
+      // A failed rebuild leaves streams on their last page; the next change retries.
+    }
+  }
+
+  async function getPrs({ force = false } = {}) {
+    lastTouched = now();
+    if (force) await prSync.refreshAll();
+    return build();
+  }
+
+  /** Interval multiplier for the current audience, or null to pause. */
+  function pace() {
+    if (listeners.size > 0) return 1;
+    return now() - lastTouched < WATCH_GRACE_MS ? BACKGROUND_FACTOR : null;
+  }
+
+  function start() {
+    timer ??= setInterval(() => {
+      const factor = pace();
+      if (factor) prSync.tick({ factor }).catch(() => {});
+    }, TICK_MS);
+    timer.unref?.();
+  }
+
+  function stop() {
+    clearInterval(timer);
+    timer = null;
+  }
+
+  /** Stream page updates to `listener`; refreshes anything that went stale while nobody watched. */
+  function subscribe(listener) {
+    listeners.add(listener);
+    prSync.ensureLoaded().then(() => prSync.tick()).catch(() => {});
+    return () => listeners.delete(listener);
+  }
 
   /** Request a Copilot review, but only for a PR the page currently lists as yours or awaiting your review. */
   async function copilotReview(body) {
@@ -153,14 +188,13 @@ export function createPrService({ cache, getLocalIndex }) {
       .some((pr) => pr.repo === ref.repo && pr.number === ref.number);
     if (!known) throw new ActionError(404, `${ref.repo}#${ref.number} is not on the pull requests page`);
     try {
-      await requestCopilotReview(ref);
+      await requestCopilotReview(ref, settings.github.copilotReviewer);
     } catch (error) {
       throw new ActionError(502, error.message);
     }
-    cache.invalidate(`pr:${ref.repo}#${ref.number}`);
-    cache.invalidate(PAGE_KEY);
+    await prSync.refreshPr(ref);
     return { requested: true, ...ref };
   }
 
-  return { getPrs, copilotReview };
+  return { getPrs, subscribe, start, stop, pace, copilotReview };
 }

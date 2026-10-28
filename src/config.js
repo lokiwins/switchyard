@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseSettings } from './settings.js';
 
 const DEFAULT_PORT = 4477;
 const DEFAULT_ROOT_CANDIDATES = ['~/work', '~/code', '~/src', '~/projects', '~/dev'];
@@ -28,6 +29,7 @@ function resolveRoots(fileRoots) {
 
 export function loadConfig() {
   const file = readConfigFile();
+  const settings = parseSettings(file);
   const roots = resolveRoots(file.roots);
   if (roots.length === 0) {
     throw new Error('No repository roots found. Set "roots" in config.json or SWITCHYARD_ROOTS.');
@@ -36,5 +38,6 @@ export function loadConfig() {
     port: Number(process.env.PORT ?? file.port ?? DEFAULT_PORT),
     roots,
     claudeDir: expandHome(file.claudeDir ?? '~/.claude'),
+    settings,
   };
 }

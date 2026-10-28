@@ -1,7 +1,9 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { mapLimit } from '../exec.js';
+import { shellQuote } from '../shell.js';
 import { summarizeFile, transcriptDirName } from './claude-transcript.js';
+import { detectHosts } from './host.js';
 import { getProcessStarts, isProcessAlive, startTimesMatch } from './process.js';
 
 export { summarizeTranscript, transcriptDirName } from './claude-transcript.js';
@@ -10,8 +12,7 @@ const SUMMARY_CONCURRENCY = 8;
 
 /** `claude --resume` only finds sessions recorded for the current directory. */
 export function resumeCommand(cwd, sessionId) {
-  const quoted = /^[\w@%+=:,./-]+$/.test(cwd) ? cwd : `'${cwd.replace(/'/g, `'\\''`)}'`;
-  return `cd ${quoted} && claude --resume ${sessionId}`;
+  return `cd ${shellQuote(cwd)} && claude --resume ${sessionId}`;
 }
 
 export function createClaudeProvider({ claudeDir }) {
@@ -59,6 +60,7 @@ export function createClaudeProvider({ claudeDir }) {
   /** Sessions whose process is still running, enriched from their transcripts. */
   async function liveSessions() {
     const entries = await runningEntries();
+    const hosts = await detectHosts(entries.map((entry) => entry.pid));
     return Promise.all(entries.map(async (entry) => ({
       agent: 'claude-code',
       pid: entry.pid,
@@ -69,6 +71,8 @@ export function createClaudeProvider({ claudeDir }) {
       kind: entry.kind ?? null,
       startedAt: entry.startedAt ?? null,
       statusUpdatedAt: entry.statusUpdatedAt ?? entry.updatedAt ?? null,
+      // Which app the session runs in (iTerm, VS Code…), so Jump knows how to get there.
+      host: hosts.get(entry.pid) ?? null,
       resumeCommand: resumeCommand(entry.cwd, entry.sessionId),
       transcript: await summarize(transcriptPath(entry.cwd, entry.sessionId)),
     })));

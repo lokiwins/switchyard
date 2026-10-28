@@ -1,4 +1,5 @@
-import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
+import { editorLink, terminalButton } from './actions.js';
+import { copyButton, h, liveTime, shellQuote, shortPath, timeAgo } from './dom.js';
 
 export const STAGES = {
   'merge-conflict': { label: 'Merge conflict', tone: 'red', group: 'fix' },
@@ -56,8 +57,8 @@ export function renderPrTiles(tiles, current, onSelect) {
 
 function linkList(checks) {
   const shown = checks.slice(0, MAX_LISTED_CHECKS).map((c) => (c.url
-    ? h('a', { href: c.url, target: '_blank', rel: 'noopener' }, c.name.replace(/^ci\/circleci: /, ''))
-    : h('span', {}, c.name)));
+    ? h('a', { href: c.url, target: '_blank', rel: 'noopener', title: c.name }, c.label ?? c.name)
+    : h('span', { title: c.name }, c.label ?? c.name)));
   const extra = checks.length - shown.length;
   return [shown.flatMap((el, i) => (i ? [', ', el] : [el])), extra > 0 && ` +${extra} more`];
 }
@@ -100,7 +101,7 @@ function agentLabel(a) {
   return { busy: 'working', idle: 'waiting' }[a.status] ?? a.status;
 }
 
-function renderLocal(pr) {
+function renderLocal(pr, caps) {
   const local = pr.local;
   if (!local) {
     return h('span', { class: 'sig muted' }, 'Not checked out',
@@ -111,14 +112,19 @@ function renderLocal(pr) {
     local.dirty && h('span', { class: 'sig amber' }, 'uncommitted'),
     local.agents.map((a) => h('span', { class: 'sig muted', title: a.name },
       h('span', { class: `dot ${a.parked ? 'parked' : a.status}`, 'aria-hidden': 'true' }), agentLabel(a))),
-    copyButton('cd', `cd ${shellQuote(local.path)}`));
+    terminalButton(local.path, caps) ?? copyButton('cd', `cd ${shellQuote(local.path)}`),
+    editorLink(local.path, caps));
 }
 
 function renderMeta(pr, { showAuthor }) {
   return h('div', { class: 'pr-meta' },
     pr.headRefName && h('span', { class: 'mono' }, pr.headRefName, h('span', { class: 'arrow' }, ' → '), pr.baseRefName),
     showAuthor && pr.author?.login && h('span', { class: 'sep' }, pr.author.login),
-    h('span', { class: 'sep', title: new Date(pr.updatedAt).toLocaleString() }, `updated ${timeAgo(Date.parse(pr.updatedAt))}`),
+    liveTime(Date.parse(pr.updatedAt), 'updated ', { class: 'sep' }),
+    pr.fetchedAt && liveTime(pr.fetchedAt, 'checked ', {
+      class: `sep${pr.refreshError ? ' stale' : ''}`,
+      'aria-label': pr.refreshError ? `Last refresh failed: ${pr.refreshError}` : undefined,
+    }),
     Number.isFinite(pr.additions) && h('span', { class: 'sep' },
       h('span', { class: 'num add' }, `+${pr.additions}`), ' ', h('span', { class: 'num del' }, `−${pr.deletions}`),
       h('span', {}, ` · ${pr.changedFiles} file${pr.changedFiles === 1 ? '' : 's'}`)));
@@ -138,7 +144,7 @@ function renderCopilotButton(pr, onCopilot) {
   }, last ? '↻ Copilot review' : 'Copilot review');
 }
 
-export function renderPrCard(pr, { showAuthor = false, onCopilot = null } = {}) {
+export function renderPrCard(pr, { showAuthor = false, onCopilot = null, caps = null } = {}) {
   const stage = STAGES[pr.stage] ?? STAGES.unknown;
   return h('li', {}, h('article', { class: 'pr' },
     h('div', { class: 'pr-line' },
@@ -148,13 +154,13 @@ export function renderPrCard(pr, { showAuthor = false, onCopilot = null } = {}) 
     renderMeta(pr, { showAuthor }),
     pr.error
       ? h('div', { class: 'pr-signals' }, h('span', { class: 'sig red' }, `Could not load details: ${pr.error}`))
-      : h('div', { class: 'pr-signals' }, renderChecks(pr.checks), renderReviews(pr), renderLocal(pr)),
+      : h('div', { class: 'pr-signals' }, renderChecks(pr.checks), renderReviews(pr), renderLocal(pr, caps)),
     h('div', { class: 'pr-side' }, renderCopilotButton(pr, onCopilot))));
 }
 
-export function renderPrList(prs, { emptyText, showAuthor, onCopilot }) {
+export function renderPrList(prs, { emptyText, showAuthor, onCopilot, caps }) {
   if (prs.length === 0) return [h('div', { class: 'empty' }, emptyText)];
-  return [h('ul', { class: 'list pr-list' }, prs.map((pr) => renderPrCard(pr, { showAuthor, onCopilot })))];
+  return [h('ul', { class: 'list pr-list' }, prs.map((pr) => renderPrCard(pr, { showAuthor, onCopilot, caps })))];
 }
 
 export function renderTeamList(prs) {
