@@ -29,6 +29,7 @@ const STATIC_FILES = {
   '/ended-views.js': 'ended-views.js',
   '/agent-views.js': 'agent-views.js',
   '/session-row.js': 'session-row.js',
+  '/session-text.js': 'session-text.js',
   '/dom.js': 'dom.js',
   '/views.js': 'views.js',
   '/styles.css': 'styles.css',

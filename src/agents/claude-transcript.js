@@ -1,4 +1,5 @@
 import { open } from 'node:fs/promises';
+import { currentActivity, lastReply } from './claude-activity.js';
 
 const TAIL_BYTES = 256 * 1024;
 const SCAN_CHUNK_BYTES = 1024 * 1024;
@@ -82,7 +83,7 @@ function previewPrompt(entry) {
   return entry ? truncate(promptText(entry.message.content), PROMPT_PREVIEW_CHARS) : null;
 }
 
-/** Pull prompt, titles, location, activity time, linked PRs and end state out of transcript lines. */
+/** Pull prompt, reply, activity, titles, location, activity time, linked PRs and end state out of transcript lines. */
 export function summarizeTranscript(lines) {
   const entries = parseLines(lines);
   const lastOf = (predicate) => entries.findLast(predicate);
@@ -90,6 +91,9 @@ export function summarizeTranscript(lines) {
   const prLinks = entries.filter((e) => e.type === 'pr-link').map((e) => ({ number: e.prNumber, url: e.prUrl }));
   return {
     lastPrompt: previewPrompt(lastOf(isHumanPrompt)),
+    // What Claude last said, and the tool call a turn is still in the middle of.
+    lastReply: lastReply(entries),
+    activity: currentActivity(entries),
     lastActivityAt: lastStamped ? Date.parse(lastStamped.timestamp) : null,
     gitBranch: lastOf((e) => e.gitBranch)?.gitBranch ?? null,
     cwd: lastOf((e) => e.cwd)?.cwd ?? null,
@@ -140,12 +144,15 @@ export async function summarizeFile(file) {
     if (before === 0) return summary;
     const prompt = summary.lastPrompt ? null
       : await findLastBackwards(handle, before, { marker: '"type":"user"', predicate: isHumanPrompt });
+    const reply = summary.lastReply ? null
+      : await findLastBackwards(handle, before, { marker: '"type":"assistant"', predicate: (e) => lastReply([e]) !== null });
     const title = summary.title ? null
       : await findLastBackwards(handle, before, { marker: '"type":"ai-title"', predicate: (e) => e.type === 'ai-title' });
     return {
       ...summary,
       lastPrompt: summary.lastPrompt ?? previewPrompt(prompt),
       title: summary.title ?? title?.aiTitle ?? null,
+      lastReply: summary.lastReply ?? (reply ? lastReply([reply]) : null),
     };
   } finally {
     await handle.close();

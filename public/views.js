@@ -1,4 +1,5 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
+import { sessionDetail, sessionSearchText, sessionTitle } from './session-text.js';
 import { editorLink, openMenu, resumeButton } from './actions.js';
 import { sessionDot, sessionLabel } from './agent-views.js';
 import { endStateOf } from './ended-views.js';
@@ -26,7 +27,7 @@ function isActive(w) {
 
 export function matchesSearch(w, query) {
   if (!query) return true;
-  const haystack = [w.branch, w.path, w.pr?.title, w.pr && `#${w.pr.number}`, ...w.agents.live.map((s) => s.name)]
+  const haystack = [w.branch, w.path, w.pr?.title, w.pr && `#${w.pr.number}`, ...w.agents.live.flatMap(sessionSearchText)]
     .filter(Boolean).join(' ').toLowerCase();
   return query.toLowerCase().split(/\s+/).every((term) => haystack.includes(term));
 }
@@ -128,12 +129,20 @@ function renderPrCell(w) {
     h('span', { class: 'secondary', title: pr.title }, pr.title)));
 }
 
+function detailLine(session) {
+  const detail = sessionDetail(session);
+  if (!detail) return null;
+  const text = detail.label ? `${detail.label}: ${detail.text}` : detail.text;
+  return h('span', { class: 'secondary', title: text }, text);
+}
+
 function renderInlineSession(s) {
-  const prompt = s.transcript?.lastPrompt;
-  return h('div', { class: 'line', title: prompt ?? undefined },
-    h('span', { class: `dot ${sessionDot(s)}`, 'aria-hidden': 'true' }),
-    h('span', { class: 'small no-shrink' }, `${sessionLabel(s)} · ${s.name ?? s.sessionId.slice(0, 8)}`),
-    prompt && h('span', { class: 'secondary' }, prompt));
+  return h('div', { class: 'cell-lines' },
+    h('div', { class: 'line' },
+      h('span', { class: `dot ${sessionDot(s)}`, 'aria-hidden': 'true' }),
+      h('span', { class: 'small no-shrink' }, sessionLabel(s)),
+      h('span', { class: 'small strong', title: s.cwd }, sessionTitle(s))),
+    detailLine(s));
 }
 
 function renderAgentCell(w, caps) {
@@ -148,14 +157,14 @@ function renderAgentCell(w, caps) {
   if (!last) return h('td', {}, h('span', { class: 'small muted' }, '—'));
   const interrupted = w.flags.includes('agent-interrupted');
   const ending = last.transcript && endStateOf({ endState: last.transcript.endState });
-  const prompt = last.transcript?.lastPrompt;
   return h('td', {}, h('div', { class: 'cell-lines' },
     h('div', { class: 'line' },
       interrupted
         ? h('span', { class: 'pill amber', title: ending.hint }, `Interrupted ${timeAgo(last.updatedAt)}`)
         : h('span', { class: 'small muted', title: ending?.hint }, `Last session ${timeAgo(last.updatedAt)}`),
       resumeButton(last, caps) ?? copyButton('resume', last.resumeCommand)),
-    prompt && h('span', { class: 'secondary', title: prompt }, prompt)));
+    h('span', { class: 'small strong' }, sessionTitle({ ...last, cwd: w.path })),
+    detailLine(last)));
 }
 
 export function cleanupCommand(repo, w) {

@@ -1,4 +1,5 @@
 import { h, readPref, timeAgo, writePref } from './dom.js';
+import { sessionSearchText } from './session-text.js';
 import { locateSession, renderLiveList } from './agent-views.js';
 import { renderEnded } from './ended-views.js';
 import { startNavBadges } from './nav.js';
@@ -24,17 +25,17 @@ const ui = {
   query: '',
   showParked: false,
   showAllEnded: false,
-  openPrompts: new Set(),
+  openDetails: new Set(),
   loading: false,
 };
 
 const $ = (id) => document.getElementById(id);
 
-const prompts = {
-  isOpen: (id) => ui.openPrompts.has(id),
+const details = {
+  isOpen: (id) => ui.openDetails.has(id),
   toggle: (id) => {
-    if (ui.openPrompts.has(id)) ui.openPrompts.delete(id);
-    else ui.openPrompts.add(id);
+    if (ui.openDetails.has(id)) ui.openDetails.delete(id);
+    else ui.openDetails.add(id);
     render();
   },
 };
@@ -53,12 +54,11 @@ function matches(fields, query) {
 
 function liveMatches(state, s) {
   const where = locateSession(state, s);
-  return matches([s.name, s.cwd, where?.repo.name, where?.worktree.branch, s.transcript?.lastPrompt, s.transcript?.title], ui.query);
+  return matches([...sessionSearchText(s), s.cwd, where?.repo.name, where?.worktree.branch], ui.query);
 }
 
 function endedMatches(s) {
-  const t = s.transcript;
-  return matches([t.title, t.agentName, s.cwd, s.repoName, s.branch, t.lastPrompt], ui.query);
+  return matches([...sessionSearchText(s), s.cwd, s.repoName, s.branch], ui.query);
 }
 
 function tiles(state) {
@@ -106,7 +106,7 @@ function renderRunning(state, filter) {
       ui.showParked = !ui.showParked;
       render();
     },
-    prompts,
+    details,
     emptyText: ui.query || ui.filter !== 'all' ? 'No running sessions match.' : 'No agent sessions are running.',
   }));
 }
@@ -127,7 +127,7 @@ function renderEndedPanel(state, filter) {
       ui.showAllEnded = !ui.showAllEnded;
       render();
     },
-    prompts,
+    details,
     caps: state.capabilities,
     collapse: ui.filter === 'all' && !ui.query,
     emptyText: 'No ended sessions match.',

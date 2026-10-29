@@ -1,6 +1,7 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
 import { jumpButton } from './actions.js';
 import { sessionRow, statusBadge, whereLabel } from './session-row.js';
+import { sessionDetail, sessionTitle } from './session-text.js';
 
 const STATUS_LABELS = { busy: 'Working', idle: 'Waiting', shell: 'Shell' };
 
@@ -26,23 +27,23 @@ export function locateSession(state, session) {
   return null;
 }
 
-/** @param {{ isOpen: (id: string) => boolean, toggle: (id: string) => void } | null} prompts */
-export function renderLiveRow(state, session, prompts = null) {
+/** @param {{ isOpen: (id: string) => boolean, toggle: (id: string) => void } | null} details */
+export function renderLiveRow(state, session, details = null) {
   const where = locateSession(state, session);
   const pr = where?.worktree.pr;
   return sessionRow({
     className: session.parked ? 'is-parked' : null,
     badge: statusBadge({ tone: sessionTone(session), dot: sessionDot(session), label: sessionLabel(session) }),
-    title: session.name ?? session.sessionId.slice(0, 8),
-    titleHint: session.host ? `${session.cwd} · running in ${session.host.label}` : session.cwd,
+    title: sessionTitle(session),
+    titleHint: [session.cwd, session.host && `running in ${session.host.label}`].filter(Boolean).join(' · '),
     where: whereLabel({
       repoName: where?.repo.name,
       branch: where?.worktree.branch ?? session.transcript?.gitBranch,
       path: shortPath(session.cwd),
     }),
-    prompt: session.transcript?.lastPrompt,
-    promptOpen: prompts?.isOpen(session.sessionId) ?? false,
-    onPromptToggle: prompts ? () => prompts.toggle(session.sessionId) : null,
+    detail: sessionDetail(session),
+    detailOpen: details?.isOpen(session.sessionId) ?? false,
+    onDetailToggle: details ? () => details.toggle(session.sessionId) : null,
     time: timeAgo(session.statusUpdatedAt),
     timeHint: `${sessionLabel(session)} since ${new Date(session.statusUpdatedAt).toLocaleString()}`,
     actions: [
@@ -60,11 +61,11 @@ const byRecent = (a, b) => (b.statusUpdatedAt ?? 0) - (a.statusUpdatedAt ?? 0);
  * Running sessions: working and waiting first, parked ones (idle over a day)
  * behind a toggle unless `parkedOpen` is forced on.
  */
-export function renderLiveList(state, sessions, { showParked, onToggleParked, prompts, emptyText }) {
+export function renderLiveList(state, sessions, { showParked, onToggleParked, details, emptyText }) {
   if (sessions.length === 0) return [h('div', { class: 'empty' }, emptyText)];
   const active = sessions.filter((s) => !s.parked).sort((a, b) => rank(b) - rank(a) || byRecent(a, b));
   const parked = sessions.filter((s) => s.parked).sort(byRecent);
-  const row = (s) => renderLiveRow(state, s, prompts);
+  const row = (s) => renderLiveRow(state, s, details);
   return [
     active.length > 0 && h('ul', { class: 'list' }, active.map(row)),
     parked.length > 0 && active.length > 0 && h('button', { type: 'button', class: 'list-toggle', onclick: onToggleParked },
