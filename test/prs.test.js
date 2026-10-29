@@ -39,7 +39,7 @@ test('buildLocalIndex keys worktrees by repo and branch', () => {
       {
         github: 'org/repo',
         worktrees: [
-          { path: '/w/feat', branch: 'feat', flags: ['dirty'], agents: { live: [{ name: 'a1', status: 'busy' }] } },
+          { path: '/w/feat', branch: 'feat', flags: ['dirty'], agents: { live: [{ name: 'a1', status: 'busy' }], recent: [{ sessionId: 's1' }] } },
           { path: '/w/detached', branch: null, flags: [], agents: { live: [] } },
         ],
       },
@@ -48,7 +48,7 @@ test('buildLocalIndex keys worktrees by repo and branch', () => {
   });
   assert.equal(index.size, 1);
   assert.deepEqual(index.get('org/repo#feat'), {
-    path: '/w/feat', dirty: true, agents: [{ name: 'a1', status: 'busy', parked: false }],
+    path: '/w/feat', dirty: true, agents: [{ name: 'a1', status: 'busy', parked: false }], sessions: [{ sessionId: 's1' }],
   });
 });
 

@@ -112,6 +112,9 @@ export function createStateService({ config, claude, cache }) {
     const isMain = worktree.path === repo.mainPath;
     const pr = github ? await attachChecks(github, matchPr(prs, worktree.branch, settings.git.isLongLivedBranch), force) : null;
     const lastSession = await claude.latestSession(worktree.path);
+    const recentSessions = await claude.recentSessions(worktree.path, {
+      exclude: new Set(liveSessions.map((s) => s.sessionId)),
+    });
     const lastCommit = worktree.branch ? refs.get(worktree.branch) ?? null : null;
     const flags = deriveFlags({ isMain, status, pr, liveSessions, lastSession }, Date.now(), settings.agents);
     return {
@@ -120,7 +123,7 @@ export function createStateService({ config, claude, cache }) {
       status,
       lastCommit,
       pr,
-      agents: { live: liveSessions, last: lastSession },
+      agents: { live: liveSessions, last: lastSession, recent: recentSessions },
       flags,
       needsAttention: needsAttention(flags),
       lastActivityAt: latestOf(

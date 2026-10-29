@@ -1,4 +1,4 @@
-import { editorLink, terminalButton } from './actions.js';
+import { editorLink, openMenu } from './actions.js';
 import { copyButton, h, liveTime, shellQuote, shortPath, timeAgo } from './dom.js';
 
 export const STAGES = {
@@ -112,7 +112,7 @@ function renderLocal(pr, caps) {
     local.dirty && h('span', { class: 'sig amber' }, 'uncommitted'),
     local.agents.map((a) => h('span', { class: 'sig muted', title: a.name },
       h('span', { class: `dot ${a.parked ? 'parked' : a.status}`, 'aria-hidden': 'true' }), agentLabel(a))),
-    terminalButton(local.path, caps) ?? copyButton('cd', `cd ${shellQuote(local.path)}`),
+    openMenu(local.path, local.sessions ?? [], caps) ?? copyButton('cd', `cd ${shellQuote(local.path)}`),
     editorLink(local.path, caps));
 }
 

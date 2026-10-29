@@ -71,6 +71,8 @@ export function buildLocalIndex(state) {
       path: w.path,
       dirty: w.flags.includes('dirty'),
       agents: w.agents.live.map((s) => ({ name: s.name, status: s.status, parked: Boolean(s.parked) })),
+      // Recent sessions in this checkout, for the "Open ▾" menu's resume choices.
+      sessions: w.agents.recent ?? [],
     }]));
   return new Map(entries);
 }

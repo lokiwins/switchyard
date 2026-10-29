@@ -1,5 +1,5 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
-import { editorLink, resumeButton, terminalButton } from './actions.js';
+import { editorLink, openMenu, resumeButton } from './actions.js';
 import { sessionDot, sessionLabel } from './agent-views.js';
 import { endStateOf } from './ended-views.js';
 
@@ -168,7 +168,7 @@ export function cleanupCommand(repo, w) {
 
 function renderActionsCell(repo, w, caps) {
   return h('td', {}, h('div', { class: 'actions' },
-    w.prunable ? null : terminalButton(w.path, caps) ?? copyButton('cd', `cd ${shellQuote(w.path)}`),
+    w.prunable ? null : openMenu(w.path, w.agents.recent ?? [], caps) ?? copyButton('cd', `cd ${shellQuote(w.path)}`),
     !w.prunable && editorLink(w.path, caps),
     w.flags.includes('cleanup') && copyButton('clean up', cleanupCommand(repo, w),
       `PR ${w.pr.state.toLowerCase()} — copy: ${cleanupCommand(repo, w)}`)));

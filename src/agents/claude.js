@@ -9,6 +9,12 @@ import { getProcessStarts, isProcessAlive, startTimesMatch } from './process.js'
 export { summarizeTranscript, transcriptDirName } from './claude-transcript.js';
 
 const SUMMARY_CONCURRENCY = 8;
+const DEFAULT_RECENT_LIMIT = 5;
+// Only look this many transcripts deep for resumable ones, so busy folders stay cheap.
+const RECENT_SCAN_FACTOR = 3;
+
+/** A session that never got a prompt (opened, then /exit) has nothing to resume. */
+const isResumable = (transcript) => Boolean(transcript?.lastPrompt) || transcript?.endState === 'interrupted';
 
 /** `claude --resume` only finds sessions recorded for the current directory. */
 export function resumeCommand(cwd, sessionId) {
@@ -100,6 +106,28 @@ export function createClaudeProvider({ claudeDir }) {
     };
   }
 
+  /** A folder's resumable sessions, newest first, leaving out `exclude` (e.g. running ones). */
+  async function recentSessions(cwd, { limit = DEFAULT_RECENT_LIMIT, exclude = new Set() } = {}) {
+    const candidates = (await listTranscripts(join(projectsDir, transcriptDirName(cwd))))
+      .filter((t) => !exclude.has(t.sessionId))
+      .sort((a, b) => b.mtime - a.mtime)
+      .slice(0, limit * RECENT_SCAN_FACTOR);
+    const sessions = await mapLimit(candidates, SUMMARY_CONCURRENCY, async (t) => {
+      const transcript = await summarize(t.file, t.size);
+      if (!isResumable(transcript)) return null;
+      return {
+        agent: 'claude-code',
+        sessionId: t.sessionId,
+        updatedAt: transcript.lastActivityAt ?? t.mtime,
+        endState: transcript.endState,
+        resumeCommand: resumeCommand(cwd, t.sessionId),
+        transcript,
+      };
+    });
+    // Files get touched after a session ends (e.g. titles written later), so order by real activity.
+    return sessions.filter(Boolean).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
+  }
+
   /** Sessions that are no longer running but were active since `since` (ms). */
   async function endedSessions({ since, liveSessionIds }) {
     const dirs = (await readdir(projectsDir, { withFileTypes: true }).catch(() => []))
@@ -109,9 +137,7 @@ export function createClaudeProvider({ claudeDir }) {
       .filter((t) => t.mtime >= since && !liveSessionIds.has(t.sessionId));
     const sessions = await mapLimit(recent, SUMMARY_CONCURRENCY, async (t) => {
       const transcript = await summarize(t.file, t.size);
-      if (!transcript?.cwd) return null;
-      // A session that never got a prompt (opened, then /exit) has nothing to resume.
-      if (!transcript.lastPrompt && transcript.endState !== 'interrupted') return null;
+      if (!transcript?.cwd || !isResumable(transcript)) return null;
       return {
         agent: 'claude-code',
         sessionId: t.sessionId,
@@ -125,5 +151,5 @@ export function createClaudeProvider({ claudeDir }) {
     return sessions.filter(Boolean).sort((a, b) => b.endedAt - a.endedAt);
   }
 
-  return { liveSessions, latestSession, endedSessions };
+  return { liveSessions, latestSession, recentSessions, endedSessions };
 }

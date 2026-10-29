@@ -13,7 +13,7 @@ function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, state = {}
   const fullState = {
     liveSessions: [{ sessionId: ID, pid: 42, cwd: '/w/my repo', host }],
     endedSessions: [{ sessionId: 'ended-session-1', resumeCommand: "cd '/w/old' && claude --resume ended-session-1" }],
-    repos: [{ worktrees: [{ path: '/w/feat', agents: { live: [], last: null } }, { path: '/w/gone', prunable: true, agents: { live: [] } }] }],
+    repos: [{ worktrees: [{ path: '/w/feat', agents: { live: [], last: null, recent: [{ sessionId: 'recent-session-1', resumeCommand: "cd /w/feat && claude --resume recent-session-1" }] } }, { path: '/w/gone', prunable: true, agents: { live: [] } }] }],
     ...state,
   };
   const terminal = {
@@ -81,6 +81,21 @@ test('Open terminal only accepts discovered, present worktrees', async () => {
   await rejectsWith(actions.openWorktree({ path: '/etc' }), 404);
   await rejectsWith(actions.openWorktree({ path: '/w/gone' }), 404);
   await rejectsWith(actions.openWorktree({ path: 42 }), 400);
+});
+
+test('Open can start a new Claude session in a worktree', async () => {
+  const { actions, calls } = setup();
+  await actions.openWorktree({ path: '/w/feat', launch: 'claude' });
+  assert.deepEqual(calls, [['open', 'cd /w/feat && claude']]);
+  await rejectsWith(actions.openWorktree({ path: '/w/feat', launch: 'rm -rf ~' }), 400);
+});
+
+test("Open resumes a chosen session only if it is one of that worktree's sessions", async () => {
+  const { actions, calls } = setup();
+  await actions.openWorktree({ path: '/w/feat', sessionId: 'recent-session-1' });
+  assert.deepEqual(calls, [['open', 'cd /w/feat && claude --resume recent-session-1']]);
+  await rejectsWith(actions.openWorktree({ path: '/w/feat', sessionId: 'ended-session-1' }), 404);
+  await rejectsWith(actions.openWorktree({ path: '/w/feat', sessionId: '$(boom)' }), 400);
 });
 
 test('typed commands must be a single line', () => {

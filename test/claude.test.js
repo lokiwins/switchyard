@@ -92,6 +92,30 @@ test('latestSession returns the newest transcript for a directory, or null', asy
   assert.equal(await provider.latestSession('/tmp/nothing-here'), null);
 });
 
+test('recentSessions lists a folder\'s sessions newest first, skipping excluded and promptless ones', async () => {
+  const claudeDir = await makeClaudeDir();
+  const cwd = '/tmp/recent-repo';
+  const projectDir = join(claudeDir, 'projects', transcriptDirName(cwd));
+  await mkdir(projectDir);
+  const write = async (id, entries) => {
+    await writeFile(join(projectDir, `${id}.jsonl`), entries.map(line).join('\n'));
+    await new Promise((resolve) => setTimeout(resolve, 15));
+  };
+  await write('first', [{ type: 'user', message: { content: 'oldest ask' } }]);
+  await write('second', [{ type: 'user', message: { content: 'middle ask' } }]);
+  await write('empty', [{ type: 'summary' }]);
+  await write('running', [{ type: 'user', message: { content: 'live one' } }]);
+
+  const provider = createClaudeProvider({ claudeDir });
+  const recent = await provider.recentSessions(cwd, { limit: 5, exclude: new Set(['running']) });
+
+  assert.deepEqual(recent.map((s) => s.sessionId), ['second', 'first']);
+  assert.equal(recent[0].resumeCommand, 'cd /tmp/recent-repo && claude --resume second');
+  assert.equal(recent[0].transcript.lastPrompt, 'middle ask');
+  assert.equal((await provider.recentSessions(cwd, { limit: 1 })).length, 1);
+  assert.deepEqual(await provider.recentSessions('/tmp/nothing-here'), []);
+});
+
 const user = (content, extra = {}) => ({ type: 'user', message: { content }, ...extra });
 const assistant = (content) => ({ type: 'assistant', message: { content } });
 

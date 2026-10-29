@@ -4,6 +4,7 @@ import { shellQuote } from './shell.js';
 import { createTerminal, ttyOf } from './terminal.js';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
+const WORKTREE_LAUNCHES = new Set(['shell', 'claude']);
 
 /** Editors open a folder (and focus the window that already has it) via <scheme>://file/<path>. */
 export function editorUrl(scheme, path) {
@@ -115,11 +116,26 @@ export function createActionService({
     return { opened: true };
   }
 
-  /** Open a new tab in a worktree's folder. */
+  /** The command for a new tab in a worktree: a shell, a new Claude session, or one of its sessions resumed. */
+  function worktreeCommand(state, path, body) {
+    const cd = `cd ${shellQuote(path)}`;
+    if (body.sessionId !== undefined) {
+      const sessionId = parseSessionId(body);
+      const worktree = state.repos.flatMap((repo) => repo.worktrees).find((w) => w.path === path);
+      const session = worktree?.agents.recent?.find((s) => s.sessionId === sessionId);
+      if (!session) throw new ActionError(404, "That session isn't one of this worktree's recent sessions");
+      return session.resumeCommand;
+    }
+    const launch = body.launch ?? 'shell';
+    if (!WORKTREE_LAUNCHES.has(launch)) throw new ActionError(400, 'Expected launch to be "shell" or "claude"');
+    return launch === 'claude' ? `${cd} && claude` : cd;
+  }
+
+  /** Open a new tab in a worktree's folder, optionally starting or resuming a Claude session there. */
   async function openWorktree(body) {
     const state = await stateService.getState();
     const path = findWorktreePath(state, body?.path);
-    await terminal.open(`cd ${shellQuote(path)}`);
+    await terminal.open(worktreeCommand(state, path, body));
     return { opened: true };
   }
 
