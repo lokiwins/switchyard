@@ -44,6 +44,7 @@ export function jumpButton(session) {
       : `Bring ${host.label} to the front`;
   return actionButton(isTerminal ? 'Jump' : `Open ${host.label}`, title, async () => {
     const result = await post('/api/terminal/focus', { sessionId: session.sessionId });
+    if (result.precision === 'resumed') return `The session had closed, so it's resuming in a new ${result.host} tab`;
     if (result.precision === 'window') return `Opened ${result.host}. The session is in one of its terminals.`;
     return null;
   });

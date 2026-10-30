@@ -8,10 +8,10 @@ const iterm = { kind: 'terminal', label: 'iTerm', app: 'iTerm', appName: 'iTerm'
 const vscode = { kind: 'editor', label: 'VS Code', scheme: 'vscode', appName: 'Visual Studio Code' };
 const chatgpt = { kind: 'app', label: 'ChatGPT', appName: 'ChatGPT' };
 
-function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, state = {} } = {}) {
+function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, state = {} } = {}) {
   const calls = [];
   const fullState = {
-    liveSessions: [{ sessionId: ID, pid: 42, cwd: '/w/my repo', host }],
+    liveSessions: [{ sessionId: ID, pid: 42, cwd: '/w/my repo', host, resumeCommand: `cd '/w/my repo' && claude --resume ${ID}` }],
     endedSessions: [{ sessionId: 'ended-session-1', resumeCommand: "cd '/w/old' && claude --resume ended-session-1" }],
     repos: [{ worktrees: [{ path: '/w/feat', agents: { live: [], last: null, recent: [{ sessionId: 'recent-session-1', resumeCommand: "cd /w/feat && claude --resume recent-session-1" }] } }, { path: '/w/gone', prunable: true, agents: { live: [] } }] }],
     ...state,
@@ -26,6 +26,7 @@ function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, state = {}
     terminal,
     terminalFor: () => terminal,
     lookupTty: async () => tty,
+    isAlive: () => alive,
     launcher: {
       openUrl: async (url) => calls.push(['url', url]),
       activateApp: async (app) => calls.push(['app', app]),
@@ -43,9 +44,26 @@ test('Jump selects the exact tab for sessions in a terminal app', async () => {
   assert.deepEqual(calls, [['focus', '/dev/ttys004']]);
 });
 
-test('Jump explains when the tab cannot be found or the session has no terminal', async () => {
+test('Jump explains when a running session has no tab it can find', async () => {
   await rejectsWith(setup({ tabFound: false }).actions.focusSession({ sessionId: ID }), 404);
-  await rejectsWith(setup({ tty: null }).actions.focusSession({ sessionId: ID }), 410);
+});
+
+test('Jump resumes the session in a new tab when its tab was closed', async () => {
+  const { actions, calls } = setup({ tty: null });
+  assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'resumed', host: 'iTerm' });
+  assert.deepEqual(calls, [['open', `cd '/w/my repo' && claude --resume ${ID}`]]);
+});
+
+test('Jump resumes in a terminal when an editor or app session has exited', async () => {
+  const { actions, calls } = setup({ host: vscode, alive: false });
+  assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'resumed', host: 'iTerm' });
+  assert.deepEqual(calls, [['open', `cd '/w/my repo' && claude --resume ${ID}`]]);
+});
+
+test('Jump resumes a session that ended after the page loaded', async () => {
+  const { actions, calls } = setup();
+  assert.deepEqual(await actions.focusSession({ sessionId: 'ended-session-1' }), { precision: 'resumed', host: 'iTerm' });
+  assert.deepEqual(calls, [['open', "cd '/w/old' && claude --resume ended-session-1"]]);
 });
 
 test("Jump opens the folder's window for sessions in an editor", async () => {

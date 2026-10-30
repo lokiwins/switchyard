@@ -1,3 +1,4 @@
+import { isProcessAlive } from './agents/process.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuote } from './shell.js';
@@ -53,6 +54,7 @@ export function createActionService({
   terminal,
   terminalFor = (app) => createTerminal({ app }),
   lookupTty = ttyOf,
+  isAlive = isProcessAlive,
   launcher = macLauncher,
   platform = process.platform,
 }) {
@@ -71,28 +73,46 @@ export function createActionService({
     }
   }
 
+  /**
+   * Bring back a session that is no longer running: a new tab in the terminal
+   * it ran in (Terminal opens a window), or the configured terminal otherwise.
+   */
+  async function reopen(session) {
+    const driver = session.host?.kind === 'terminal' ? driverFor(session.host.app) : terminal;
+    await driver.open(session.resumeCommand);
+    return { precision: 'resumed', host: session.host?.kind === 'terminal' ? session.host.label : terminal.app };
+  }
+
+  /** Select the session's tab; resolves false when its process has gone (the tab was closed). */
   async function focusTerminalTab(session, host) {
     const tty = await lookupTty(session.pid);
-    if (!tty) throw new ActionError(410, 'That session has no terminal (it may have just exited)');
+    if (!tty) return false;
     if (!(await driverFor(host.app).focus(tty))) {
       throw new ActionError(404, `Couldn't find this session's tab in ${host.label}.`);
     }
+    return true;
   }
 
   /**
-   * Get to a running session as precisely as its host allows: the exact tab in
-   * a terminal app, the folder's window in an editor, otherwise the app itself.
+   * Get to a session as precisely as its host allows: the exact tab in a
+   * terminal app, the folder's window in an editor, otherwise the app itself.
+   * A session that has stopped running is resumed in a new tab instead.
    */
   async function focusSession(body) {
     const sessionId = parseSessionId(body);
     const state = await stateService.getState();
     const session = state.liveSessions.find((s) => s.sessionId === sessionId);
-    if (!session) throw new ActionError(404, 'That session is no longer running');
+    if (!session) {
+      const ended = findEndedSession(state, sessionId);
+      if (!ended) throw new ActionError(404, 'Unknown session');
+      return reopen(ended);
+    }
+    if (!isAlive(session.pid)) return reopen(session);
     const host = session.host;
     if (!host) throw new ActionError(404, "Couldn't tell which app this session is running in");
 
     if (host.kind === 'terminal') {
-      await focusTerminalTab(session, host);
+      if (!(await focusTerminalTab(session, host))) return reopen(session);
       return { precision: 'tab', host: host.label };
     }
     if (host.kind === 'editor') {
