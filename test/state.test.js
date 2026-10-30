@@ -60,6 +60,7 @@ test('idle sessions untouched for over a day are parked and do not need attentio
   assert.equal(isParked(stale, now), true);
   assert.equal(isParked(fresh, now), false);
   assert.equal(isParked({ status: 'busy', statusUpdatedAt: 0 }, now), false);
+  assert.equal(isParked({ ...stale, needsYou: true }, now), false);
   assert.deepEqual(deriveFlags({ isMain: true, status: clean, pr: null, liveSessions: [stale] }, now), []);
   assert.deepEqual(deriveFlags({ isMain: true, status: clean, pr: null, liveSessions: [fresh] }, now), ['agent-waiting']);
 });

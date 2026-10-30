@@ -31,6 +31,7 @@ const TOOL_DESCRIPTIONS = {
   WebSearch: (input) => `Searching the web for ${quoted(input?.query ?? '')}`,
   WebFetch: (input) => `Reading ${safeHost(input?.url)}`,
   TodoWrite: () => 'Updating its to-do list',
+  ToolSearch: () => 'Loading tools',
   AskUserQuestion: (input) => `Asking: ${input?.questions?.[0]?.question ?? 'a question'}`,
   ExitPlanMode: () => 'Waiting for you to approve its plan',
   Skill: (input) => (input?.skill ? `Using the ${input.skill} skill` : 'Using a skill'),

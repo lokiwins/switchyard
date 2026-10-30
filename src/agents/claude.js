@@ -21,6 +21,18 @@ export function resumeCommand(cwd, sessionId) {
   return `cd ${shellQuote(cwd)} && claude --resume ${sessionId}`;
 }
 
+/**
+ * Claude Code's registry statuses, folded into the two the board sorts by
+ * (busy = working, idle = waiting on you) plus why:
+ * - waiting: a question or permission prompt is open, so it needs you now
+ * - shell: the turn is over but a background command runs; Claude resumes by itself
+ */
+export function readStatus(registryStatus) {
+  if (registryStatus === 'waiting') return { status: 'idle', needsYou: true, inBackground: false };
+  if (registryStatus === 'shell') return { status: 'busy', needsYou: false, inBackground: true };
+  return { status: registryStatus ?? 'unknown', needsYou: false, inBackground: false };
+}
+
 export function createClaudeProvider({ claudeDir }) {
   const sessionsDir = join(claudeDir, 'sessions');
   const projectsDir = join(claudeDir, 'projects');
@@ -72,8 +84,10 @@ export function createClaudeProvider({ claudeDir }) {
       pid: entry.pid,
       sessionId: entry.sessionId,
       name: entry.name ?? null,
+      // "derived" names are generated from the folder; anything else is one you chose.
+      nameIsCustom: Boolean(entry.nameSource) && entry.nameSource !== 'derived',
       cwd: entry.cwd,
-      status: entry.status ?? 'unknown',
+      ...readStatus(entry.status),
       kind: entry.kind ?? null,
       startedAt: entry.startedAt ?? null,
       statusUpdatedAt: entry.statusUpdatedAt ?? entry.updatedAt ?? null,

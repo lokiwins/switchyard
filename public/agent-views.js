@@ -3,9 +3,10 @@ import { jumpButton } from './actions.js';
 import { sessionRow, statusBadge, whereLabel } from './session-row.js';
 import { sessionDetail, sessionTitle } from './session-text.js';
 
-const STATUS_LABELS = { busy: 'Working', idle: 'Waiting', shell: 'Shell' };
+const STATUS_LABELS = { busy: 'Working', idle: 'Waiting' };
 
 export function sessionLabel(session) {
+  if (session.needsYou) return 'Needs you';
   return session.parked ? 'Parked' : STATUS_LABELS[session.status] ?? session.status;
 }
 
@@ -54,7 +55,8 @@ export function renderLiveRow(state, session, details = null) {
   });
 }
 
-const rank = (s) => (s.status === 'busy' ? 2 : 1);
+// Questions waiting on you first, then working, then the rest.
+const rank = (s) => (s.needsYou ? 3 : s.status === 'busy' ? 2 : 1);
 const byRecent = (a, b) => (b.statusUpdatedAt ?? 0) - (a.statusUpdatedAt ?? 0);
 
 /**

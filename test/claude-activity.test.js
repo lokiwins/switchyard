@@ -19,6 +19,7 @@ test('describeTool turns tool calls into short plain-English activity', () => {
   assert.equal(describeTool('WebSearch', { query: 'iTerm AppleScript' }), 'Searching the web for "iTerm AppleScript"');
   assert.equal(describeTool('AskUserQuestion', { questions: [{ question: 'Which branch?' }] }), 'Asking: Which branch?');
   assert.equal(describeTool('mcp__claude_ai_Slack__slack_send_message', {}), 'slack send message (Slack)');
+  assert.equal(describeTool('ToolSearch', { query: 'select:Read' }), 'Loading tools');
   assert.equal(describeTool('SomethingNew', null), 'SomethingNew');
 });
 

@@ -38,7 +38,8 @@ export function matchPr(prs, branch, isLongLivedBranch = DEFAULT_SETTINGS.git.is
 }
 
 export function isParked(session, now = Date.now(), parkedAfterMs = PARKED_AFTER_MS) {
-  return session.status === 'idle' && Boolean(session.statusUpdatedAt) && now - session.statusUpdatedAt > parkedAfterMs;
+  // An open question is never parked, however old: it's still waiting on you.
+  return session.status === 'idle' && !session.needsYou && Boolean(session.statusUpdatedAt) && now - session.statusUpdatedAt > parkedAfterMs;
 }
 
 /** Short, UI-facing labels describing what needs doing in a worktree. */

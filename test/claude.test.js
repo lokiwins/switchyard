@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createClaudeProvider, resumeCommand, summarizeTranscript, transcriptDirName } from '../src/agents/claude.js';
+import { createClaudeProvider, readStatus, resumeCommand, summarizeTranscript, transcriptDirName } from '../src/agents/claude.js';
 import { classifyEnding } from '../src/agents/claude-transcript.js';
 
 const line = (entry) => JSON.stringify(entry);
@@ -40,6 +40,16 @@ test('summarizeTranscript reads text parts of array content and truncates long p
   assert.ok(summary.lastPrompt.length <= 600);
 });
 
+test('readStatus folds Claude Code statuses into working or waiting, keeping why', () => {
+  assert.deepEqual(readStatus('busy'), { status: 'busy', needsYou: false, inBackground: false });
+  assert.deepEqual(readStatus('idle'), { status: 'idle', needsYou: false, inBackground: false });
+  // An open question or permission prompt: waiting on you, and more urgently than an idle session.
+  assert.deepEqual(readStatus('waiting'), { status: 'idle', needsYou: true, inBackground: false });
+  // A background command is running; Claude resumes by itself when it finishes.
+  assert.deepEqual(readStatus('shell'), { status: 'busy', needsYou: false, inBackground: true });
+  assert.deepEqual(readStatus(undefined), { status: 'unknown', needsYou: false, inBackground: false });
+});
+
 async function makeClaudeDir() {
   const dir = await mkdtemp(join(tmpdir(), 'gwm-claude-'));
   await mkdir(join(dir, 'sessions'));
@@ -52,7 +62,7 @@ test('liveSessions keeps only running processes and finds prompts beyond the tai
   const cwd = '/tmp/some.repo';
   const sessionId = 'abc-123';
   await writeFile(join(claudeDir, 'sessions', `${process.pid}.json`), JSON.stringify({
-    pid: process.pid, sessionId, cwd, name: 'live-one', status: 'idle', statusUpdatedAt: 5,
+    pid: process.pid, sessionId, cwd, name: 'live-one', nameSource: 'user', status: 'waiting', statusUpdatedAt: 5,
   }));
   await writeFile(join(claudeDir, 'sessions', '999999999.json'), JSON.stringify({
     pid: 999_999_999, sessionId: 'dead', cwd, status: 'busy',
@@ -71,6 +81,9 @@ test('liveSessions keeps only running processes and finds prompts beyond the tai
 
   assert.equal(sessions.length, 1);
   assert.equal(sessions[0].name, 'live-one');
+  assert.equal(sessions[0].nameIsCustom, true);
+  assert.equal(sessions[0].status, 'idle');
+  assert.equal(sessions[0].needsYou, true);
   assert.equal(sessions[0].resumeCommand, 'cd /tmp/some.repo && claude --resume abc-123');
   assert.equal(sessions[0].transcript.lastPrompt, 'héllo — find me');
 });
