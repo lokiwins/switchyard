@@ -120,7 +120,27 @@ async function handlePost(req, res, url, services) {
  * Server-sent events: the current PR page now, then again whenever GitHub
  * reports a change. A comment line every 25s keeps the connection open.
  */
-async function streamPrs(req, res, { prService, capabilities }) {
+// Badges are a convenience: a page never waits longer than this for one (e.g. the first GitHub load).
+const NAV_WAIT_MS = 500;
+
+/** Resolves to the promise's value, or null if it fails or takes longer than `ms`. */
+function within(promise, ms) {
+  let timer;
+  const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(null), ms); });
+  return Promise.race([promise.catch(() => null), timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Header badge counts, added to every page's data so the current page's badges are as fresh as the page. */
+async function navFor({ stateService, prService }, { state, prs } = {}) {
+  const [sessions, prPage] = await Promise.all([
+    state ?? within(stateService.getSessions(), NAV_WAIT_MS),
+    prs ?? within(prService.getPrs(), NAV_WAIT_MS),
+  ]);
+  return navCounts({ state: sessions, prs: prPage });
+}
+
+async function streamPrs(req, res, services) {
+  const { prService, capabilities } = services;
   res.writeHead(200, {
     ...SECURITY_HEADERS,
     'Content-Type': 'text/event-stream',
@@ -129,12 +149,13 @@ async function streamPrs(req, res, { prService, capabilities }) {
   });
   // Skip a page identical to the last one sent (e.g. the initial send racing the first update).
   let lastSent = null;
-  const send = (page) => {
+  const send = async (page) => {
     const { generatedAt, ...content } = page;
     const signature = JSON.stringify(content);
     if (signature === lastSent) return;
     lastSent = signature;
-    res.write(`event: prs\ndata: ${JSON.stringify({ ...page, capabilities })}\n\n`);
+    const nav = await navFor(services, { prs: page });
+    res.write(`event: prs\ndata: ${JSON.stringify({ ...page, nav, capabilities })}\n\n`);
   };
   const unsubscribe = prService.subscribe(send);
   const heartbeat = setInterval(() => res.write(': ping\n\n'), STREAM_HEARTBEAT_MS);
@@ -143,7 +164,7 @@ async function streamPrs(req, res, { prService, capabilities }) {
     unsubscribe();
   });
   try {
-    send(await prService.getPrs());
+    await send(await prService.getPrs());
   } catch (error) {
     res.write(`event: failure\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
   }
@@ -157,22 +178,23 @@ function createHandler(services) {
       if (!isAllowedHost(req.headers.host)) return sendJson(res, 403, { success: false, error: 'Forbidden host' });
       if (req.method === 'POST') return await handlePost(req, res, url, services);
       if (req.method !== 'GET') return sendJson(res, 405, { success: false, error: 'Method not allowed' });
+      const force = url.searchParams.get('refresh') === '1';
       if (url.pathname === '/api/state') {
-        const data = await stateService.getState({ force: url.searchParams.get('refresh') === '1' });
-        return sendJson(res, 200, { success: true, data: { ...data, capabilities: services.capabilities } });
+        prService.markActive();
+        const data = await stateService.getState({ force });
+        return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services), capabilities: services.capabilities } });
+      }
+      if (url.pathname === '/api/agents') {
+        const data = await stateService.getSessions({ force });
+        return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services, { state: data }), capabilities: services.capabilities } });
       }
       if (url.pathname === '/api/nav') {
-        // Badges must never block on a slow GitHub fetch, so a failure just leaves that badge empty.
-        const [state, prs] = await Promise.all([
-          stateService.getState().catch(() => null),
-          prService.getPrs().catch(() => null),
-        ]);
-        return sendJson(res, 200, { success: true, data: navCounts({ state, prs }) });
+        return sendJson(res, 200, { success: true, data: await navFor(services) });
       }
       if (url.pathname === '/api/prs/stream') return await streamPrs(req, res, services);
       if (url.pathname === '/api/prs') {
-        const data = await prService.getPrs({ force: url.searchParams.get('refresh') === '1' });
-        return sendJson(res, 200, { success: true, data: { ...data, capabilities: services.capabilities } });
+        const data = await prService.getPrs({ force });
+        return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services, { prs: data }), capabilities: services.capabilities } });
       }
       const file = STATIC_FILES[url.pathname];
       if (file) return await sendStatic(res, file);
@@ -196,17 +218,21 @@ function loadConfigOrExit() {
 function main() {
   const config = loadConfigOrExit();
   const cache = createSwrCache();
+  // The board reuses the PR sync's details for your PRs; the sync is created just below.
+  let prService = null;
   const stateService = createStateService({
     config,
     claude: createClaudeProvider({ claudeDir: config.claudeDir }),
     cache,
+    prSnapshot: () => prService?.syncSnapshot() ?? null,
   });
-  const prService = createPrService({
+  prService = createPrService({
     settings: config.settings,
-    getLocalIndex: () => stateService.getState().then(buildLocalIndex),
+    getLocalIndex: () => stateService.getLocal().then(buildLocalIndex),
   });
   const terminal = createTerminal({ app: resolveTerminalApp(config.settings.terminal.app) });
-  const actions = createActionService({ stateService, terminal });
+  // Actions only need sessions and worktree paths, so they read the fast sessions view.
+  const actions = createActionService({ stateService: { getState: stateService.getSessions }, terminal });
   const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme };
   createServer(createHandler({ stateService, prService, actions, capabilities, port: config.port })).listen(config.port, HOST, () => {
     process.stdout.write(`switchyard: http://localhost:${config.port}  (roots: ${config.roots.join(', ')})\n`);

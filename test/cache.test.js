@@ -48,3 +48,14 @@ test('propagates the error when there is no previous value', async () => {
   const cache = createSwrCache();
   await assert.rejects(cache.get('k', 1000, async () => { throw new Error('first'); }), /first/);
 });
+
+test('peek returns the cached value without loading or refreshing it', async () => {
+  const clock = fakeClock();
+  const cache = createSwrCache({ now: clock.now });
+  assert.equal(cache.peek('k'), undefined);
+  let calls = 0;
+  await cache.get('k', 1000, async () => ++calls);
+  clock.advance(5000);
+  assert.equal(cache.peek('k'), 1);
+  assert.equal(calls, 1);
+});

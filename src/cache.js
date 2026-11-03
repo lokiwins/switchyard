@@ -38,10 +38,15 @@ export function createSwrCache({ now = Date.now } = {}) {
     return entries.get(key)?.error ?? null;
   }
 
+  /** The last good value for a key, without loading or refreshing it. */
+  function peek(key) {
+    return entries.get(key)?.value;
+  }
+
   /** Drop a key so the next get reloads it. */
   function invalidate(key) {
     entries.delete(key);
   }
 
-  return { get, lastError, invalidate };
+  return { get, peek, lastError, invalidate };
 }

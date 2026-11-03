@@ -3,9 +3,8 @@ import { DEFAULT_SETTINGS } from './settings.js';
 
 const GH_CONCURRENCY = 4;
 // statusCheckRollup is expensive; requesting it for many PRs at once makes
-// GitHub's GraphQL API time out, so lists use light fields and checks are
-// fetched per PR.
-const LIST_FIELDS = 'number,title,state,isDraft,headRefName,url,updatedAt,reviewDecision,author';
+// GitHub's GraphQL API time out, so branch lookups use light fields and checks
+// are fetched per PR.
 const DETAIL_FIELDS = 'number,statusCheckRollup,mergeStateStatus';
 const FULL_FIELDS = [
   'number', 'title', 'url', 'state', 'isDraft', 'headRefName', 'baseRefName', 'author', 'createdAt', 'updatedAt',
@@ -14,8 +13,6 @@ const FULL_FIELDS = [
 ].join(',');
 const SEARCH_FIELDS = 'number,title,url,isDraft,updatedAt,repository,author,commentsCount';
 const SEARCH_LIMIT = '100';
-const OPEN_PR_LIMIT = '100';
-const OWN_PR_LIMIT = '40';
 
 const FAILING_CONCLUSIONS = new Set(['FAILURE', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE']);
 const FAILING_STATES = new Set(['FAILURE', 'ERROR']);
@@ -109,18 +106,75 @@ export function summarizeReviews(latestReviews = [], reviewRequests = []) {
   return { reviews, requested };
 }
 
-function prList(repo, extraArgs) {
-  return run('gh', ['pr', 'list', '--repo', repo, '--json', LIST_FIELDS, ...extraArgs]).then(JSON.parse);
+// Fields for finding a branch's PR; checks come from the PR sync or a per-PR fetch (see above).
+const BRANCH_PR_FIELDS = 'number title state isDraft headRefName url updatedAt reviewDecision author { login }';
+// A branch rarely has more than one PR; a few covers reopened and superseded ones.
+const PRS_PER_BRANCH = 5;
+const BRANCHES_PER_QUERY = 100;
+
+/**
+ * One GraphQL query for the PRs of many branches across repos. Owners, names
+ * and branch names are all passed as variables, never spliced into the query.
+ * @param {{ repo: string, branches: string[] }[]} requests
+ */
+export function buildBranchPrQuery(requests) {
+  const params = [];
+  const variables = {};
+  const blocks = requests.map(({ repo, branches }, r) => {
+    const [owner, name] = repo.split('/');
+    variables[`o${r}`] = owner;
+    variables[`n${r}`] = name;
+    params.push(`$o${r}: String!`, `$n${r}: String!`);
+    const lookups = branches.map((branch, b) => {
+      variables[`b${r}_${b}`] = branch;
+      params.push(`$b${r}_${b}: String!`);
+      return `b${b}: pullRequests(headRefName: $b${r}_${b}, first: ${PRS_PER_BRANCH}, `
+        + 'orderBy: { field: UPDATED_AT, direction: DESC }) { nodes { ...branchPr } }';
+    });
+    return `r${r}: repository(owner: $o${r}, name: $n${r}) { ${lookups.join(' ')} }`;
+  });
+  const query = `query(${params.join(', ')}) { ${blocks.join(' ')} } fragment branchPr on PullRequest { ${BRANCH_PR_FIELDS} }`;
+  return { query, variables };
 }
 
-/** Open PRs from anyone plus the viewer's recent PRs in any state, deduped by number. */
-export async function fetchRepoPrs(repo) {
-  const [open, own] = await Promise.all([
-    prList(repo, ['--state', 'open', '--limit', OPEN_PR_LIMIT]),
-    prList(repo, ['--author', '@me', '--state', 'all', '--limit', OWN_PR_LIMIT]),
-  ]);
-  const byNumber = new Map([...own, ...open].map((pr) => [pr.number, pr]));
-  return [...byNumber.values()];
+/** Group requests so no single query asks about more than BRANCHES_PER_QUERY branches. */
+function chunkRequests(requests) {
+  return requests.reduce((chunks, request) => {
+    const last = chunks.at(-1);
+    const size = last?.reduce((n, r) => n + r.branches.length, 0) ?? Infinity;
+    return size + request.branches.length > BRANCHES_PER_QUERY
+      ? [...chunks, [request]]
+      : [...chunks.slice(0, -1), [...last, request]];
+  }, []);
+}
+
+async function queryBranchPrs(requests, runGh) {
+  const { query, variables } = buildBranchPrQuery(requests);
+  const args = ['api', 'graphql', '-f', `query=${query}`, ...Object.entries(variables).flatMap(([key, value]) => ['-f', `${key}=${value}`])];
+  const { data } = JSON.parse(await runGh(args));
+  return Object.fromEntries(requests.map(({ repo, branches }, r) => [
+    repo,
+    branches.flatMap((_, b) => data?.[`r${r}`]?.[`b${b}`]?.nodes ?? []),
+  ]));
+}
+
+/**
+ * The PRs for each repo's checked-out branches, in as few requests as possible.
+ * If a batch fails, its repos are retried one at a time, so a repo that can't
+ * be read (renamed, no access) only loses its own PRs.
+ * @returns {Promise<{ byRepo: Record<string, object[]>, errors: { source: string, message: string }[] }>}
+ */
+export async function fetchBranchPrs(requests, { runGh = (args) => run('gh', args) } = {}) {
+  const results = await mapLimit(chunkRequests(requests), GH_CONCURRENCY, async (chunk) => {
+    try {
+      return { byRepo: await queryBranchPrs(chunk, runGh), errors: [] };
+    } catch (error) {
+      if (chunk.length === 1) return { byRepo: {}, errors: [{ source: 'github', message: `${chunk[0].repo}: ${error.message}` }] };
+      const alone = await mapLimit(chunk, GH_CONCURRENCY, (request) => fetchBranchPrs([request], { runGh }));
+      return { byRepo: Object.assign({}, ...alone.map((a) => a.byRepo)), errors: alone.flatMap((a) => a.errors) };
+    }
+  });
+  return { byRepo: Object.assign({}, ...results.map((r) => r.byRepo)), errors: results.flatMap((r) => r.errors) };
 }
 
 /** The login of the authenticated gh user. */

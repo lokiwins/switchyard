@@ -1,5 +1,5 @@
 import { h, liveTime, readPref, refreshLiveTimes, toast, writePref } from './dom.js';
-import { startNavBadges } from './nav.js';
+import { applyNav, startNavBadges } from './nav.js';
 import {
   FILTERS, matchesQuery, prTiles, renderPrList, renderPrTiles, renderTeamList,
 } from './pr-views.js';
@@ -100,6 +100,7 @@ async function load({ force = false } = {}) {
     const body = await res.json();
     if (!body.success) throw new Error(body.error ?? `HTTP ${res.status}`);
     ui.data = body.data;
+    applyNav(body.data.nav);
     render();
   } catch (error) {
     renderErrors([{ source: 'monitor', message: `Could not load pull requests: ${error.message}` }]);
@@ -117,6 +118,7 @@ function connect() {
   stream = new EventSource('/api/prs/stream');
   stream.addEventListener('prs', (event) => {
     ui.data = JSON.parse(event.data);
+    applyNav(ui.data.nav);
     ui.live = true;
     render();
   });

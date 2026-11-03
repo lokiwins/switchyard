@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isCopilotLogin, parseGithubRemote, summarizeChecks, summarizeReviews } from '../src/github.js';
+import {
+  buildBranchPrQuery, fetchBranchPrs, isCopilotLogin, parseGithubRemote, summarizeChecks, summarizeReviews,
+} from '../src/github.js';
 
 test('parseGithubRemote handles ssh and https remotes', () => {
   assert.equal(parseGithubRemote('git@github.com:acme-inc/web-app.git'), 'acme-inc/web-app');
@@ -89,4 +91,62 @@ test('isCopilotLogin matches the Copilot reviewer with or without the bot suffix
   assert.equal(isCopilotLogin('copilot-pull-request-reviewer[bot]'), true);
   assert.equal(isCopilotLogin('copilot'), false);
   assert.equal(isCopilotLogin(undefined), false);
+});
+
+const requests = [
+  { repo: 'acme/web', branches: ['feat-a', 'fix/b'] },
+  { repo: 'acme/api', branches: ['feat-c'] },
+];
+
+test('buildBranchPrQuery asks for every branch in one query, with all values as variables', () => {
+  const { query, variables } = buildBranchPrQuery(requests);
+  assert.deepEqual(variables, {
+    o0: 'acme', n0: 'web', b0_0: 'feat-a', b0_1: 'fix/b', o1: 'acme', n1: 'api', b1_0: 'feat-c',
+  });
+  assert.match(query, /r0: repository\(owner: \$o0, name: \$n0\)/);
+  assert.match(query, /b1: pullRequests\(headRefName: \$b0_1, /);
+  assert.match(query, /r1: repository\(owner: \$o1, name: \$n1\) \{ b0: pullRequests\(headRefName: \$b1_0, /);
+  for (const value of Object.values(variables)) assert.equal(query.includes(value), false);
+});
+
+const node = (number, headRefName, state = 'OPEN') => ({ number, headRefName, state, title: `PR ${number}` });
+const response = {
+  data: {
+    r0: { b0: { nodes: [node(1, 'feat-a')] }, b1: { nodes: [] } },
+    r1: { b0: { nodes: [node(7, 'feat-c', 'MERGED'), node(3, 'feat-c', 'CLOSED')] } },
+  },
+};
+
+test('fetchBranchPrs makes one gh call and returns each repo\'s PRs', async () => {
+  const calls = [];
+  const result = await fetchBranchPrs(requests, {
+    runGh: async (args) => { calls.push(args); return JSON.stringify(response); },
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].slice(0, 2), ['api', 'graphql']);
+  assert.ok(calls[0].includes('b0_1=fix/b'));
+  assert.deepEqual(result.byRepo['acme/web'].map((pr) => pr.number), [1]);
+  assert.deepEqual(result.byRepo['acme/api'].map((pr) => pr.number), [7, 3]);
+  assert.deepEqual(result.errors, []);
+});
+
+test('fetchBranchPrs retries repo by repo when the batch fails, so one bad repo only loses its own PRs', async () => {
+  const result = await fetchBranchPrs(requests, {
+    runGh: async (args) => {
+      if (args.includes('n1=api') && args.includes('n0=web')) throw new Error('Could not resolve to a Repository');
+      if (args.includes('n0=api')) throw new Error('Could not resolve to a Repository');
+      return JSON.stringify({ data: { r0: { b0: { nodes: [node(1, 'feat-a')] }, b1: { nodes: [] } } } });
+    },
+  });
+  assert.deepEqual(result.byRepo['acme/web'].map((pr) => pr.number), [1]);
+  assert.equal(result.byRepo['acme/api'], undefined);
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0].message, /acme\/api/);
+});
+
+test('fetchBranchPrs splits very large batches', async () => {
+  const many = [{ repo: 'acme/web', branches: Array.from({ length: 150 }, (_, i) => `b${i}`) }, { repo: 'acme/api', branches: ['x'] }];
+  let calls = 0;
+  await fetchBranchPrs(many, { runGh: async () => { calls += 1; return JSON.stringify({ data: {} }); } });
+  assert.equal(calls, 2);
 });

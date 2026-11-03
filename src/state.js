@@ -1,9 +1,17 @@
 import { mapLimit, run } from './exec.js';
-import { discoverRepos, getBranchRefs, getRemoteUrl, getStatuses } from './git.js';
-import { fetchPrDetails, fetchRepoPrs, parseGithubRemote } from './github.js';
+import { discoverRepos, getBranchRefs, getRemoteUrl } from './git.js';
+import { fetchBranchPrs, fetchPrDetails, parseGithubRemote } from './github.js';
 import { DEFAULT_SETTINGS } from './settings.js';
+import { createStatusTracker } from './status-tracker.js';
 
-const STATE_TTL_MS = 10_000;
+// git status only runs where files changed (see status-tracker.js) and GitHub data refreshes
+// in the background on its own TTLs, so a full rebuild is cheap enough to do every few seconds.
+const STATE_TTL_MS = 3_000;
+// Sessions alone are cheap (local files, no git status, no GitHub), so they can be much fresher.
+const SESSIONS_TTL_MS = 2_000;
+const LOCAL_TTL_MS = 3_000;
+// The sessions view shows PR links from the last full scan; rescan in the background when it gets this old.
+const FULL_SCAN_STALE_MS = 5 * 60_000;
 const REPOS_TTL_MS = 60_000;
 const PR_TTL_MS = 60_000;
 const CHECKS_TTL_MS = 90_000;
@@ -84,34 +92,71 @@ function latestOf(...timestamps) {
   return valid.length ? Math.max(...valid) : null;
 }
 
-export function createStateService({ config, claude, cache }) {
+/**
+ * @param {object} deps
+ * @param {() => object|null} [deps.prSnapshot] The PR page's live sync (see pr-sync.js), whose
+ *   details for your open PRs are reused here instead of being fetched a second time.
+ */
+export function createStateService({
+  config, claude, cache,
+  statusTracker = createStatusTracker(),
+  github = { fetchBranchPrs, fetchPrDetails },
+  prSnapshot = () => null,
+}) {
   const settings = config.settings ?? DEFAULT_SETTINGS;
 
-  async function fetchMyOpenPrs(force) {
-    return cache.get('my-open-prs', PR_TTL_MS, async () => JSON.parse(await run('gh', [
-      'search', 'prs', '--author=@me', '--state=open', '--limit', '100',
-      '--json', 'number,title,url,isDraft,updatedAt,repository',
-    ])), { force });
+  /**
+   * A cached GitHub read. With `github` off (the local view) it never calls
+   * GitHub and uses whatever the last full scan cached, or `fallback`.
+   */
+  function fromGithub(key, ttlMs, load, { force, github, fallback }) {
+    if (!github) return Promise.resolve(cache.peek(key) ?? fallback);
+    return cache.get(key, ttlMs, load, { force });
   }
 
-  async function loadRepoPrs(github, force) {
+  /** Your open PRs: from the PR sync once it has loaded, otherwise one search. */
+  async function fetchMyOpenPrs(scan, sync) {
+    if (sync?.loaded) return sync.authored;
+    return fromGithub('my-open-prs', PR_TTL_MS, async () => JSON.parse(await run('gh', [
+      'search', 'prs', '--author=@me', '--state=open', '--limit', '100',
+      '--json', 'number,title,url,isDraft,updatedAt,repository',
+    ])), { ...scan, fallback: [] });
+  }
+
+  /**
+   * The PRs for every checked-out branch, in one batched query. A new branch
+   * set (a worktree added or switched) refetches right away instead of waiting out the TTL.
+   */
+  async function loadBranchPrs(requests, scan) {
+    const signature = JSON.stringify(requests);
+    const empty = { signature, byRepo: {}, errors: [] };
+    if (requests.length === 0) return empty;
+    const cached = cache.peek('branch-prs');
+    const force = scan.force || (scan.github && cached !== undefined && cached.signature !== signature);
     try {
-      return { prs: await cache.get(`prs:${github}`, PR_TTL_MS, () => fetchRepoPrs(github), { force }), error: null };
+      return await fromGithub('branch-prs', PR_TTL_MS, async () => ({ signature, ...await github.fetchBranchPrs(requests) }),
+        { ...scan, force, fallback: empty });
     } catch (error) {
-      return { prs: [], error: { source: 'github', message: error.message } };
+      return { ...empty, errors: [{ source: 'github', message: error.message }] };
     }
   }
 
-  async function attachChecks(github, pr, force) {
+  async function attachChecks(repo, pr, scan, sync) {
     if (!pr || pr.state !== 'OPEN') return pr;
-    const key = `checks:${github}#${pr.number}`;
-    const [detail] = await cache.get(key, CHECKS_TTL_MS, () => fetchPrDetails([{ repo: github, number: pr.number }], settings.ci), { force });
+    // The PR sync keeps your open PRs' checks fresh already; only other people's need a fetch.
+    const synced = sync?.entries.get(`${repo}#${pr.number}`)?.pr;
+    if (synced) {
+      const { checks, mergeStateStatus, reviewDecision, isDraft } = synced;
+      return { ...pr, checks, mergeStateStatus, reviewDecision, isDraft };
+    }
+    const load = () => github.fetchPrDetails([{ repo, number: pr.number }], settings.ci);
+    const [detail] = await fromGithub(`checks:${repo}#${pr.number}`, CHECKS_TTL_MS, load, { ...scan, fallback: [] });
     return { ...pr, ...(detail ?? {}) };
   }
 
-  async function buildWorktree({ repo, github, worktree, status, refs, prs, liveSessions, force }) {
+  async function buildWorktree({ repo, remote, worktree, status, refs, prs, liveSessions, scan, sync }) {
     const isMain = worktree.path === repo.mainPath;
-    const pr = github ? await attachChecks(github, matchPr(prs, worktree.branch, settings.git.isLongLivedBranch), force) : null;
+    const pr = remote ? await attachChecks(remote, matchPr(prs, worktree.branch, settings.git.isLongLivedBranch), scan, sync) : null;
     const lastSession = await claude.latestSession(worktree.path);
     const recentSessions = await claude.recentSessions(worktree.path, {
       exclude: new Set(liveSessions.map((s) => s.sessionId)),
@@ -136,22 +181,19 @@ export function createStateService({ config, claude, cache }) {
     };
   }
 
-  async function buildRepo({ repo, github }, { sessionsByWorktree, prRepos, force }) {
-    const errors = [];
+  async function buildRepo({ repo, github: remote }, { sessionsByWorktree, branchPrs, scan, sync }) {
     const [statuses, refs] = await Promise.all([
-      getStatuses(repo.worktrees),
+      // git status is the slow part of a local scan; the sessions view leaves it out.
+      scan.git ? statusTracker.statuses(repo.worktrees) : repo.worktrees.map(() => null),
       getBranchRefs(repo.mainPath).catch(() => new Map()),
     ]);
-    const prResult = github && prRepos.has(github) ? await loadRepoPrs(github, force) : { prs: [], error: null };
-    if (prResult.error) errors.push(prResult.error);
-
     const worktrees = await Promise.all(repo.worktrees.map((worktree, i) => buildWorktree({
-      repo, github, worktree, refs, force,
+      repo, remote, worktree, refs, scan, sync,
       status: statuses[i],
-      prs: prResult.prs,
+      prs: (remote && branchPrs.byRepo[remote]) ?? [],
       liveSessions: sessionsByWorktree.get(worktree.path) ?? [],
     })));
-    return { repo: { name: repo.name, mainPath: repo.mainPath, github, worktrees }, errors };
+    return { name: repo.name, mainPath: repo.mainPath, github: remote, worktrees };
   }
 
   function groupSessions(liveSessions, worktreePaths) {
@@ -182,6 +224,18 @@ export function createStateService({ config, claude, cache }) {
     });
   }
 
+  /** One request per relevant repo: its checked-out branches that could have a PR. */
+  function branchRequests(reposWithRemote, prRepos) {
+    return reposWithRemote
+      .filter(({ github: remote }) => remote && prRepos.has(remote))
+      .map(({ repo, github: remote }) => ({
+        repo: remote,
+        branches: [...new Set(repo.worktrees.map((w) => w.branch)
+          .filter((branch) => branch && !settings.git.isLongLivedBranch(branch)))],
+      }))
+      .filter((request) => request.branches.length > 0);
+  }
+
   /** Repos worth querying GitHub for: those with linked worktrees, live agents, or my open PRs. */
   function relevantGithubRepos(reposWithRemote, myOpenPrs, sessionsByWorktree) {
     const active = reposWithRemote
@@ -192,10 +246,17 @@ export function createStateService({ config, claude, cache }) {
     return new Set([...active, ...myOpenPrs.map((pr) => pr.repository.nameWithOwner)]);
   }
 
-  async function build({ force = false } = {}) {
+  /**
+   * The whole board. `github: false` uses only PR data a full scan already
+   * cached; `git: false` also skips git status, leaving just sessions.
+   */
+  async function build({ force = false, github = true, git = true } = {}) {
+    const scan = { force, github, git };
     const errors = [];
     const discovered = await cache.get('repos', REPOS_TTL_MS, () => discoverRepos(config.roots), { force });
     errors.push(...discovered.errors);
+    // Watching is what lets a scan skip git status in worktrees where nothing changed.
+    if (git) await statusTracker.track(discovered.repos);
 
     const worktreePaths = discovered.repos.flatMap((r) => r.worktrees.map((w) => w.path));
     const now = Date.now();
@@ -206,7 +267,8 @@ export function createStateService({ config, claude, cache }) {
       liveSessionIds: new Set(liveSessions.map((s) => s.sessionId)),
     });
 
-    const myOpenPrs = await fetchMyOpenPrs(force).catch((error) => {
+    const sync = prSnapshot();
+    const myOpenPrs = await fetchMyOpenPrs(scan, sync).catch((error) => {
       errors.push({ source: 'github', message: error.message });
       return [];
     });
@@ -214,11 +276,12 @@ export function createStateService({ config, claude, cache }) {
     const reposWithRemote = discovered.repos.map((repo, i) => ({ repo, github: parseGithubRemote(remotes[i]) }));
     const prRepos = relevantGithubRepos(reposWithRemote, myOpenPrs, byWorktree);
 
-    const results = await mapLimit(reposWithRemote, REPO_CONCURRENCY, (repo) => buildRepo(repo, {
-      sessionsByWorktree: byWorktree, prRepos, force,
+    const branchPrs = await loadBranchPrs(branchRequests(reposWithRemote, prRepos), scan);
+    errors.push(...branchPrs.errors);
+
+    const repos = await mapLimit(reposWithRemote, REPO_CONCURRENCY, (repo) => buildRepo(repo, {
+      sessionsByWorktree: byWorktree, branchPrs, scan, sync,
     }));
-    results.forEach((r) => errors.push(...r.errors));
-    const repos = results.map((r) => r.repo);
 
     const matchedPrUrls = new Set(repos.flatMap((r) => r.worktrees.map((w) => w.pr?.url).filter(Boolean)));
     return {
@@ -237,7 +300,24 @@ export function createStateService({ config, claude, cache }) {
     };
   }
 
+  const getState = ({ force = false } = {}) => cache.get('state', STATE_TTL_MS, () => build({ force }), { force });
+
+  /** Keep the cached PR links the sessions view borrows from going stale, without a full scan on every poll. */
+  function refreshFullScanIfOld() {
+    // The server's startup scan provides the first one; this only keeps it from going stale.
+    const lastFull = cache.peek('state')?.generatedAt;
+    if (lastFull && Date.now() - lastFull > FULL_SCAN_STALE_MS) getState().catch(() => {});
+  }
+
   return {
-    getState: ({ force = false } = {}) => cache.get('state', STATE_TTL_MS, () => build({ force }), { force }),
+    /** Everything, GitHub included: the Worktrees page. */
+    getState,
+    /** git and sessions, no GitHub calls: what the PR page needs to know about local checkouts. */
+    getLocal: ({ force = false } = {}) => cache.get('local', LOCAL_TTL_MS, () => build({ force, github: false }), { force }),
+    /** Sessions and where they run, without git status or GitHub calls: the Agents page, badges and actions. */
+    getSessions: ({ force = false } = {}) => {
+      refreshFullScanIfOld();
+      return cache.get('sessions', SESSIONS_TTL_MS, () => build({ force, github: false, git: false }), { force });
+    },
   };
 }

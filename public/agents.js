@@ -2,9 +2,10 @@ import { h, readPref, timeAgo, writePref } from './dom.js';
 import { sessionSearchText } from './session-text.js';
 import { locateSession, renderLiveList } from './agent-views.js';
 import { renderEnded } from './ended-views.js';
-import { startNavBadges } from './nav.js';
+import { applyNav, startNavBadges } from './nav.js';
 
-const POLL_MS = 15_000;
+// Sessions change by the second and this feed is local-only and cheap, so it polls fast.
+const POLL_MS = 4_000;
 const FILTER_PREF = 'switchyard.agentFilter';
 
 const isWaiting = (s) => s.status === 'idle' && !s.parked;
@@ -152,10 +153,11 @@ async function load({ force = false } = {}) {
   $('refresh').disabled = true;
   if (!ui.state) $('running').replaceChildren(h('div', { class: 'empty' }, 'Looking for agent sessions…'));
   try {
-    const res = await fetch(`/api/state${force ? '?refresh=1' : ''}`);
+    const res = await fetch(`/api/agents${force ? '?refresh=1' : ''}`);
     const body = await res.json();
     if (!body.success) throw new Error(body.error ?? `HTTP ${res.status}`);
     ui.state = body.data;
+    applyNav(body.data.nav);
     render();
   } catch (error) {
     renderErrors([{ source: 'monitor', message: `Could not load sessions: ${error.message}` }]);
