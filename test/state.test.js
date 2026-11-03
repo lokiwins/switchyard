@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createSwrCache } from '../src/cache.js';
 import {
-  INTERRUPTED_ATTENTION_MS, PARKED_AFTER_MS, deriveFlags, findWorktreeForPath, isParked, matchPr, needsAttention,
+  INTERRUPTED_ATTENTION_MS, PARKED_AFTER_MS, createStateService, deriveFlags, findWorktreeForPath, isParked, matchPr, needsAttention,
 } from '../src/state.js';
 
 const clean = { changed: 0, untracked: 0, conflicted: 0, ahead: 0, behind: 0, upstream: 'origin/x' };
@@ -78,4 +79,29 @@ test('a recently interrupted session flags its worktree for attention unless an 
   assert.deepEqual(deriveFlags({ isMain: false, status: clean, pr: null, liveSessions: [], lastSession: old }, now), []);
   const finished = { ...interrupted, transcript: { endState: 'finished' } };
   assert.deepEqual(deriveFlags({ isMain: false, status: clean, pr: null, liveSessions: [], lastSession: finished }, now), []);
+});
+
+function fakeClaude(live = []) {
+  return {
+    liveSessions: async () => live,
+    latestSession: async () => null,
+    recentSessions: async () => [],
+    endedSessions: async () => [],
+  };
+}
+
+/** A real cache that records which keys were asked to load, so tests can tell local work from GitHub work. */
+function spyCache() {
+  const cache = createSwrCache();
+  const loaded = [];
+  return { ...cache, loaded, get: (key, ...rest) => { loaded.push(key); return cache.get(key, ...rest); } };
+}
+
+test('the sessions view never asks GitHub', async () => {
+  const cache = spyCache();
+  const service = createStateService({ config: { roots: [] }, claude: fakeClaude([{ sessionId: 's1', cwd: '/x', status: 'busy' }]), cache });
+  const local = await service.getSessions();
+  assert.deepEqual(local.liveSessions.map((s) => s.sessionId), ['s1']);
+  assert.deepEqual(local.prsWithoutWorktree, []);
+  assert.equal(cache.loaded.some((key) => key === 'my-open-prs' || key.startsWith('prs:') || key.startsWith('checks:')), false);
 });

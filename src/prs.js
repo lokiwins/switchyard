@@ -7,6 +7,8 @@ import { DEFAULT_SETTINGS } from './settings.js';
 // request keeps it running once no PR page stream is open.
 const TICK_MS = 5_000;
 const WATCH_GRACE_MS = 2 * 60_000;
+// The Worktrees page polls every few seconds; this covers a few missed polls.
+const ACTIVE_GRACE_MS = 30_000;
 const REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 export { ActionError };
@@ -104,6 +106,7 @@ function prFromEntry(item, entry) {
 export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sync = null, now = Date.now }) {
   const listeners = new Set();
   let lastTouched = 0;
+  let lastActive = 0;
   let timer = null;
   const prSync = sync ?? createPrSync({ settings, onUpdate: () => notify() });
 
@@ -156,9 +159,22 @@ export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sy
     return build();
   }
 
+  /**
+   * A page showing PR status without streaming this one (the Worktrees page)
+   * is watching too: keep the sync at full pace and make sure it has started.
+   */
+  function markActive() {
+    lastActive = now();
+    lastTouched = lastActive;
+    prSync.ensureLoaded().catch(() => {});
+  }
+
+  /** The sync's current data, for the Worktrees page; never waits on GitHub. */
+  const syncSnapshot = () => prSync.snapshot();
+
   /** Interval multiplier for the current audience, or null to pause. */
   function pace() {
-    if (listeners.size > 0) return 1;
+    if (listeners.size > 0 || now() - lastActive < ACTIVE_GRACE_MS) return 1;
     return now() - lastTouched < WATCH_GRACE_MS ? BACKGROUND_FACTOR : null;
   }
 
@@ -198,5 +214,5 @@ export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sy
     return { requested: true, ...ref };
   }
 
-  return { getPrs, subscribe, start, stop, pace, copilotReview };
+  return { getPrs, subscribe, start, stop, pace, markActive, syncSnapshot, copilotReview };
 }

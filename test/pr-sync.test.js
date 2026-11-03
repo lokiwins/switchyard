@@ -142,3 +142,21 @@ test('the page shows when each PR was checked and flags failed refreshes', async
   assert.equal(page.syncedAt, c.now());
   assert.ok(page.authored.every((p) => Number.isFinite(p.fetchedAt)));
 });
+
+test('the Worktrees page counts as an active viewer, and can read the sync without waiting on it', async () => {
+  const { github } = fakeGithub();
+  const c = clock();
+  const sync = createPrSync({ ...github, now: c.now });
+  const service = createPrService({ getLocalIndex: async () => new Map(), sync, now: c.now });
+
+  assert.equal(service.syncSnapshot().loaded, false);
+  service.markActive();
+  assert.equal(service.pace(), 1);
+  await sync.ensureLoaded();
+  assert.equal(service.syncSnapshot().loaded, true);
+  assert.equal(service.syncSnapshot().entries.size > 0, true);
+  c.advance(60_000);
+  assert.equal(service.pace(), BACKGROUND_FACTOR);
+  c.advance(3 * 60_000);
+  assert.equal(service.pace(), null);
+});

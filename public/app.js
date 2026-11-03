@@ -2,9 +2,10 @@ import { h, readPref, shortPath, timeAgo, writePref } from './dom.js';
 import {
   SEGMENTED_VIEWS, VIEWS, renderOrphanPrs, renderRepos, renderTiles, summarize,
 } from './views.js';
-import { startNavBadges } from './nav.js';
+import { applyNav, startNavBadges } from './nav.js';
 
-const POLL_MS = 15_000;
+// Rebuilds reuse git status where nothing changed and cached GitHub data, so this can poll often.
+const POLL_MS = 5_000;
 const VIEW_PREF = 'switchyard.view';
 const COLLAPSED_PREF = 'switchyard.collapsed';
 
@@ -96,6 +97,7 @@ async function load({ force = false } = {}) {
     const body = await res.json();
     if (!body.success) throw new Error(body.error ?? `HTTP ${res.status}`);
     ui.state = body.data;
+    applyNav(body.data.nav);
     render();
   } catch (error) {
     renderErrors([{ source: 'monitor', message: `Could not load state: ${error.message}` }]);

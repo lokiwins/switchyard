@@ -148,6 +148,8 @@ export function createPrSync({
 
   function snapshot() {
     return {
+      // False until the first search returns, so callers can tell "no PRs" from "not loaded yet".
+      loaded: lists.authored !== null,
       authored: lists.authored ?? [],
       direct: lists.direct ?? [],
       team: lists.team ?? [],
