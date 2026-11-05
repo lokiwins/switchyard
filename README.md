@@ -51,13 +51,25 @@ A web page can't touch your terminal, but the switchyard server runs on your mac
   - **VS Code, Cursor, Windsurf**: brings forward the window for the session's folder. You pick the terminal there.
   - **Other apps** (e.g. Codex in the ChatGPT app): brings the app to the front.
 
-  Jump never starts anything new. A running session always has its tab, and resuming it again would create a second copy of a live session.
+  If the session's tab was closed, Jump resumes it in a new tab instead.
+- **Allow / Deny** appear on a session waiting on a permission prompt, showing what Claude wants to run or touch. Allow runs it once. Deny stops Claude to wait for you, like "No" in the terminal. The terminal's own prompt stays open the whole time, and whichever you answer first wins. This needs a one-time hook (see below).
+- **Reply ▾** (sessions in iTerm) types a one-line message into the session's tab and presses Return, as if you'd typed it there. A message sent while Claude is working is queued until its current step finishes. It's refused while a question or prompt is open, because the text would answer it. It lands after anything already typed in that tab's input box.
 - **Resume** (ended sessions) opens a new tab that runs `cd <dir> && claude --resume <id>`.
 - **Terminal** (worktrees, PRs) opens a new tab in that folder.
 - **Code** opens the folder in your editor.
 - **⧉** buttons copy the command instead, for anywhere else.
 
 New tabs go into the front iTerm window. If iTerm has no windows, a new window opens; if it isn't running, it launches and uses the window it opens. Terminal.app always opens a new window, because it has no scriptable "new tab".
+
+### Answering permission prompts from the page
+
+Claude Code sends each permission prompt to a `PermissionRequest` hook while also showing it in the terminal. Add switchyard's hook to `~/.claude/settings.json` once:
+
+```sh
+npm run hook -- install   # or: remove, status
+```
+
+Running sessions pick it up without a restart. The hook waits up to an hour for an answer from the page; the terminal prompt works throughout. When switchyard isn't running, the hook can't connect and Claude Code simply shows its usual prompt. Questions Claude asks you (`AskUserQuestion`) stay in the terminal.
 
 The first time you use these, macOS asks whether to let switchyard's terminal control iTerm or Terminal (System Settings → Privacy & Security → Automation).
 
@@ -97,4 +109,6 @@ Lists replace the defaults rather than adding to them.
 
 The server binds to `127.0.0.1` and rejects requests whose `Host` header isn't `localhost`/`127.0.0.1`, which blocks DNS rebinding. Responses carry a strict CSP. The API exposes local paths and your prompts, so don't proxy it anywhere.
 
-The action endpoints (`POST /api/prs/copilot-review` and `/api/terminal/*`) also require an `Origin` matching the dashboard and an `application/json` body, so other websites open in your browser can't trigger it. They only act on things the server itself discovered. The browser names a PR, a session ID or a worktree path, never a command. The server builds every command from a fixed template, passes values to AppleScript as arguments rather than splicing them into the script, and refuses multi-line commands.
+The action endpoints (`POST /api/prs/copilot-review`, `/api/approvals/decide` and `/api/terminal/*`) also require an `Origin` matching the dashboard and an `application/json` body, so other websites open in your browser can't trigger it. They only act on things the server itself discovered. The browser names a PR, a session ID or a worktree path, never a command. The server builds every command from a fixed template, passes values to AppleScript as arguments rather than splicing them into the script, and refuses multi-line commands. A reply is the one place where the browser supplies text. It's typed as plain text, and control characters such as Return or Esc are refused so it can't act as keystrokes. It still reaches Claude Code exactly as if you'd typed it, including `/` commands and `!` shell commands, so the Origin check is what keeps other sites from sending one.
+
+The hook endpoint (`POST /hooks/permission-request`) is called by Claude Code, not the page. It refuses any request carrying an `Origin` header, which browsers always send, so a website can't reach it. A local program could post a fake request, but that only adds a row to the page; answering it affects nothing. The hook trusts whatever answers on its port. If switchyard isn't running, another program could take that port and approve prompts. Any program running as you could already do worse, so this only matters on a Mac shared with other accounts. There, use `npm run hook -- remove` while switchyard is off.

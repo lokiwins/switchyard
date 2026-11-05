@@ -3,6 +3,7 @@ import { sessionSearchText } from './session-text.js';
 import { locateSession, renderLiveList } from './agent-views.js';
 import { renderEnded } from './ended-views.js';
 import { applyNav, startNavBadges } from './nav.js';
+import { isTypingReply } from './session-controls.js';
 
 // Sessions change by the second and this feed is local-only and cheap, so it polls fast.
 const POLL_MS = 4_000;
@@ -96,12 +97,21 @@ function renderErrors(errors) {
   el.replaceChildren(...errors.map((e) => h('div', {}, `${e.source}: ${e.message}`)));
 }
 
+/** Shown when a session needs you but its prompts can't be answered here yet. */
+function hookHint(state, sessions) {
+  if (state.capabilities?.approvalsHook !== false || !sessions.some((s) => s.needsYou)) return null;
+  return h('p', { class: 'hint' }, 'To allow or deny permission prompts from this page, run ',
+    h('code', {}, 'npm run hook -- install'), ' in the switchyard folder.');
+}
+
 function renderRunning(state, filter) {
   const panel = $('running').closest('.panel');
   panel.hidden = !filter.live;
   if (!filter.live) return;
+  // Replacing the list would take away the reply box you're typing in; the next refresh catches up.
+  if (isTypingReply()) return;
   const sessions = state.liveSessions.filter((s) => filter.live(s) && liveMatches(state, s));
-  $('running').replaceChildren(...renderLiveList(state, sessions, {
+  $('running').replaceChildren(hookHint(state, sessions) ?? '', ...renderLiveList(state, sessions, {
     showParked: ui.showParked || ui.filter === 'parked',
     onToggleParked: () => {
       ui.showParked = !ui.showParked;
@@ -172,6 +182,7 @@ $('search').addEventListener('input', (event) => {
   ui.query = event.target.value.trim();
   render();
 });
+document.addEventListener('switchyard:changed', () => load());
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) load();
 });

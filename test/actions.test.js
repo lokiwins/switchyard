@@ -8,10 +8,10 @@ const iterm = { kind: 'terminal', label: 'iTerm', app: 'iTerm', appName: 'iTerm'
 const vscode = { kind: 'editor', label: 'VS Code', scheme: 'vscode', appName: 'Visual Studio Code' };
 const chatgpt = { kind: 'app', label: 'ChatGPT', appName: 'ChatGPT' };
 
-function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, state = {} } = {}) {
+function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {} } = {}) {
   const calls = [];
   const fullState = {
-    liveSessions: [{ sessionId: ID, pid: 42, cwd: '/w/my repo', host, resumeCommand: `cd '/w/my repo' && claude --resume ${ID}` }],
+    liveSessions: [{ sessionId: ID, pid: 42, cwd: '/w/my repo', host, status: 'idle', needsYou: false, resumeCommand: `cd '/w/my repo' && claude --resume ${ID}`, ...session }],
     endedSessions: [{ sessionId: 'ended-session-1', resumeCommand: "cd '/w/old' && claude --resume ended-session-1" }],
     repos: [{ worktrees: [{ path: '/w/feat', agents: { live: [], last: null, recent: [{ sessionId: 'recent-session-1', resumeCommand: "cd /w/feat && claude --resume recent-session-1" }] } }, { path: '/w/gone', prunable: true, agents: { live: [] } }] }],
     ...state,
@@ -20,6 +20,7 @@ function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = tr
     app: 'iTerm',
     focus: async (t) => { calls.push(['focus', t]); return tabFound; },
     open: async (command) => { calls.push(['open', command]); },
+    type: async (t, text) => { calls.push(['type', t, text]); return tabFound; },
   };
   const actions = createActionService({
     stateService: { getState: async () => fullState },
@@ -114,6 +115,44 @@ test("Open resumes a chosen session only if it is one of that worktree's session
   assert.deepEqual(calls, [['open', 'cd /w/feat && claude --resume recent-session-1']]);
   await rejectsWith(actions.openWorktree({ path: '/w/feat', sessionId: 'ended-session-1' }), 404);
   await rejectsWith(actions.openWorktree({ path: '/w/feat', sessionId: '$(boom)' }), 400);
+});
+
+test('a reply is typed into the session’s own tab and submitted', async () => {
+  const { actions, calls } = setup();
+  assert.deepEqual(await actions.replyToSession({ sessionId: ID, text: '  Yes, go ahead with plan B  ' }), { queued: false });
+  assert.deepEqual(calls, [['type', '/dev/ttys004', 'Yes, go ahead with plan B']]);
+});
+
+test('a reply to a working session is queued, as Claude Code reads it after the current step', async () => {
+  const { actions } = setup({ session: { status: 'busy' } });
+  assert.deepEqual(await actions.replyToSession({ sessionId: ID, text: 'also run the tests' }), { queued: true });
+});
+
+test('a reply is refused while a question or permission prompt is open, since the text would answer it', async () => {
+  const { actions, calls } = setup({ session: { needsYou: true } });
+  await rejectsWith(actions.replyToSession({ sessionId: ID, text: '1' }), 409);
+  assert.deepEqual(calls, []);
+});
+
+test('a reply must be one line of plain text', async () => {
+  const { actions, calls } = setup();
+  await rejectsWith(actions.replyToSession({ sessionId: ID, text: 'first\nsecond' }), 400);
+  await rejectsWith(actions.replyToSession({ sessionId: ID, text: 'stop\u001b' }), 400);
+  await rejectsWith(actions.replyToSession({ sessionId: ID, text: 'csi\u009b2J' }), 400);
+  await rejectsWith(actions.replyToSession({ sessionId: ID, text: 'line\u2028break' }), 400);
+  await rejectsWith(actions.replyToSession({ sessionId: ID, text: '   ' }), 400);
+  await rejectsWith(actions.replyToSession({ sessionId: ID, text: 'x'.repeat(2001) }), 400);
+  await rejectsWith(actions.replyToSession({ sessionId: ID, text: 42 }), 400);
+  assert.deepEqual(calls, []);
+});
+
+test('a reply needs a running iTerm session whose tab can be found', async () => {
+  await rejectsWith(setup({ host: vscode }).actions.replyToSession({ sessionId: ID, text: 'hi' }), 501);
+  await rejectsWith(setup({ host: { ...iterm, label: 'Terminal', app: 'Terminal', appName: 'Terminal' } }).actions.replyToSession({ sessionId: ID, text: 'hi' }), 501);
+  await rejectsWith(setup({ alive: false }).actions.replyToSession({ sessionId: ID, text: 'hi' }), 409);
+  await rejectsWith(setup({ tty: null }).actions.replyToSession({ sessionId: ID, text: 'hi' }), 409);
+  await rejectsWith(setup({ tabFound: false }).actions.replyToSession({ sessionId: ID, text: 'hi' }), 404);
+  await rejectsWith(setup().actions.replyToSession({ sessionId: 'ended-session-1', text: 'hi' }), 404);
 });
 
 test('typed commands must be a single line', () => {

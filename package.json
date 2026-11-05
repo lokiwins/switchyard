@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node src/server.js",
+    "hook": "node src/hook-cli.js",
     "test": "node --test test/"
   }
 }

@@ -2,10 +2,14 @@ import { isProcessAlive } from './agents/process.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuote } from './shell.js';
-import { createTerminal, ttyOf } from './terminal.js';
+import { canTypeInto, createTerminal, ttyOf } from './terminal.js';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
 const WORKTREE_LAUNCHES = new Set(['shell', 'claude']);
+const MAX_REPLY_LENGTH = 2000;
+// Control characters would act as keys (Return submits, Esc interrupts) rather than text;
+// C1 controls and Unicode line separators are refused too, in case a terminal acts on them.
+const CONTROL_CHARACTERS = /[\0-\x1f\x7f-\x9f\u2028\u2029]/;
 
 /** Editors open a folder (and focus the window that already has it) via <scheme>://file/<path>. */
 export function editorUrl(scheme, path) {
@@ -23,6 +27,15 @@ export function parseSessionId(body) {
   const id = body?.sessionId;
   if (typeof id !== 'string' || !SESSION_ID_PATTERN.test(id)) throw new ActionError(400, 'Expected { sessionId: "<id>" }');
   return id;
+}
+
+/** A reply's text: one line of plain text, trimmed. */
+export function parseReply(body) {
+  const text = typeof body?.text === 'string' ? body.text.trim() : '';
+  if (!text || text.length > MAX_REPLY_LENGTH || CONTROL_CHARACTERS.test(text)) {
+    throw new ActionError(400, `A reply must be one line of text, up to ${MAX_REPLY_LENGTH} characters`);
+  }
+  return text;
 }
 
 /** A session that has ended, from the Agents list or a worktree's last session. */
@@ -123,6 +136,30 @@ export function createActionService({
     return { precision: 'app', host: host.label };
   }
 
+  /**
+   * Type a message into a running session's tab, as if you'd typed it there.
+   * Claude Code queues a message sent while it's working. A message sent while
+   * a prompt is open would answer the prompt, so that is refused.
+   */
+  async function replyToSession(body) {
+    const sessionId = parseSessionId(body);
+    const text = parseReply(body);
+    const state = await stateService.getState();
+    const session = state.liveSessions.find((s) => s.sessionId === sessionId);
+    if (!session) throw new ActionError(404, "That session isn't running");
+    if (session.host?.kind !== 'terminal' || !canTypeInto(session.host.app)) {
+      throw new ActionError(501, 'Replying from switchyard works for sessions running in iTerm');
+    }
+    if (session.needsYou) throw new ActionError(409, 'It is showing a question or permission prompt; answer that first');
+    if (!isAlive(session.pid)) throw new ActionError(409, 'That session has ended');
+    const tty = await lookupTty(session.pid);
+    if (!tty) throw new ActionError(409, "That session's tab has closed");
+    if (!(await driverFor(session.host.app).type(tty, text))) {
+      throw new ActionError(404, `Couldn't find this session's tab in ${session.host.label}.`);
+    }
+    return { queued: session.status === 'busy' };
+  }
+
   /** Open a new tab that resumes an ended session in its own folder. */
   async function resumeSession(body) {
     const sessionId = parseSessionId(body);
@@ -159,5 +196,5 @@ export function createActionService({
     return { opened: true };
   }
 
-  return { focusSession, resumeSession, openWorktree };
+  return { focusSession, replyToSession, resumeSession, openWorktree };
 }

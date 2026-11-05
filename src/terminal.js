@@ -50,6 +50,23 @@ end run`,
   end tell
   return "opened"
 end run`,
+    // Types into the session that owns the tty, then presses Return, without bringing iTerm forward.
+    type: `on run argv
+  set targetTty to item 1 of argv
+  tell application "iTerm"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          if tty of s is targetTty then
+            tell s to write text (item 2 of argv)
+            return "typed"
+          end if
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  return "missing"
+end run`,
   },
   Terminal: {
     focus: `on run argv
@@ -79,6 +96,9 @@ end run`,
 };
 
 export const TERMINAL_APPS = Object.keys(SCRIPTS);
+
+/** Whether switchyard can type into one of this app's tabs (Terminal can't target a tab without focusing it). */
+export const canTypeInto = (app) => Boolean(SCRIPTS[app]?.type);
 
 export class TerminalError extends ActionError {}
 
@@ -128,6 +148,13 @@ export function createTerminal({ app, platform = process.platform }) {
     async focus(tty) {
       ensureSupported();
       return (await osascript(scripts.focus, [tty], app)) === 'found';
+    },
+
+    /** Type a line into the tab owning `tty` and submit it. Resolves false if no tab has it. */
+    async type(tty, text) {
+      ensureSupported();
+      if (!scripts.type) throw new TerminalError(501, `switchyard can't type into ${app} tabs`);
+      return (await osascript(scripts.type, [tty, assertSingleLine(text)], app)) === 'typed';
     },
 
     /** Open a new tab and type `command` into it. */

@@ -2,7 +2,7 @@ import { h, timeAgo, toast } from './dom.js';
 
 const EDITOR_LABELS = { vscode: 'VS Code', 'vscode-insiders': 'VS Code Insiders', cursor: 'Cursor', windsurf: 'Windsurf' };
 
-async function post(url, body) {
+export async function post(url, body) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -13,11 +13,14 @@ async function post(url, body) {
   return payload.data;
 }
 
+/** Tells the page something changed on the server, so it reloads now rather than at its next poll. */
+export const announceChange = () => document.dispatchEvent(new Event('switchyard:changed'));
+
 /** A button that runs a server action, disabling itself meanwhile and toasting the outcome. */
-function actionButton(label, title, perform) {
+export function actionButton(label, title, perform, className = 'btn btn-action') {
   return h('button', {
     type: 'button',
-    class: 'btn btn-action',
+    class: className,
     title,
     onclick: async (event) => {
       const button = event.currentTarget;
@@ -25,6 +28,7 @@ function actionButton(label, title, perform) {
       try {
         const message = await perform();
         if (message) toast(message);
+        announceChange();
       } catch (error) {
         toast(error.message);
       } finally {
@@ -59,8 +63,8 @@ export function resumeButton(session, caps) {
   });
 }
 
-// The folder whose Open menu is showing; pages re-render on a timer, so it is kept here to survive that.
-let openMenuPath = null;
+// The menu that is showing; pages re-render on a timer, so it is kept here to survive that.
+let openMenuKey = null;
 
 function closeMenus(except) {
   for (const menu of document.querySelectorAll('details.menu[open]')) {
@@ -90,6 +94,37 @@ function placePanel(menu) {
   panel.style.left = `${Math.max(VIEWPORT_MARGIN, button.right - panel.offsetWidth)}px`;
 }
 
+/**
+ * A dropdown that stays open across re-renders: a native <details> whose
+ * panel is placed under its button. `key` names it among the page's menus.
+ */
+export function dropdown({ key, label, title, className = 'btn btn-action', panelClass = '' }, ...content) {
+  return h('details', {
+    class: 'menu',
+    open: openMenuKey === key,
+    ontoggle: (event) => {
+      const menu = event.currentTarget;
+      if (menu.open) {
+        openMenuKey = key;
+        closeMenus(menu);
+        placePanel(menu);
+        menu.querySelector('input, textarea')?.focus();
+      } else if (openMenuKey === key) {
+        openMenuKey = null;
+      }
+    },
+  },
+  h('summary', { class: className, title }, label),
+  h('div', { class: ['menu-panel', panelClass].filter(Boolean).join(' '), role: 'menu' }, content));
+}
+
+/** Close a dropdown from inside it, e.g. after its form is sent. */
+export function closeDropdown(element) {
+  const menu = element.closest('details.menu');
+  openMenuKey = null;
+  if (menu) menu.open = false;
+}
+
 function sessionLabel(session) {
   const t = session.transcript ?? {};
   return t.title ?? t.agentName ?? t.lastPrompt ?? session.sessionId.slice(0, 8);
@@ -107,9 +142,7 @@ export function openMenu(path, sessions, caps) {
     role: 'menuitem',
     title,
     onclick: async (event) => {
-      const menu = event.currentTarget.closest('details');
-      openMenuPath = null;
-      menu.open = false;
+      closeDropdown(event.currentTarget);
       try {
         await post('/api/terminal/open', { path, ...body });
       } catch (error) {
@@ -118,29 +151,14 @@ export function openMenu(path, sessions, caps) {
     },
   }, children);
 
-  return h('details', {
-    class: 'menu',
-    open: openMenuPath === path,
-    ontoggle: (event) => {
-      const menu = event.currentTarget;
-      if (menu.open) {
-        openMenuPath = path;
-        closeMenus(menu);
-        placePanel(menu);
-      } else if (openMenuPath === path) {
-        openMenuPath = null;
-      }
-    },
-  },
-  h('summary', { class: 'btn btn-action', title: `Open a new ${caps.terminal} tab here` }, 'Open ▾'),
-  h('div', { class: 'menu-panel', role: 'menu' },
+  return dropdown({ key: `open:${path}`, label: 'Open ▾', title: `Open a new ${caps.terminal} tab here` },
     choice('Shell', { launch: 'shell' }, `cd into this folder in a new ${caps.terminal} tab`),
     choice('New Claude session', { launch: 'claude' }, 'Start claude in this folder'),
     sessions.length > 0 && h('div', { class: 'menu-label' }, 'Resume'),
     sessions.map((session) => choice([
       h('span', { class: 'menu-title' }, sessionLabel(session)),
       h('span', { class: 'menu-meta' }, timeAgo(session.updatedAt)),
-    ], { sessionId: session.sessionId }, session.transcript?.lastPrompt ?? undefined))));
+    ], { sessionId: session.sessionId }, session.transcript?.lastPrompt ?? undefined)));
 }
 
 /** Open a folder in the configured editor; a plain link, handled by the editor's URL scheme. */
