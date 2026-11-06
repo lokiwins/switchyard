@@ -168,3 +168,23 @@ test('requests older than the hook timeout are dropped', async () => {
   broker.reconcile({ generatedAt: at(), liveSessions: [{ sessionId: SESSION, needsYou: true }] });
   assert.equal(await decision, null);
 });
+
+test('a waiting prompt can be reviewed in full, but the page\'s list never carries the tool input', async () => {
+  const seen = [];
+  const broker = createApprovalBroker({
+    newId: () => 'req-1',
+    describe: async (toolName, input) => { seen.push([toolName, input]); return { kind: 'diff', path: input.file_path }; },
+  });
+  broker.ask(hookInput({ tool_name: 'Edit', tool_input: { file_path: '/w/app/a.js', old_string: 'a', new_string: 'b' } }));
+  assert.ok(!('toolInput' in broker.pending()[0]));
+  const detail = await broker.detail('req-1');
+  assert.equal(detail.kind, 'diff');
+  assert.equal(detail.toolName, 'Edit');
+  assert.equal(detail.summary, '/w/app/a.js');
+  assert.deepEqual(seen, [['Edit', { file_path: '/w/app/a.js', old_string: 'a', new_string: 'b' }]]);
+});
+
+test('reviewing a prompt that was already answered says so', async () => {
+  const { broker } = setup();
+  await assert.rejects(broker.detail('req-404'), (error) => error.status === 404);
+});

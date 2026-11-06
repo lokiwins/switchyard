@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { describeApproval } from './approval-detail.js';
 import { ActionError } from './errors.js';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
@@ -36,6 +37,7 @@ function parseHookInput(input) {
     agentId: typeof input.agent_id === 'string' ? input.agent_id : null,
     toolName: input.tool_name,
     summary: describeTool(input.tool_input),
+    toolInput: input.tool_input,
   };
 }
 
@@ -64,9 +66,10 @@ const hookOutput = (decision) => ({ hookSpecificOutput: { hookEventName: 'Permis
  * so requests are also dropped once the session's status shows it moved on.
  */
 export function createApprovalBroker({
-  now = Date.now, newId = randomUUID, settleGraceMs = SETTLE_GRACE_MS, maxPending = MAX_PENDING,
+  now = Date.now, newId = randomUUID, settleGraceMs = SETTLE_GRACE_MS, maxPending = MAX_PENDING, describe = describeApproval,
 } = {}) {
-  const requests = new Map(); // id -> { view, resolve }
+  // id -> { view, toolInput, resolve }. The tool input stays here: the page fetches it per prompt, for review.
+  const requests = new Map();
 
   function settle(id, output) {
     const request = requests.get(id);
@@ -80,7 +83,7 @@ export function createApprovalBroker({
    * hook's response body, or null to leave the decision to the terminal.
    */
   function ask(input) {
-    const fields = parseHookInput(input);
+    const { toolInput, ...fields } = parseHookInput(input);
     if (PASS_THROUGH_TOOLS.has(fields.toolName) || fields.summary.length > MAX_SUMMARY) {
       return { decision: Promise.resolve(null), cancel: () => {} };
     }
@@ -92,7 +95,7 @@ export function createApprovalBroker({
     [...requests.keys()].slice(0, Math.max(0, requests.size - maxPending + 1)).forEach((old) => settle(old, null));
     const id = newId();
     const decision = new Promise((resolve) => {
-      requests.set(id, { view: { id, ...fields, createdAt: now() }, resolve });
+      requests.set(id, { view: { id, ...fields, createdAt: now() }, toolInput, resolve });
     });
     return { decision, cancel: () => settle(id, null) };
   }
@@ -120,5 +123,12 @@ export function createApprovalBroker({
 
   const pending = () => [...requests.values()].map(({ view }) => view);
 
-  return { ask, decide, reconcile, pending };
+  /** Everything a waiting prompt would do, for the review pane: a diff, a whole command, or the tool's input. */
+  async function detail(id) {
+    const request = requests.get(id);
+    if (!request) throw new ActionError(404, 'That request was already answered or has gone away');
+    return { ...request.view, ...await describe(request.view.toolName, request.toolInput) };
+  }
+
+  return { ask, decide, reconcile, pending, detail };
 }

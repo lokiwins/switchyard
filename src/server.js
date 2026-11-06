@@ -39,6 +39,8 @@ const STATIC_FILES = {
   '/session-controls.js': 'session-controls.js',
   '/new-task.js': 'new-task.js',
   '/branch-name.js': 'branch-name.js',
+  '/markdown.js': 'markdown.js',
+  '/review-pane.js': 'review-pane.js',
   '/live-terminal.js': 'live-terminal.js',
   '/vendor/xterm/xterm.mjs': 'vendor/xterm/xterm.mjs',
   '/vendor/xterm/addon-fit.mjs': 'vendor/xterm/addon-fit.mjs',
@@ -275,6 +277,20 @@ async function streamTerminal(req, res, url, { liveTerminals }) {
   return undefined;
 }
 
+/**
+ * A waiting prompt in full, for the review pane. A GET, so the Origin check
+ * doesn't apply; other sites can't read the answer, and the Host check stops
+ * DNS rebinding, as for the rest of the API.
+ */
+async function sendApprovalDetail(res, url, { approvals }) {
+  try {
+    return sendJson(res, 200, { success: true, data: await approvals.detail(url.searchParams.get('id')) });
+  } catch (error) {
+    if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
+    throw error;
+  }
+}
+
 function createHandler(services) {
   const { stateService, prService } = services;
   return async (req, res) => {
@@ -307,6 +323,7 @@ function createHandler(services) {
       }
       if (url.pathname === '/api/prs/stream') return await streamPrs(req, res, services);
       if (url.pathname === '/api/terminal/live') return await streamTerminal(req, res, url, services);
+      if (url.pathname === '/api/approvals/detail') return await sendApprovalDetail(res, url, services);
       if (url.pathname === '/api/prs') {
         const data = await prService.getPrs({ force });
         return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services, { prs: data }), capabilities: services.capabilities } });
