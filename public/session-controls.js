@@ -1,5 +1,6 @@
 import { h, toast } from './dom.js';
 import { actionButton, announceChange, closeDropdown, dropdown, post, tmuxPlace } from './actions.js';
+import { openReview } from './review-pane.js';
 
 /*
  * Answering a running session from the page: allow or deny the tool call it's
@@ -28,10 +29,16 @@ function decide(approval, behavior) {
   };
 }
 
-/** Allow and Deny for the oldest waiting prompt; the terminal's own prompt stays usable too. */
-export function approvalButtons([approval]) {
+/** Review, Allow and Deny for the oldest waiting prompt; the terminal's own prompt stays usable too. */
+export function approvalButtons([approval], session) {
   const what = `${approval.toolName}: ${approval.summary}`;
   return [
+    h('button', {
+      type: 'button',
+      class: 'btn btn-sm btn-secondary',
+      title: `See it in full before answering: ${what}`,
+      onclick: () => openReview(approval, session).catch((error) => toast(error.message)),
+    }, 'Review'),
     actionButton('Allow', `Allow once: ${what}`, decide(approval, 'allow'), 'btn btn-sm'),
     actionButton('Deny', `Deny: ${what}`, decide(approval, 'deny'), 'btn btn-sm btn-secondary'),
   ];

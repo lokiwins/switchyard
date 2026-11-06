@@ -507,20 +507,20 @@ td .actions { flex-wrap: nowrap; }
 .no-shrink { flex-shrink: 0; white-space: nowrap; }
 
 /*
- * Live terminal: a session's tmux pane in a glass pane that slides in from the
- * right over about half the window, leaving the sessions list visible. Always
- * dark, like the terminal it holds; the terminal's cells are transparent so
- * the frosted glass shows through.
+ * Glass pane: slides in from the right over about half the window, leaving the
+ * sessions list visible. Always dark. Hosts the live terminal (whose cells are
+ * transparent, so the frosted glass shows through) and the review of a
+ * permission prompt.
  */
-.term-dialog {
-  --term-edge: rgb(125 211 252 / 0.28);
-  --term-glow: rgb(56 189 248 / 0.18);
-  --term-text: #e6f1ff;
-  --term-dim: #8aa4c2;
+.glass-pane {
+  --pane-edge: rgb(125 211 252 / 0.28);
+  --pane-glow: rgb(56 189 248 / 0.18);
+  --pane-text: #e6f1ff;
+  --pane-dim: #8aa4c2;
   position: fixed; inset: 12px 12px 12px auto; margin: 0;
   width: max(560px, 50vw); max-width: calc(100vw - 24px); height: auto; max-height: none;
-  padding: 0; border: 1px solid var(--term-edge); border-radius: 16px;
-  color: var(--term-text);
+  padding: 0; border: 1px solid var(--pane-edge); border-radius: 16px;
+  color: var(--pane-text);
   background:
     linear-gradient(160deg, rgb(56 189 248 / 0.10), transparent 35%),
     linear-gradient(200deg, rgb(168 85 247 / 0.08), transparent 45%),
@@ -530,42 +530,109 @@ td .actions { flex-wrap: nowrap; }
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.08),
     0 0 0 1px rgb(255 255 255 / 0.03),
-    0 0 48px var(--term-glow),
+    0 0 48px var(--pane-glow),
     0 30px 80px rgb(0 0 0 / 0.55);
   overflow: hidden;
 }
-.term-dialog[open] { display: flex; flex-direction: column; animation: term-slide-in 240ms cubic-bezier(0.2, 0.9, 0.3, 1); }
-.term-dialog::backdrop { background: rgb(4 8 16 / 0.18); }
-@keyframes term-slide-in {
+.glass-pane[open] { display: flex; flex-direction: column; animation: pane-slide-in 240ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+.glass-pane::backdrop { background: rgb(4 8 16 / 0.18); }
+@keyframes pane-slide-in {
   from { opacity: 0; transform: translateX(32px) scale(0.985); }
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .term-dialog[open] { animation: none; }
+  .glass-pane[open] { animation: none; }
 }
 
-.term-header {
+.pane-header {
   display: flex; align-items: center; gap: 12px; padding: 12px 16px;
   border-bottom: 1px solid transparent;
-  border-image: linear-gradient(90deg, transparent, var(--term-edge), transparent) 1;
+  border-image: linear-gradient(90deg, transparent, var(--pane-edge), transparent) 1;
 }
-.term-heading { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
-.term-heading strong { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.term-place { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--term-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.term-live-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--term-dim); }
-.term-dialog.is-live .term-live-dot { background: #34d399; box-shadow: 0 0 10px #34d399; }
-.term-status {
-  margin-left: auto; padding: 2px 8px; border: 1px solid var(--term-edge); border-radius: 999px;
-  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--term-dim); white-space: nowrap;
+.pane-heading { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.pane-heading strong { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-sub { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--pane-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--pane-dim); }
+.glass-pane.is-live .pane-dot { background: #34d399; box-shadow: 0 0 10px #34d399; }
+.pane-pill {
+  margin-left: auto; padding: 2px 8px; border: 1px solid var(--pane-edge); border-radius: 999px;
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--pane-dim); white-space: nowrap;
 }
-.term-close {
-  padding: 4px 12px; border: 1px solid var(--term-edge); border-radius: 8px;
-  background: rgb(255 255 255 / 0.04); color: var(--term-text); font-size: 12px; cursor: pointer;
+.pane-btn {
+  padding: 4px 12px; border: 1px solid var(--pane-edge); border-radius: 8px;
+  background: rgb(255 255 255 / 0.04); color: var(--pane-text); font-size: 12px; cursor: pointer;
 }
-.term-close:hover { background: rgb(125 211 252 / 0.14); }
-.term-close:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.pane-btn:hover { background: rgb(125 211 252 / 0.14); }
+.pane-btn:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 
 .term-screen { flex: 1; min-height: 0; padding: 10px 6px 10px 14px; }
 /* xterm.css (loaded later) and xterm.js itself paint the viewport black; the glass shows through instead. */
-.term-dialog .term-screen .xterm .xterm-viewport { background-color: transparent !important; }
-.term-dialog .term-screen .xterm .slider { background: rgb(125 211 252 / 0.22) !important; border-radius: 4px; }
+.glass-pane .term-screen .xterm .xterm-viewport { background-color: transparent !important; }
+.glass-pane .term-screen .xterm .slider { background: rgb(125 211 252 / 0.22) !important; border-radius: 4px; }
+
+/* Review pane: a permission prompt in full. */
+.pane-dot.is-waiting { background: #fbbf24; box-shadow: 0 0 10px #fbbf24; }
+.pane-btn.is-primary { background: rgb(52 211 153 / 0.18); border-color: rgb(52 211 153 / 0.5); }
+.pane-btn.is-primary:hover { background: rgb(52 211 153 / 0.3); }
+.pane-btn:disabled { opacity: 0.5; cursor: default; }
+.review-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; }
+.pane-note { margin: 0 0 10px; font-size: 12px; color: var(--pane-dim); }
+.pane-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.pane-tab {
+  padding: 3px 12px; border: 1px solid var(--pane-edge); border-radius: 999px;
+  background: transparent; color: var(--pane-dim); font-size: 12px; cursor: pointer;
+}
+.pane-tab[aria-pressed="true"] { background: rgb(125 211 252 / 0.16); color: var(--pane-text); }
+.pane-footer {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--pane-edge), transparent) 1;
+}
+.pane-input {
+  flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--pane-edge); border-radius: 8px;
+  background: rgb(0 0 0 / 0.25); color: var(--pane-text); font-size: 12px;
+}
+.pane-input::placeholder { color: var(--pane-dim); }
+.pane-input:focus-visible, .pane-tab:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+
+.review-code {
+  margin: 0; padding: 12px; border-radius: 8px; background: rgb(0 0 0 / 0.3);
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word;
+}
+.diff { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.diff-hunk { margin-bottom: 12px; border: 1px solid rgb(125 211 252 / 0.12); border-radius: 8px; overflow: hidden; }
+.diff-hunk-head { padding: 2px 10px; background: rgb(125 211 252 / 0.08); color: var(--pane-dim); }
+.diff-line { display: grid; grid-template-columns: 3.5em 3.5em 1.5em 1fr; }
+.diff-num { padding-right: 8px; text-align: right; color: rgb(138 164 194 / 0.6); user-select: none; }
+.diff-sign { text-align: center; user-select: none; }
+.diff-text { white-space: pre-wrap; word-break: break-word; }
+.diff-line.is-add { background: rgb(52 211 153 / 0.13); }
+.diff-line.is-add .diff-sign, .diff-line.is-add .diff-text { color: #a7f3d0; }
+.diff-line.is-del { background: rgb(248 113 113 / 0.13); }
+.diff-line.is-del .diff-sign, .diff-line.is-del .diff-text { color: #fecaca; }
+
+/* Rendered Markdown, on the dark glass. */
+.markdown { font-size: 14px; line-height: 1.6; max-width: 72ch; }
+.markdown > :first-child { margin-top: 0; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4, .markdown h5, .markdown h6 { margin: 1.2em 0 0.5em; line-height: 1.3; }
+.markdown h1 { font-size: 1.6em; } .markdown h2 { font-size: 1.35em; } .markdown h3 { font-size: 1.15em; }
+.markdown p, .markdown ul, .markdown ol, .markdown blockquote, .markdown pre, .markdown .md-table { margin: 0 0 0.9em; }
+.markdown ul, .markdown ol { padding-left: 1.5em; }
+/* List items' paragraphs sit tight, as in a list. */
+.markdown li > p { margin: 0; }
+.markdown li > ul, .markdown li > ol { margin: 0.2em 0 0.2em; }
+.markdown li.md-task { list-style: none; margin-left: -1.3em; }
+.markdown li.md-task input { margin: 0 0.45em 0 0; vertical-align: middle; }
+.markdown code { padding: 0.1em 0.35em; border-radius: 4px; background: rgb(125 211 252 / 0.12); font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markdown pre { padding: 12px; border-radius: 8px; background: rgb(0 0 0 / 0.35); overflow: auto; }
+.markdown pre code { padding: 0; background: none; }
+.markdown blockquote { padding-left: 1em; border-left: 3px solid var(--pane-edge); color: var(--pane-dim); }
+.markdown a { color: #7dd3fc; }
+.markdown hr { border: 0; border-top: 1px solid var(--pane-edge); margin: 1.2em 0; }
+.markdown .md-table { overflow-x: auto; }
+.markdown table { border-collapse: collapse; }
+.markdown th, .markdown td { padding: 4px 10px; border: 1px solid rgb(125 211 252 / 0.2); }
+/* Plain Markdown headers, not the app's small-caps table headings. */
+.markdown th { background: rgb(125 211 252 / 0.08); text-transform: none; letter-spacing: normal; font-size: inherit; font-weight: 600; color: inherit; }
+.markdown .md-left { text-align: left; } .markdown .md-center { text-align: center; } .markdown .md-right { text-align: right; }
+.markdown .md-image, .markdown .md-link { color: var(--pane-dim); }

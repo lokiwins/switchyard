@@ -51,7 +51,7 @@ export function renderLiveRow(state, session, details = null) {
     time: timeAgo(session.statusUpdatedAt),
     timeHint: `${sessionLabel(session)} since ${new Date(session.statusUpdatedAt).toLocaleString()}`,
     actions: [
-      approvals.length > 0 && approvalButtons(approvals),
+      approvals.length > 0 && approvalButtons(approvals, session),
       replyMenu(session),
       stopButton(session),
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),

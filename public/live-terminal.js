@@ -164,7 +164,7 @@ function createFitter(fit, getToken) {
 async function openTerminal(session) {
   const { Terminal, WebglAddon, FitAddon } = await loadXterm();
   const screen = h('div', { class: 'term-screen' });
-  const status = h('span', { class: 'term-status' }, 'Connecting…');
+  const status = h('span', { class: 'pane-pill' }, 'Connecting…');
   let source = null;
   let token = null;
   const terminal = new Terminal({
@@ -180,7 +180,7 @@ async function openTerminal(session) {
   const fitter = createFitter(fit, () => token);
   const acker = createAcker(() => token);
   const watchSize = new ResizeObserver(() => fitter.soon());
-  const reconnect = h('button', { type: 'button', class: 'term-close', hidden: true, onclick: () => connect() }, 'Reconnect');
+  const reconnect = h('button', { type: 'button', class: 'pane-btn', hidden: true, onclick: () => connect() }, 'Reconnect');
 
   const close = () => {
     source?.close();
@@ -192,19 +192,19 @@ async function openTerminal(session) {
     dialog.remove();
   };
   const dialog = h('dialog', {
-    class: 'term-dialog',
+    class: 'glass-pane term-pane',
     'aria-label': `Live terminal: ${sessionTitle(session)}`,
     // Esc belongs to the terminal (it stops Claude), so it doesn't close the dialog.
     oncancel: (event) => event.preventDefault(),
   },
-  h('header', { class: 'term-header' },
-    h('span', { class: 'term-live-dot', 'aria-hidden': 'true' }),
-    h('div', { class: 'term-heading' },
+  h('header', { class: 'pane-header' },
+    h('span', { class: 'pane-dot', 'aria-hidden': 'true' }),
+    h('div', { class: 'pane-heading' },
       h('strong', {}, sessionTitle(session)),
-      h('span', { class: 'term-place' }, tmuxPlace(session.host))),
+      h('span', { class: 'pane-sub' }, tmuxPlace(session.host))),
     status,
     reconnect,
-    h('button', { type: 'button', class: 'term-close', title: 'Close the terminal (the session keeps running)', onclick: close }, 'Close')),
+    h('button', { type: 'button', class: 'pane-btn', title: 'Close the terminal (the session keeps running)', onclick: close }, 'Close')),
   screen);
   document.body.append(dialog);
   dialog.showModal();
