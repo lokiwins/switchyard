@@ -38,6 +38,7 @@ const STATIC_FILES = {
   '/session-text.js': 'session-text.js',
   '/session-controls.js': 'session-controls.js',
   '/new-task.js': 'new-task.js',
+  '/branch-name.js': 'branch-name.js',
   '/live-terminal.js': 'live-terminal.js',
   '/vendor/xterm/xterm.mjs': 'vendor/xterm/xterm.mjs',
   '/vendor/xterm/addon-fit.mjs': 'vendor/xterm/addon-fit.mjs',

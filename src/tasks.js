@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
+import { branchFromTask } from '../public/branch-name.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuoteAlways } from './shell.js';
@@ -8,6 +9,8 @@ import { hasControlCharacters, windowNameFor } from './tmux.js';
 // git's own check runs too; this keeps names to characters that need no quoting anywhere.
 const BRANCH_PATTERN = /^(?![-./])[A-Za-z0-9._/-]{1,100}(?<![./])$/;
 const MAX_PROMPT_LENGTH = 2000;
+// A branch named after the task gets -2, -3… when taken, up to this.
+const MAX_NAME_TRIES = 20;
 // Fetching the default branch is a nicety; a slow or offline remote shouldn't hold up the task.
 const FETCH_TIMEOUT_MS = 15_000;
 // switchyard runs in your terminal: a credential prompt there would hang the request instead.
@@ -18,19 +21,20 @@ export const TASK_SESSION = 'switchyard';
 
 const runGit = (args, options) => run('git', args, options);
 
-/** { repo, branch, prompt } from the New task form. */
+/** { repo, branch, prompt } from the New task form. The task is required; the branch, null when left empty, is optional. */
 export function parseNewTask(body) {
   const repo = body?.repo;
   const branch = typeof body?.branch === 'string' ? body.branch.trim() : '';
   const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';
   if (typeof repo !== 'string' || !repo) throw new ActionError(400, 'Choose a repository');
-  if (!BRANCH_PATTERN.test(branch)) {
-    throw new ActionError(400, 'A branch name uses letters, digits, ".", "_", "-" and "/", and cannot start with "-"');
-  }
+  if (!prompt) throw new ActionError(400, 'Say what the task is');
   if (prompt.length > MAX_PROMPT_LENGTH || hasControlCharacters(prompt) || prompt.startsWith('-')) {
     throw new ActionError(400, `The task must be one line of text, up to ${MAX_PROMPT_LENGTH} characters, not starting with "-"`);
   }
-  return { repo, branch, prompt: prompt || null };
+  if (branch && !BRANCH_PATTERN.test(branch)) {
+    throw new ActionError(400, 'A branch name uses letters, digits, ".", "_", "-" and "/", and cannot start with "-"');
+  }
+  return { repo, branch: branch || null, prompt };
 }
 
 /** Beside the main checkout, named <repo>-<last branch segment>, like "my-repo-login-bug" for "fix/login-bug". */
@@ -39,13 +43,14 @@ export function worktreePathFor(repo, branch) {
 }
 
 export function claudeCommand(prompt) {
-  return prompt ? `claude ${shellQuoteAlways(prompt)}` : 'claude';
+  return `claude ${shellQuoteAlways(prompt)}`;
 }
 
 /**
- * New task: a worktree on a new (or existing) branch, and a window in the
- * switchyard tmux session running Claude Code in it. Repos must be ones switchyard discovered; git and
- * tmux get every value as its own argument.
+ * New task: a worktree on a branch (named after the task unless you name
+ * one), and a window in the switchyard tmux session running Claude Code on
+ * the task. Repos must be ones switchyard discovered; git and tmux get every
+ * value as its own argument.
  */
 export function createTaskService({ stateService, tmux, git = runGit, exists = existsSync }) {
   const gitIn = (dir, args, options) => git(['-C', dir, ...args], options);
@@ -94,6 +99,25 @@ export function createTaskService({ stateService, tmux, git = runGit, exists = e
     return ['--no-track', '-b', branch, path, await baseRef(dir)];
   }
 
+  /** Whether a new task could use `branch`: no such branch here or on origin, and no folder or tab of its name. */
+  async function isFree(repo, branch) {
+    const path = worktreePathFor(repo, branch);
+    if (exists(path)) return false;
+    if (await refExists(repo.mainPath, `refs/heads/${branch}`)) return false;
+    if (await refExists(repo.mainPath, `refs/remotes/origin/${branch}`)) return false;
+    return !(await tmux.hasWindow(TASK_SESSION, windowNameFor(basename(path))));
+  }
+
+  /** A new branch named after the task: its words, then -2, -3… if that's taken. */
+  async function branchForTask(repo, prompt) {
+    const base = branchFromTask(prompt);
+    for (let n = 1; n <= MAX_NAME_TRIES; n += 1) {
+      const branch = n === 1 ? base : `${base}-${n}`;
+      if (await isFree(repo, branch)) return branch;
+    }
+    throw new ActionError(409, `Branches named like ${base} are all taken; give the branch a name`);
+  }
+
   /** Undo a half-started task so a retry starts clean; the branch is kept, and a retry checks it out. */
   async function rollBack(dir, path, window) {
     if (window) await tmux.killWindow(window).catch(() => {});
@@ -114,10 +138,11 @@ export function createTaskService({ stateService, tmux, git = runGit, exists = e
   }
 
   async function startTask(body) {
-    const { repo: mainPath, branch, prompt } = parseNewTask(body);
+    const { repo: mainPath, branch: chosen, prompt } = parseNewTask(body);
     const state = await stateService.getState();
     const repo = state.repos.find((r) => r.mainPath === mainPath);
     if (!repo) throw new ActionError(404, 'That folder is not one of your repositories');
+    const branch = chosen ?? await branchForTask(repo, prompt);
     await checkBranchName(mainPath, branch);
     const path = worktreePathFor(repo, branch);
     if (exists(path)) throw new ActionError(409, `${path} already exists`);
