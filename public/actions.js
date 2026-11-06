@@ -126,9 +126,10 @@ export function dropdown({ key, label, title, className = 'btn btn-action', pane
 
 /** Close a dropdown from inside it, e.g. after its form is sent. */
 export function closeDropdown(element) {
-  const menu = element.closest('details.menu');
   openMenuKey = null;
-  if (menu) menu.open = false;
+  element.closest('details.menu')?.removeAttribute('open');
+  // The page may have re-rendered while the menu's action ran, putting an open copy in its place.
+  closeMenus();
 }
 
 function sessionLabel(session) {

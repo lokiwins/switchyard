@@ -32,7 +32,7 @@ Three pages share a header nav. Each nav link carries a badge counting what need
   - uncommitted, untracked and conflicted files, and whether it is ahead of or behind upstream
   - the matching PR (open, draft, merged or closed), its checks, review decision and merge conflicts
   - the agents running in it, or its most recent past session
-- **Views:** *Active*, *Needs attention* (failing checks, changes requested, merge conflict, git conflicts, an agent waiting or recently interrupted), *Agents*, *Clean up* (PR merged or closed, worktree clean, no agent), and *All*. Each row in *Clean up* has a copyable `git worktree remove` command. Nothing is ever run for you.
+- **Views:** *Active*, *Needs attention* (failing checks, changes requested, merge conflict, git conflicts, an agent waiting or recently interrupted), *Agents*, *Clean up* (PR merged or closed, worktree clean, no agent), and *All*. Each row in *Clean up* has a **Clean up ▾** menu that says what it will do and removes the worktree when you press Remove: `git worktree remove` (never `--force`), plus `git branch -D` for the branch when its PR was merged (a squash merge leaves the branch "unmerged" to git). A closed, unmerged PR keeps its branch. Before removing anything, switchyard checks again rather than trusting the page: no Claude session running in the worktree, no uncommitted or untracked files, and no commits that aren't in the PR (its branch tip is the PR's last commit or behind it) or on a remote. The menu also has the commands to copy, if you'd rather run them yourself.
 - **My open PRs without a local worktree.**
 
 ### Pull requests page (`/prs`)
