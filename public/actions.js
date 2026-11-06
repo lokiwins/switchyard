@@ -14,7 +14,8 @@ export async function post(url, body) {
 }
 
 /** Tells the page something changed on the server, so it reloads now rather than at its next poll. */
-export const announceChange = () => document.dispatchEvent(new Event('switchyard:changed'));
+/** Something changed: the page reloads its data, skipping the server's cache with `force`. */
+export const announceChange = ({ force = false } = {}) => document.dispatchEvent(new CustomEvent('switchyard:changed', { detail: { force } }));
 
 /** A button that runs a server action, disabling itself meanwhile and toasting the outcome. */
 export function actionButton(label, title, perform, className = 'btn btn-action') {

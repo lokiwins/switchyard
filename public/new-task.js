@@ -1,12 +1,16 @@
 import { h, toast } from './dom.js';
 import { announceChange, closeDropdown, dropdown, post } from './actions.js';
+import { branchFromTask } from './branch-name.js';
 
 /*
- * "New task ▾": a worktree on a new branch beside the repo, with Claude Code
- * started in a window of the same name in the switchyard tmux session.
+ * "New task ▾": Claude Code on a task, in a worktree on its own branch beside
+ * the repo, in a window of the same name in the switchyard tmux session. The
+ * branch is optional: left empty, it's named after the task.
  */
 
 const REPO_PREF = 'switchyard.newTaskRepo';
+// Claude takes a few seconds to register a new session; look again over that time, so it shows as soon as it's there.
+const LOOK_AGAIN_MS = [1500, 3000, 5000, 8000];
 
 const lastSegment = (branch) => branch.split('/').pop();
 
@@ -26,13 +30,20 @@ function writeRepoPref(path) {
   }
 }
 
-/** What will be created, shown as you type the branch. */
+/** What will be created, shown as you type. */
 function preview(form, repos) {
   const repo = repos.find((r) => r.mainPath === form.elements.repo.value);
-  const branch = form.elements.branch.value.trim();
-  form.querySelector('.reply-hint').textContent = repo && branch
-    ? `Creates folder ${repo.name}-${lastSegment(branch)} beside ${repo.name}, from origin's branch of that name or its default branch, and starts claude in a new tab of the switchyard tmux session.`
-    : 'Creates a worktree beside the repo and starts claude in a new tab of the switchyard tmux session.';
+  const typed = form.elements.branch.value.trim();
+  const task = form.elements.prompt.value.trim();
+  const hint = form.querySelector('.reply-hint');
+  if (!repo || (!typed && !task)) {
+    hint.textContent = 'Starts claude on the task in a worktree beside the repo, in a new tab of the switchyard tmux session.';
+    return;
+  }
+  const branch = typed || branchFromTask(task);
+  hint.textContent = typed
+    ? `Folder ${repo.name}-${lastSegment(branch)}, on ${branch}: yours if it exists, else origin's, else new from the default branch.`
+    : `New branch ${branch} (or ${branch}-2… if taken) in folder ${repo.name}-${branch}, from the default branch.`;
 }
 
 async function startTask(event, repos) {
@@ -49,6 +60,7 @@ async function startTask(event, repos) {
     closeDropdown(form);
     toast(`Started ${result.branch} in tmux window ${result.session}:${result.window}`);
     announceChange();
+    LOOK_AGAIN_MS.forEach((ms) => setTimeout(() => announceChange({ force: true }), ms));
   } catch (error) {
     toast(error.message);
   } finally {
@@ -68,12 +80,12 @@ export function newTaskMenu(state) {
   const form = h('form', { class: 'task-form', onsubmit: (event) => startTask(event, repos), oninput: (event) => preview(event.currentTarget, repos) },
     field('Repository', h('select', { name: 'repo', required: true },
       repos.map((r) => h('option', { value: r.mainPath, selected: r.mainPath === remembered }, r.name)))),
-    field('Branch', h('input', {
-      name: 'branch', type: 'text', required: true, maxlength: '100', autocomplete: 'off', placeholder: 'fix/login-redirect',
-      pattern: '[A-Za-z0-9._/\\-]+', title: 'Letters, digits, ".", "_", "-" and "/"',
+    field('Task', h('input', {
+      name: 'prompt', type: 'text', required: true, maxlength: '2000', autocomplete: 'off', placeholder: 'What should Claude do?',
     })),
-    field('Task (optional)', h('input', {
-      name: 'prompt', type: 'text', maxlength: '2000', autocomplete: 'off', placeholder: 'What should Claude do first?',
+    field('Branch (optional)', h('input', {
+      name: 'branch', type: 'text', maxlength: '100', autocomplete: 'off', placeholder: 'Named after the task',
+      pattern: '[A-Za-z0-9._/\\-]+', title: 'Letters, digits, ".", "_", "-" and "/"',
     })),
     h('div', { class: 'task-actions' },
       h('p', { class: 'reply-hint' }),
