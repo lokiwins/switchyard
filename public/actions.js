@@ -91,8 +91,13 @@ document.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeMenus(null);
 });
-// The panel is fixed-positioned (tables scroll and would clip it), so it can't follow a scroll.
-document.addEventListener('scroll', () => closeMenus(null), { capture: true, passive: true });
+// The panel is fixed-positioned (tables scroll and would clip it), so it can't follow a scroll
+// of the page. Scrolls inside a menu don't count: a reply box scrolls its text sideways as a
+// long message is typed, and closing the menu then would drop the rest of the typing.
+document.addEventListener('scroll', (event) => {
+  if (event.target instanceof Element && event.target.closest('details.menu')) return;
+  closeMenus(null);
+}, { capture: true, passive: true });
 
 const PANEL_GAP = 4;
 const VIEWPORT_MARGIN = 8;
