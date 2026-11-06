@@ -1,0 +1,68 @@
+name: Capture and compare screenshots
+description: >
+  Runs switchyard at two commits against the made-up data in scripts/screenshots,
+  screenshots every scene, and compares them. The checkout must be the head commit
+  with full history.
+
+inputs:
+  base:
+    description: Commit to compare against. Empty means there is none, so every scene is new.
+    required: false
+    default: ''
+outputs:
+  report:
+    description: Path of report.json (which scenes are new, changed, same, failed or removed)
+    value: ${{ steps.compare.outputs.report }}
+  shots:
+    description: Directory holding base/ and head/ screenshots
+    value: ${{ steps.capture.outputs.shots }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 24
+        package-manager-cache: false
+
+    - name: Install Playwright and tmux
+      shell: bash
+      working-directory: scripts/screenshots
+      run: |
+        npm ci --no-audit --no-fund
+        npx playwright install --with-deps --only-shell chromium
+        # New task only appears when tmux is installed.
+        command -v tmux >/dev/null || sudo apt-get install -y --no-install-recommends tmux
+        # The page shows /home/<name>/… as ~/…, so the fixtures live in a home of their own.
+        sudo mkdir -p /home/dev
+        sudo chown "$(id -u):$(id -g)" /home/dev
+
+    - name: Check out the base commit
+      if: inputs.base != ''
+      shell: bash
+      env:
+        BASE: ${{ inputs.base }}
+      run: git worktree add --detach "$RUNNER_TEMP/base" "$BASE"
+
+    - name: Capture
+      id: capture
+      shell: bash
+      working-directory: scripts/screenshots
+      env:
+        BASE: ${{ inputs.base }}
+      run: |
+        shots="$RUNNER_TEMP/shots"
+        apps=("head=$GITHUB_WORKSPACE")
+        [ -n "$BASE" ] && apps=("base=$RUNNER_TEMP/base" "${apps[@]}")
+        node capture.mjs --home /home/dev --out "$shots" "${apps[@]}"
+        echo "shots=$shots" >> "$GITHUB_OUTPUT"
+
+    - name: Compare
+      id: compare
+      shell: bash
+      working-directory: scripts/screenshots
+      env:
+        SHOTS: ${{ steps.capture.outputs.shots }}
+      run: |
+        node compare.mjs --base "$SHOTS/base" --head "$SHOTS/head" --out "$SHOTS/report.json"
+        echo "report=$SHOTS/report.json" >> "$GITHUB_OUTPUT"
