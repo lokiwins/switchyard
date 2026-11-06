@@ -9,7 +9,7 @@ npm start          # http://localhost:4477
 npm test
 ```
 
-Requires Node 20+, `git`, and an authenticated `gh` CLI. There are no npm dependencies.
+Requires Node 22+, `git`, and an authenticated `gh` CLI. There are no npm dependencies.
 
 ## What it shows
 
