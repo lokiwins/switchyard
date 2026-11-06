@@ -63,6 +63,7 @@ const MAX_HOOK_BODY_BYTES = 256 * 1024;
 // How often to re-read Claude Code's settings for whether the approvals hook is installed.
 const HOOK_CHECK_MS = 10_000;
 const STREAM_HEARTBEAT_MS = 25_000;
+const TERMINAL_RETRY_MS = 2_000;
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -127,6 +128,7 @@ const POST_ROUTES = {
   '/api/terminal/interrupt': ({ actions }, body) => actions.interruptSession(body),
   '/api/terminal/input': ({ liveTerminals }, body) => liveTerminals.input(body),
   '/api/terminal/resize': ({ liveTerminals }, body) => liveTerminals.resize(body),
+  '/api/terminal/ack': ({ liveTerminals }, body) => liveTerminals.ack(body),
   '/api/tasks/new': ({ tasks }, body) => tasks.startTask(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
@@ -253,6 +255,8 @@ async function streamTerminal(req, res, url, { liveTerminals }) {
     close = await liveTerminals.start({ sessionId: url.searchParams.get('sessionId') }, {
       ready: (info) => {
         res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+        // If the stream drops, the browser reconnects after this long (a new terminal, a fresh copy).
+        res.write(`retry: ${TERMINAL_RETRY_MS}\n\n`);
         event('ready', JSON.stringify(info));
       },
       output: (bytes) => event('output', bytes.toString('base64')),
