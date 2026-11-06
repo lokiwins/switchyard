@@ -9,11 +9,13 @@ import { navCounts } from './nav.js';
 import { createActionService } from './actions.js';
 import { createApprovalBroker } from './approvals.js';
 import { HOOK_PATH, isHookInstalled, readClaudeSettings } from './claude-hook.js';
+import { CSP, newStyleNonce, withStyleNonce } from './csp.js';
 import { ActionError } from './errors.js';
 import { buildLocalIndex, createPrService } from './prs.js';
 import { resolveTerminalApp } from './settings.js';
 import { createStateService } from './state.js';
 import { createTaskService } from './tasks.js';
+import { createLiveTerminals } from './live-terminal.js';
 import { createTerminal } from './terminal.js';
 import { createTmux } from './tmux.js';
 
@@ -36,15 +38,22 @@ const STATIC_FILES = {
   '/session-text.js': 'session-text.js',
   '/session-controls.js': 'session-controls.js',
   '/new-task.js': 'new-task.js',
+  '/live-terminal.js': 'live-terminal.js',
+  '/vendor/xterm/xterm.mjs': 'vendor/xterm/xterm.mjs',
+  '/vendor/xterm/addon-fit.mjs': 'vendor/xterm/addon-fit.mjs',
+  '/vendor/xterm/addon-webgl.mjs': 'vendor/xterm/addon-webgl.mjs',
+  '/vendor/xterm/xterm.css': 'vendor/xterm/xterm.css',
   '/dom.js': 'dom.js',
   '/views.js': 'views.js',
   '/styles.css': 'styles.css',
 };
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': CSP,
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
 };
+// Pages hosting the live terminal, which get a style nonce on each load (see csp.js).
+const STYLE_NONCE_PAGES = new Set(['agents.html']);
 // Rejecting other Host headers blocks DNS-rebinding pages from reading the API.
 const ALLOWED_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
 const MAX_BODY_BYTES = 4 * 1024;
@@ -57,6 +66,7 @@ const STREAM_HEARTBEAT_MS = 25_000;
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
 };
 
@@ -66,8 +76,10 @@ function sendJson(res, status, body) {
 }
 
 async function sendStatic(res, file) {
-  const body = await readFile(join(PUBLIC_DIR, file));
-  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES[extname(file)], 'Cache-Control': 'no-cache' });
+  let body = await readFile(join(PUBLIC_DIR, file));
+  let csp = CSP;
+  if (STYLE_NONCE_PAGES.has(file)) ({ csp, body } = withStyleNonce(body.toString('utf8'), newStyleNonce()));
+  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Security-Policy': csp, 'Content-Type': CONTENT_TYPES[extname(file)], 'Cache-Control': 'no-cache' });
   res.end(body);
 }
 
@@ -113,6 +125,8 @@ const POST_ROUTES = {
   '/api/terminal/focus': ({ actions }, body) => actions.focusSession(body),
   '/api/terminal/reply': ({ actions }, body) => actions.replyToSession(body),
   '/api/terminal/interrupt': ({ actions }, body) => actions.interruptSession(body),
+  '/api/terminal/input': ({ liveTerminals }, body) => liveTerminals.input(body),
+  '/api/terminal/resize': ({ liveTerminals }, body) => liveTerminals.resize(body),
   '/api/tasks/new': ({ tasks }, body) => tasks.startTask(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
@@ -218,6 +232,44 @@ async function streamPrs(req, res, services) {
   }
 }
 
+/**
+ * Server-sent events for the live terminal: `ready` with its token and size,
+ * `output` as base64 bytes, `resize` when the pane's size changes, `end`
+ * when the pane goes. Opening one attaches a
+ * tmux client, so only this page may: browsers mark requests from other sites
+ * in Sec-Fetch-Site (and couldn't read the stream anyway).
+ */
+async function streamTerminal(req, res, url, { liveTerminals }) {
+  const site = req.headers['sec-fetch-site'];
+  if (site !== undefined && site !== 'same-origin') return sendJson(res, 403, { success: false, error: 'Cross-origin request refused' });
+  const event = (name, data) => { if (!res.writableEnded) res.write(`event: ${name}\ndata: ${data}\n\n`); };
+  let close = null;
+  let closed = false;
+  req.on('close', () => {
+    closed = true;
+    close?.();
+  });
+  try {
+    close = await liveTerminals.start({ sessionId: url.searchParams.get('sessionId') }, {
+      ready: (info) => {
+        res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+        event('ready', JSON.stringify(info));
+      },
+      output: (bytes) => event('output', bytes.toString('base64')),
+      resize: (size) => event('resize', JSON.stringify(size)),
+      end: () => {
+        event('end', '{}');
+        res.end();
+      },
+    });
+    if (closed) close();
+  } catch (error) {
+    if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
+    throw error;
+  }
+  return undefined;
+}
+
 function createHandler(services) {
   const { stateService, prService } = services;
   return async (req, res) => {
@@ -249,6 +301,7 @@ function createHandler(services) {
         return sendJson(res, 200, { success: true, data: await navFor(services) });
       }
       if (url.pathname === '/api/prs/stream') return await streamPrs(req, res, services);
+      if (url.pathname === '/api/terminal/live') return await streamTerminal(req, res, url, services);
       if (url.pathname === '/api/prs') {
         const data = await prService.getPrs({ force });
         return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services, { prs: data }), capabilities: services.capabilities } });
@@ -304,11 +357,12 @@ async function main() {
   const sessionsView = { getState: stateService.getSessions };
   const actions = createActionService({ stateService: sessionsView, terminal, tmux });
   const tasks = createTaskService({ stateService: sessionsView, tmux });
+  const liveTerminals = createLiveTerminals({ actions, tmux });
   // Checked once: install tmux, then restart switchyard to get New task.
   const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme, tmux: await tmux.isInstalled() };
   const approvals = createApprovalBroker();
   const hookInstalled = createHookCheck(config);
-  createServer(createHandler({ stateService, prService, actions, tasks, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {
+  createServer(createHandler({ stateService, prService, actions, tasks, liveTerminals, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {
     process.stdout.write(`switchyard: http://localhost:${config.port}  (roots: ${config.roots.join(', ')})\n`);
     // Warm the cache so the first page load is quick.
     stateService.getState().catch((error) => process.stderr.write(`Initial scan failed: ${error.message}\n`));

@@ -3,6 +3,7 @@ import { jumpButton, tmuxPlace } from './actions.js';
 import { sessionRow, statusBadge, whereLabel } from './session-row.js';
 import { sessionDetail, sessionTitle } from './session-text.js';
 import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
+import { terminalButton } from './live-terminal.js';
 
 const STATUS_LABELS = { busy: 'Working', idle: 'Waiting' };
 
@@ -54,6 +55,7 @@ export function renderLiveRow(state, session, details = null) {
       replyMenu(session),
       stopButton(session),
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),
+      terminalButton(session),
       jumpButton(session),
       copyButton('cd', `cd ${shellQuote(session.cwd)}`),
     ],

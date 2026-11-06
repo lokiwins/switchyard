@@ -505,3 +505,67 @@ td .actions { flex-wrap: nowrap; }
   .team-row { grid-template-columns: 1fr; }
 }
 .no-shrink { flex-shrink: 0; white-space: nowrap; }
+
+/*
+ * Live terminal: a session's tmux pane in a glass pane that slides in from the
+ * right over about half the window, leaving the sessions list visible. Always
+ * dark, like the terminal it holds; the terminal's cells are transparent so
+ * the frosted glass shows through.
+ */
+.term-dialog {
+  --term-edge: rgb(125 211 252 / 0.28);
+  --term-glow: rgb(56 189 248 / 0.18);
+  --term-text: #e6f1ff;
+  --term-dim: #8aa4c2;
+  position: fixed; inset: 12px 12px 12px auto; margin: 0;
+  width: max(560px, 50vw); max-width: calc(100vw - 24px); height: auto; max-height: none;
+  padding: 0; border: 1px solid var(--term-edge); border-radius: 16px;
+  color: var(--term-text);
+  background:
+    linear-gradient(160deg, rgb(56 189 248 / 0.10), transparent 35%),
+    linear-gradient(200deg, rgb(168 85 247 / 0.08), transparent 45%),
+    rgb(8 13 24 / 0.68);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 0 0 1px rgb(255 255 255 / 0.03),
+    0 0 48px var(--term-glow),
+    0 30px 80px rgb(0 0 0 / 0.55);
+  overflow: hidden;
+}
+.term-dialog[open] { display: flex; flex-direction: column; animation: term-slide-in 240ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+.term-dialog::backdrop { background: rgb(4 8 16 / 0.18); }
+@keyframes term-slide-in {
+  from { opacity: 0; transform: translateX(32px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .term-dialog[open] { animation: none; }
+}
+
+.term-header {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--term-edge), transparent) 1;
+}
+.term-heading { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.term-heading strong { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-place { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--term-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-live-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--term-dim); }
+.term-dialog.is-live .term-live-dot { background: #34d399; box-shadow: 0 0 10px #34d399; }
+.term-status {
+  margin-left: auto; padding: 2px 8px; border: 1px solid var(--term-edge); border-radius: 999px;
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--term-dim); white-space: nowrap;
+}
+.term-close {
+  padding: 4px 12px; border: 1px solid var(--term-edge); border-radius: 8px;
+  background: rgb(255 255 255 / 0.04); color: var(--term-text); font-size: 12px; cursor: pointer;
+}
+.term-close:hover { background: rgb(125 211 252 / 0.14); }
+.term-close:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+
+.term-screen { flex: 1; min-height: 0; padding: 10px 6px 10px 14px; }
+/* xterm.css (loaded later) and xterm.js itself paint the viewport black; the glass shows through instead. */
+.term-dialog .term-screen .xterm .xterm-viewport { background-color: transparent !important; }
+.term-dialog .term-screen .xterm .slider { background: rgb(125 211 252 / 0.22) !important; border-radius: 4px; }

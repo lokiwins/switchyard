@@ -198,6 +198,13 @@ export function createActionService({
     return { queued: session.status === 'busy' };
   }
 
+  /** The tmux session and pane a running session is in, for the live terminal; checked like Reply and Stop. */
+  async function tmuxTarget(body) {
+    const session = await liveSession(parseSessionId(body));
+    if (session.host?.kind !== 'tmux') throw new ActionError(501, 'The live terminal works for sessions running in tmux');
+    return { session: session.host.session, pane: await currentTmuxPane(session) };
+  }
+
   /** Stop what a session is doing (Esc), as you would in its terminal. Needs tmux to reach it without a tab. */
   async function interruptSession(body) {
     const session = await liveSession(parseSessionId(body));
@@ -242,5 +249,5 @@ export function createActionService({
     return { opened: true };
   }
 
-  return { focusSession, replyToSession, interruptSession, resumeSession, openWorktree };
+  return { focusSession, replyToSession, interruptSession, tmuxTarget, resumeSession, openWorktree };
 }
