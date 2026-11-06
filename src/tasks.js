@@ -4,6 +4,7 @@ import { branchFromTask } from '../public/branch-name.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuoteAlways } from './shell.js';
+import { TASK_SESSION, runInWindow } from './task-session.js';
 import { hasControlCharacters, windowNameFor } from './tmux.js';
 
 // git's own check runs too; this keeps names to characters that need no quoting anywhere.
@@ -16,8 +17,6 @@ const FETCH_TIMEOUT_MS = 15_000;
 // switchyard runs in your terminal: a credential prompt there would hang the request instead.
 const NO_PROMPT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
 
-// Every task gets a window (tab) in this one tmux session.
-export const TASK_SESSION = 'switchyard';
 
 const runGit = (args, options) => run('git', args, options);
 
@@ -119,20 +118,16 @@ export function createTaskService({ stateService, tmux, git = runGit, exists = e
   }
 
   /** Undo a half-started task so a retry starts clean; the branch is kept, and a retry checks it out. */
-  async function rollBack(dir, path, window) {
-    if (window) await tmux.killWindow(window).catch(() => {});
+  async function rollBack(dir, path) {
     await gitIn(dir, ['worktree', 'remove', path]).catch(() => {});
   }
 
-  /** Open the task's window and type claude into it; on failure, undo what this task created. */
+  /** Open the task's window and type claude into it; on failure, remove the worktree too, so a retry starts clean. */
   async function startClaude(mainPath, path, name, prompt) {
-    let window = null;
     try {
-      const opened = await tmux.newWindow({ session: TASK_SESSION, name, cwd: path });
-      window = opened.window;
-      await tmux.sendLine(opened.pane, claudeCommand(prompt));
+      await runInWindow(tmux, { name, cwd: path, command: claudeCommand(prompt) });
     } catch (error) {
-      await rollBack(mainPath, path, window);
+      await rollBack(mainPath, path);
       throw error;
     }
   }

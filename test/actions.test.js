@@ -9,11 +9,14 @@ const vscode = { kind: 'editor', label: 'VS Code', scheme: 'vscode', appName: 'V
 const inTmux = { kind: 'tmux', label: 'tmux', session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' };
 const chatgpt = { kind: 'app', label: 'ChatGPT', appName: 'ChatGPT' };
 
-function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004' } = {}) {
+function setup({
+  host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004',
+  useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'],
+} = {}) {
   const calls = [];
   const fullState = {
     liveSessions: [{ sessionId: ID, pid: 42, cwd: '/w/my repo', host, status: 'idle', needsYou: false, resumeCommand: `cd '/w/my repo' && claude --resume ${ID}`, ...session }],
-    endedSessions: [{ sessionId: 'ended-session-1', resumeCommand: "cd '/w/old' && claude --resume ended-session-1" }],
+    endedSessions: [{ sessionId: 'ended-session-1', cwd: '/w/old', resumeCommand: "cd '/w/old' && claude --resume ended-session-1" }],
     repos: [{ worktrees: [{ path: '/w/feat', agents: { live: [], last: null, recent: [{ sessionId: 'recent-session-1', resumeCommand: "cd /w/feat && claude --resume recent-session-1" }] } }, { path: '/w/gone', prunable: true, agents: { live: [] } }] }],
     ...state,
   };
@@ -30,6 +33,9 @@ function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = tr
     interrupt: async (pane) => { calls.push(['tmux-interrupt', pane]); },
     attachCommand: (name) => `tmux attach-session -t =${name}`,
     listPanes: async () => new Map(paneTty ? [[paneTty, { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' }]] : []),
+    hasWindow: async (session, name) => session === 'switchyard' && windows.includes(name),
+    newWindow: async (options) => { calls.push(['new-window', options]); return { window: '@9', pane: '%9' }; },
+    killWindow: async (window) => { calls.push(['kill-window', window]); },
   };
   const actions = createActionService({
     stateService: { getState: async () => fullState },
@@ -43,6 +49,8 @@ function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = tr
       activateApp: async (app) => calls.push(['app', app]),
     },
     platform: 'darwin',
+    useTmux,
+    folderExists: (path) => folders.includes(path),
   });
   return { actions, calls };
 }
@@ -223,4 +231,40 @@ test('Interrupt presses Escape in a tmux session', async () => {
 test('Interrupt only works for sessions switchyard can reach through tmux', async () => {
   await rejectsWith(setup().actions.interruptSession({ sessionId: ID }), 501);
   await rejectsWith(setup({ host: inTmux }).actions.interruptSession({ sessionId: 'bbbbbbbb-0000' }), 404);
+});
+
+test('with tmux, Resume opens the session in a window of the switchyard session, named after its folder', async () => {
+  const { actions, calls } = setup({ useTmux: true });
+  assert.deepEqual(await actions.resumeSession({ sessionId: 'ended-session-1' }), { opened: true, host: 'tmux', window: 'switchyard:old' });
+  assert.deepEqual(calls, [
+    ['new-window', { session: 'switchyard', name: 'old', cwd: '/w/old' }],
+    ['tmux-type', '%9', 'claude --resume ended-session-1'],
+  ]);
+});
+
+test('with tmux, a resumed window takes the next free name', async () => {
+  const { actions, calls } = setup({ useTmux: true, windows: ['old', 'old-2'] });
+  assert.equal((await actions.resumeSession({ sessionId: 'ended-session-1' })).window, 'switchyard:old-3');
+  assert.equal(calls[0][1].name, 'old-3');
+});
+
+test('with tmux, Jump on a closed session and Open\'s resume both open a tmux window', async () => {
+  const jump = setup({ useTmux: true, alive: false });
+  assert.deepEqual(await jump.actions.focusSession({ sessionId: ID }), { precision: 'resumed', host: 'tmux', window: 'switchyard:my-repo' });
+  assert.deepEqual(jump.calls.at(-1), ['tmux-type', '%9', `claude --resume ${ID}`]);
+  const open = setup({ useTmux: true });
+  assert.equal((await open.actions.openWorktree({ path: '/w/feat', sessionId: 'recent-session-1' })).window, 'switchyard:feat');
+  assert.ok(!open.calls.some(([kind]) => kind === 'open'));
+});
+
+test('with tmux, a session whose folder is gone is not resumed somewhere else', async () => {
+  const { actions, calls } = setup({ useTmux: true, folders: [] });
+  await rejectsWith(actions.resumeSession({ sessionId: 'ended-session-1' }), 409);
+  assert.equal(calls.length, 0);
+});
+
+test('with tmux, Open still starts a shell or a new session in a terminal tab', async () => {
+  const { actions, calls } = setup({ useTmux: true });
+  await actions.openWorktree({ path: '/w/feat', launch: 'claude' });
+  assert.deepEqual(calls, [['open', 'cd /w/feat && claude']]);
 });

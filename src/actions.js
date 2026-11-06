@@ -1,8 +1,10 @@
+import { existsSync } from 'node:fs';
 import { isProcessAlive } from './agents/process.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuote } from './shell.js';
 import { canTypeInto, createTerminal, ttyOf } from './terminal.js';
+import { freeWindowName, runInWindow } from './task-session.js';
 import { createTmux } from './tmux.js';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
@@ -67,6 +69,9 @@ export function createActionService({
   stateService,
   terminal,
   tmux = createTmux(),
+  // With tmux, resumed sessions open as tabs of the switchyard session, like new tasks.
+  useTmux = false,
+  folderExists = existsSync,
   terminalFor = (app) => createTerminal({ app }),
   lookupTty = ttyOf,
   isAlive = isProcessAlive,
@@ -89,13 +94,28 @@ export function createActionService({
   }
 
   /**
-   * Bring back a session that is no longer running: a new tab in the terminal
-   * it ran in (Terminal opens a window), or the configured terminal otherwise.
+   * Resume a session that is no longer running. With tmux, in a new window of
+   * the switchyard session, so it can be watched and steered from the page;
+   * otherwise in a new tab of the terminal it ran in (Terminal opens a
+   * window), or of the configured terminal. Resolves to { host }, and the
+   * tmux window ("switchyard:<name>") when it opened one.
    */
-  async function reopen(session) {
+  async function resume(session) {
+    if (useTmux) {
+      if (!SESSION_ID_PATTERN.test(session.sessionId)) throw new ActionError(400, 'Unexpected session id');
+      if (typeof session.cwd !== 'string' || !folderExists(session.cwd)) throw new ActionError(409, `Its folder ${session.cwd ?? ''} no longer exists`);
+      const name = await freeWindowName(tmux, session.cwd);
+      const { place } = await runInWindow(tmux, { name, cwd: session.cwd, command: `claude --resume ${session.sessionId}` });
+      return { host: 'tmux', window: place };
+    }
     const driver = session.host?.kind === 'terminal' ? driverFor(session.host.app) : terminal;
     await driver.open(session.resumeCommand);
-    return { precision: 'resumed', host: session.host?.kind === 'terminal' ? session.host.label : terminal.app };
+    return { host: session.host?.kind === 'terminal' ? session.host.label : terminal.app };
+  }
+
+  /** Bring back a session whose tab or process has gone, for Jump. */
+  async function reopen(session) {
+    return { precision: 'resumed', ...await resume(session) };
   }
 
   /** Select the session's tab; resolves false when its process has gone (the tab was closed). */
@@ -222,20 +242,21 @@ export function createActionService({
     }
     const session = findEndedSession(state, sessionId);
     if (!session) throw new ActionError(404, 'Unknown session');
-    await terminal.open(session.resumeCommand);
-    return { opened: true };
+    return { opened: true, ...await resume(session) };
   }
 
-  /** The command for a new tab in a worktree: a shell, a new Claude session, or one of its sessions resumed. */
-  function worktreeCommand(state, path, body) {
+  /** One of a worktree's recent sessions, to resume from its Open menu. */
+  function recentSession(state, path, body) {
+    const sessionId = parseSessionId(body);
+    const worktree = state.repos.flatMap((repo) => repo.worktrees).find((w) => w.path === path);
+    const session = worktree?.agents.recent?.find((s) => s.sessionId === sessionId);
+    if (!session) throw new ActionError(404, "That session isn't one of this worktree's recent sessions");
+    return session;
+  }
+
+  /** The command for a new tab in a worktree: a shell or a new Claude session. */
+  function worktreeCommand(path, body) {
     const cd = `cd ${shellQuote(path)}`;
-    if (body.sessionId !== undefined) {
-      const sessionId = parseSessionId(body);
-      const worktree = state.repos.flatMap((repo) => repo.worktrees).find((w) => w.path === path);
-      const session = worktree?.agents.recent?.find((s) => s.sessionId === sessionId);
-      if (!session) throw new ActionError(404, "That session isn't one of this worktree's recent sessions");
-      return session.resumeCommand;
-    }
     const launch = body.launch ?? 'shell';
     if (!WORKTREE_LAUNCHES.has(launch)) throw new ActionError(400, 'Expected launch to be "shell" or "claude"');
     return launch === 'claude' ? `${cd} && claude` : cd;
@@ -245,7 +266,9 @@ export function createActionService({
   async function openWorktree(body) {
     const state = await stateService.getState();
     const path = findWorktreePath(state, body?.path);
-    await terminal.open(worktreeCommand(state, path, body));
+    // A worktree's recent sessions are found by folder, so that's their folder.
+    if (body.sessionId !== undefined) return { opened: true, ...await resume({ ...recentSession(state, path, body), cwd: path }) };
+    await terminal.open(worktreeCommand(path, body));
     return { opened: true };
   }
 
