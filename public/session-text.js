@@ -3,11 +3,32 @@
  * on what it's doing or last said (more useful at a glance than your prompt).
  */
 
-/** A name you chose wins, then Claude's own title; the registry's "<folder>-<hex>" name is a last resort. */
+// A prompt standing in for a title is cut to about a line, at a word.
+const PROMPT_TITLE_CHARS = 80;
+// A session with no name, title or prompt yet. The row already says where it runs.
+const UNTITLED = 'New session';
+
+function promptTitle(prompt) {
+  const flat = prompt?.replace(/\s+/g, ' ').trim();
+  if (!flat) return null;
+  if (flat.length <= PROMPT_TITLE_CHARS) return flat;
+  const cut = flat.slice(0, PROMPT_TITLE_CHARS - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > PROMPT_TITLE_CHARS / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+const claudeTitle = (t) => t.agentName ?? t.title ?? null;
+
+/**
+ * A name you chose wins, then Claude's own name or title. Until Claude has
+ * titled it (after your first prompt), your prompt stands in. Claude Code's
+ * generated "<folder>-<hex>" name says nothing the row doesn't, so it's never
+ * shown.
+ */
 export function sessionTitle(session) {
   const t = session.transcript ?? {};
   if (session.nameIsCustom && session.name) return session.name;
-  return t.agentName ?? t.title ?? session.name ?? session.cwd?.split('/').pop() ?? session.sessionId.slice(0, 8);
+  return claudeTitle(t) ?? promptTitle(t.lastPrompt) ?? UNTITLED;
 }
 
 /**
@@ -29,7 +50,9 @@ export function sessionDetail(session) {
     return { kind: 'cut-off', label: 'Cut off while', text: t.activity };
   }
   if (t.lastReply) return { kind: 'reply', label: null, text: t.lastReply };
-  if (t.lastPrompt) return { kind: 'prompt', label: 'You', text: t.lastPrompt };
+  // Not when the prompt is already the title.
+  const promptIsTitle = !(session.nameIsCustom && session.name) && !claudeTitle(t);
+  if (t.lastPrompt && !promptIsTitle) return { kind: 'prompt', label: 'You', text: t.lastPrompt };
   return null;
 }
 
