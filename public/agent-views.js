@@ -2,6 +2,7 @@ import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
 import { jumpButton } from './actions.js';
 import { sessionRow, statusBadge, whereLabel } from './session-row.js';
 import { sessionDetail, sessionTitle } from './session-text.js';
+import { approvalButtons, approvalDetail, approvalsFor, replyMenu } from './session-controls.js';
 
 const STATUS_LABELS = { busy: 'Working', idle: 'Waiting' };
 
@@ -32,6 +33,7 @@ export function locateSession(state, session) {
 export function renderLiveRow(state, session, details = null) {
   const where = locateSession(state, session);
   const pr = where?.worktree.pr;
+  const approvals = approvalsFor(state, session);
   return sessionRow({
     className: session.parked ? 'is-parked' : null,
     badge: statusBadge({ tone: sessionTone(session), dot: sessionDot(session), label: sessionLabel(session) }),
@@ -42,12 +44,14 @@ export function renderLiveRow(state, session, details = null) {
       branch: where?.worktree.branch ?? session.transcript?.gitBranch,
       path: shortPath(session.cwd),
     }),
-    detail: sessionDetail(session),
+    detail: approvals.length > 0 ? approvalDetail(approvals) : sessionDetail(session),
     detailOpen: details?.isOpen(session.sessionId) ?? false,
     onDetailToggle: details ? () => details.toggle(session.sessionId) : null,
     time: timeAgo(session.statusUpdatedAt),
     timeHint: `${sessionLabel(session)} since ${new Date(session.statusUpdatedAt).toLocaleString()}`,
     actions: [
+      approvals.length > 0 && approvalButtons(approvals),
+      replyMenu(session),
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),
       jumpButton(session),
       copyButton('cd', `cd ${shellQuote(session.cwd)}`),

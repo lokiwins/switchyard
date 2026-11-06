@@ -7,6 +7,8 @@ import { createSwrCache } from './cache.js';
 import { loadConfig } from './config.js';
 import { navCounts } from './nav.js';
 import { createActionService } from './actions.js';
+import { createApprovalBroker } from './approvals.js';
+import { HOOK_PATH, isHookInstalled, readClaudeSettings } from './claude-hook.js';
 import { ActionError } from './errors.js';
 import { buildLocalIndex, createPrService } from './prs.js';
 import { resolveTerminalApp } from './settings.js';
@@ -30,6 +32,7 @@ const STATIC_FILES = {
   '/agent-views.js': 'agent-views.js',
   '/session-row.js': 'session-row.js',
   '/session-text.js': 'session-text.js',
+  '/session-controls.js': 'session-controls.js',
   '/dom.js': 'dom.js',
   '/views.js': 'views.js',
   '/styles.css': 'styles.css',
@@ -42,6 +45,11 @@ const SECURITY_HEADERS = {
 // Rejecting other Host headers blocks DNS-rebinding pages from reading the API.
 const ALLOWED_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
 const MAX_BODY_BYTES = 4 * 1024;
+// A hook payload carries the whole tool input, e.g. a file Claude wants to write. A bigger one
+// is refused, which leaves that prompt to the terminal.
+const MAX_HOOK_BODY_BYTES = 256 * 1024;
+// How often to re-read Claude Code's settings for whether the approvals hook is installed.
+const HOOK_CHECK_MS = 10_000;
 const STREAM_HEARTBEAT_MS = 25_000;
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -72,13 +80,13 @@ function isSameOriginJson(req, port) {
   return allowed.has(req.headers.origin) && /^application\/json\b/.test(req.headers['content-type'] ?? '');
 }
 
-function readJsonBody(req) {
+function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         reject(new ActionError(413, 'Request body too large'));
         req.destroy();
         return;
@@ -98,12 +106,47 @@ function readJsonBody(req) {
 
 const POST_ROUTES = {
   '/api/prs/copilot-review': ({ prService }, body) => prService.copilotReview(body),
+  '/api/approvals/decide': ({ approvals }, body) => approvals.decide(body),
   '/api/terminal/focus': ({ actions }, body) => actions.focusSession(body),
+  '/api/terminal/reply': ({ actions }, body) => actions.replyToSession(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
 };
 
+/**
+ * Claude Code's PermissionRequest hook. The response is held until the prompt
+ * is answered on the page, answered in the terminal, or Claude gives up; an
+ * empty 200 leaves the decision to the terminal. Browsers always send Origin
+ * on a POST and Claude Code never does, so a request with one is refused.
+ */
+async function handleHook(req, res, { approvals }) {
+  if (req.headers.origin !== undefined || !/^application\/json\b/.test(req.headers['content-type'] ?? '')) {
+    return sendJson(res, 403, { success: false, error: 'Hook requests come from Claude Code only' });
+  }
+  // Listen before reading the body, so a hook that disconnects early is never left pending.
+  let cancel = () => {};
+  let closed = false;
+  res.on('close', () => {
+    closed = !res.writableEnded;
+    if (closed) cancel();
+  });
+  try {
+    const request = approvals.ask(await readJsonBody(req, MAX_HOOK_BODY_BYTES));
+    cancel = request.cancel;
+    if (closed) cancel();
+    const output = await request.decision;
+    if (res.destroyed) return undefined;
+    if (output) return sendJson(res, 200, output);
+    res.writeHead(200, SECURITY_HEADERS);
+    return res.end();
+  } catch (error) {
+    if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
+    throw error;
+  }
+}
+
 async function handlePost(req, res, url, services) {
+  if (url.pathname === HOOK_PATH) return handleHook(req, res, services);
   const route = POST_ROUTES[url.pathname];
   if (!route) return sendJson(res, 404, { success: false, error: 'Not found' });
   if (!isSameOriginJson(req, services.port)) return sendJson(res, 403, { success: false, error: 'Cross-origin request refused' });
@@ -186,7 +229,16 @@ function createHandler(services) {
       }
       if (url.pathname === '/api/agents') {
         const data = await stateService.getSessions({ force });
-        return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services, { state: data }), capabilities: services.capabilities } });
+        services.approvals.reconcile(data);
+        return sendJson(res, 200, {
+          success: true,
+          data: {
+            ...data,
+            approvals: services.approvals.pending(),
+            nav: await navFor(services, { state: data }),
+            capabilities: { ...services.capabilities, approvalsHook: await services.hookInstalled() },
+          },
+        });
       }
       if (url.pathname === '/api/nav') {
         return sendJson(res, 200, { success: true, data: await navFor(services) });
@@ -203,6 +255,17 @@ function createHandler(services) {
       process.stderr.write(`[switchyard] ${req.url}: ${error.stack ?? error}\n`);
       return sendJson(res, 500, { success: false, error: error.message });
     }
+  };
+}
+
+/** Whether Claude Code's settings send permission prompts here, re-read at most every HOOK_CHECK_MS. */
+function createHookCheck({ claudeDir, port }) {
+  let checked = { at: 0, installed: false };
+  return async () => {
+    if (Date.now() - checked.at < HOOK_CHECK_MS) return checked.installed;
+    const settings = await readClaudeSettings(join(claudeDir, 'settings.json')).catch(() => ({}));
+    checked = { at: Date.now(), installed: isHookInstalled(settings, port) };
+    return checked.installed;
   };
 }
 
@@ -234,7 +297,9 @@ function main() {
   // Actions only need sessions and worktree paths, so they read the fast sessions view.
   const actions = createActionService({ stateService: { getState: stateService.getSessions }, terminal });
   const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme };
-  createServer(createHandler({ stateService, prService, actions, capabilities, port: config.port })).listen(config.port, HOST, () => {
+  const approvals = createApprovalBroker();
+  const hookInstalled = createHookCheck(config);
+  createServer(createHandler({ stateService, prService, actions, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {
     process.stdout.write(`switchyard: http://localhost:${config.port}  (roots: ${config.roots.join(', ')})\n`);
     // Warm the cache so the first page load is quick.
     stateService.getState().catch((error) => process.stderr.write(`Initial scan failed: ${error.message}\n`));
