@@ -636,3 +636,10 @@ td .actions { flex-wrap: nowrap; }
 .markdown th { background: rgb(125 211 252 / 0.08); text-transform: none; letter-spacing: normal; font-size: inherit; font-weight: 600; color: inherit; }
 .markdown .md-left { text-align: left; } .markdown .md-center { text-align: center; } .markdown .md-right { text-align: right; }
 .markdown .md-image, .markdown .md-link { color: var(--pane-dim); }
+
+/* Clean up: removing a worktree is the one destructive button, so it's red. */
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { filter: brightness(1.1); }
+.btn-danger:disabled { opacity: 0.5; cursor: default; }
+.cleanup-panel { width: min(380px, 80vw); font-size: var(--text-xs); }
+.cleanup-panel p { margin: 0 0 8px; }

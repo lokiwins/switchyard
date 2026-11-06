@@ -15,6 +15,7 @@ import { buildLocalIndex, createPrService } from './prs.js';
 import { resolveTerminalApp } from './settings.js';
 import { createStateService } from './state.js';
 import { createTaskService } from './tasks.js';
+import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
 import { createTerminal } from './terminal.js';
 import { createTmux } from './tmux.js';
@@ -133,6 +134,7 @@ const POST_ROUTES = {
   '/api/terminal/resize': ({ liveTerminals }, body) => liveTerminals.resize(body),
   '/api/terminal/ack': ({ liveTerminals }, body) => liveTerminals.ack(body),
   '/api/tasks/new': ({ tasks }, body) => tasks.startTask(body),
+  '/api/worktrees/cleanup': ({ cleanup }, body) => cleanup.cleanUpWorktree(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
 };
@@ -380,11 +382,13 @@ async function main() {
   const actions = createActionService({ stateService: sessionsView, terminal, tmux });
   const tasks = createTaskService({ stateService: sessionsView, tmux });
   const liveTerminals = createLiveTerminals({ actions, tmux });
+  // The full state: Clean up needs PR data, which the sessions view leaves out.
+  const cleanup = createCleanupService({ stateService });
   // Checked once: install tmux, then restart switchyard to get New task.
   const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme, tmux: await tmux.isInstalled() };
   const approvals = createApprovalBroker();
   const hookInstalled = createHookCheck(config);
-  createServer(createHandler({ stateService, prService, actions, tasks, liveTerminals, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {
+  createServer(createHandler({ stateService, prService, actions, tasks, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {
     process.stdout.write(`switchyard: http://localhost:${config.port}  (roots: ${config.roots.join(', ')})\n`);
     // Warm the cache so the first page load is quick.
     stateService.getState().catch((error) => process.stderr.write(`Initial scan failed: ${error.message}\n`));

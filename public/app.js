@@ -112,6 +112,7 @@ $('search').addEventListener('input', (event) => {
   ui.query = event.target.value.trim();
   render();
 });
+document.addEventListener('switchyard:changed', (event) => load({ force: Boolean(event.detail?.force) }));
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) load();
 });

@@ -7,7 +7,7 @@ const GH_CONCURRENCY = 4;
 // are fetched per PR.
 const DETAIL_FIELDS = 'number,statusCheckRollup,mergeStateStatus';
 const FULL_FIELDS = [
-  'number', 'title', 'url', 'state', 'isDraft', 'headRefName', 'baseRefName', 'author', 'createdAt', 'updatedAt',
+  'number', 'title', 'url', 'state', 'isDraft', 'headRefName', 'headRefOid', 'baseRefName', 'author', 'createdAt', 'updatedAt',
   'reviewDecision', 'mergeStateStatus', 'mergeable', 'statusCheckRollup', 'latestReviews', 'reviewRequests',
   'additions', 'deletions', 'changedFiles',
 ].join(',');
@@ -107,7 +107,8 @@ export function summarizeReviews(latestReviews = [], reviewRequests = []) {
 }
 
 // Fields for finding a branch's PR; checks come from the PR sync or a per-PR fetch (see above).
-const BRANCH_PR_FIELDS = 'number title state isDraft headRefName url updatedAt reviewDecision author { login }';
+// headRefOid (the PR's last commit) tells Clean up whether a worktree's commits are all in the PR.
+const BRANCH_PR_FIELDS = 'number title state isDraft headRefName headRefOid url updatedAt reviewDecision author { login }';
 // A branch rarely has more than one PR; a few covers reopened and superseded ones.
 const PRS_PER_BRANCH = 5;
 const BRANCHES_PER_QUERY = 100;

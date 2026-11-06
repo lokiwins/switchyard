@@ -1,6 +1,6 @@
-import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
+import { copyButton, h, shellQuote, shortPath, timeAgo, toast } from './dom.js';
 import { sessionDetail, sessionSearchText, sessionTitle } from './session-text.js';
-import { editorLink, openMenu, resumeButton } from './actions.js';
+import { announceChange, closeDropdown, dropdown, editorLink, openMenu, post, resumeButton } from './actions.js';
 import { sessionDot, sessionLabel } from './agent-views.js';
 import { endStateOf } from './ended-views.js';
 
@@ -175,12 +175,51 @@ export function cleanupCommand(repo, w) {
   return steps.join(' && ');
 }
 
+const mono = (text) => h('span', { class: 'mono' }, text);
+
+/** What Clean up will do, said before it does it. */
+function cleanupSummary(w) {
+  const folder = mono(shortPath(w.path));
+  if (w.pr.state === 'MERGED' && w.branch) return ['Removes ', folder, ' and deletes branch ', mono(w.branch), ', since its PR was merged.'];
+  return ['Removes ', folder, w.branch ? [' and keeps branch ', mono(w.branch), ', since its PR was closed without merging.'] : '.'];
+}
+
+/**
+ * "Clean up ▾" for a worktree whose PR is merged or closed. The server checks
+ * again before removing anything: no running session, nothing uncommitted,
+ * nothing that isn't in the PR or on origin.
+ */
+function cleanupMenu(repo, w) {
+  const remove = async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const result = await post('/api/worktrees/cleanup', { path: w.path });
+      closeDropdown(button);
+      const folder = shortPath(result.removed);
+      if (result.deletedBranch) toast(`Removed ${folder} and branch ${result.deletedBranch}`);
+      else if (result.branchError) toast(`Removed ${folder}, but couldn't delete its branch: ${result.branchError}`);
+      else toast(`Removed ${folder}${w.branch ? `; kept branch ${w.branch}` : ''}`);
+      announceChange({ force: true });
+    } catch (error) {
+      toast(error.message);
+      button.disabled = false;
+    }
+  };
+  return dropdown({ key: `cleanup:${w.path}`, label: 'Clean up ▾', title: `PR ${w.pr.state.toLowerCase()}: remove this worktree`, className: 'btn btn-sm', panelClass: 'reply-panel' },
+    h('div', { class: 'cleanup-panel' },
+      h('p', {}, cleanupSummary(w)),
+      h('p', { class: 'reply-hint' }, "Checked again first: no session running in it, no uncommitted or untracked files, and no commits that aren't in the PR or on origin."),
+      h('div', { class: 'task-actions' },
+        copyButton('copy command', cleanupCommand(repo, w), `Copy the commands instead: ${cleanupCommand(repo, w)}`),
+        h('button', { type: 'button', class: 'btn btn-sm btn-danger', onclick: remove }, 'Remove'))));
+}
+
 function renderActionsCell(repo, w, caps) {
   return h('td', {}, h('div', { class: 'actions' },
     w.prunable ? null : openMenu(w.path, w.agents.recent ?? [], caps) ?? copyButton('cd', `cd ${shellQuote(w.path)}`),
     !w.prunable && editorLink(w.path, caps),
-    w.flags.includes('cleanup') && copyButton('clean up', cleanupCommand(repo, w),
-      `PR ${w.pr.state.toLowerCase()} — copy: ${cleanupCommand(repo, w)}`)));
+    w.flags.includes('cleanup') && cleanupMenu(repo, w)));
 }
 
 function renderRow(repo, w, caps) {
