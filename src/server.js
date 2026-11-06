@@ -379,13 +379,14 @@ async function main() {
   const terminal = createTerminal({ app: resolveTerminalApp(config.settings.terminal.app) });
   // Actions only need sessions and worktree paths, so they read the fast sessions view.
   const sessionsView = { getState: stateService.getSessions };
-  const actions = createActionService({ stateService: sessionsView, terminal, tmux });
+  // Checked once: install tmux, then restart switchyard to get New task and tmux resumes.
+  const tmuxInstalled = await tmux.isInstalled();
+  const actions = createActionService({ stateService: sessionsView, terminal, tmux, useTmux: tmuxInstalled });
   const tasks = createTaskService({ stateService: sessionsView, tmux });
   const liveTerminals = createLiveTerminals({ actions, tmux });
   // The full state: Clean up needs PR data, which the sessions view leaves out.
   const cleanup = createCleanupService({ stateService });
-  // Checked once: install tmux, then restart switchyard to get New task.
-  const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme, tmux: await tmux.isInstalled() };
+  const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme, tmux: tmuxInstalled };
   const approvals = createApprovalBroker();
   const hookInstalled = createHookCheck(config);
   createServer(createHandler({ stateService, prService, actions, tasks, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {

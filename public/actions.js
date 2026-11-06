@@ -53,19 +53,26 @@ export function jumpButton(session) {
       : `Bring ${host.label} to the front`;
   return actionButton(isTerminal ? 'Jump' : `Open ${host.label}`, title, async () => {
     const result = await post('/api/terminal/focus', { sessionId: session.sessionId });
-    if (result.precision === 'resumed') return `The session had closed, so it's resuming in a new ${result.host} tab`;
+    if (result.precision === 'resumed') {
+      return result.window
+        ? `The session had closed, so it's resuming in tmux window ${result.window}`
+        : `The session had closed, so it's resuming in a new ${result.host} tab`;
+    }
     if (result.precision === 'attached') return `Attached tmux session ${host.session} in a new ${result.host} tab, showing ${host.windowName}`;
     if (result.precision === 'window') return `Opened ${result.host}. The session is in one of its terminals.`;
     return null;
   });
 }
 
-/** Resume an ended session in a new terminal tab. */
+/** Where a resumed session opens: a tab of the switchyard tmux session, or of the terminal app. */
+const resumeWhere = (caps) => (caps?.tmux ? 'a new tab of the switchyard tmux session' : `a new ${caps.terminal} tab`);
+const resumedMessage = (result) => `Resuming in ${result.window ? `tmux window ${result.window}` : result.host}`;
+
+/** Resume an ended session: in tmux when it's installed, so it can be watched and steered from here. */
 export function resumeButton(session, caps) {
-  if (!caps?.terminal) return null;
-  return actionButton('Resume', `Resume this session in a new ${caps.terminal} tab`, async () => {
-    await post('/api/terminal/resume', { sessionId: session.sessionId });
-    return `Resuming in ${caps.terminal}`;
+  if (!caps?.terminal && !caps?.tmux) return null;
+  return actionButton('Resume', `Resume this session in ${resumeWhere(caps)}`, async () => {
+    return resumedMessage(await post('/api/terminal/resume', { sessionId: session.sessionId }));
   });
 }
 
@@ -151,7 +158,11 @@ export function openMenu(path, sessions, caps) {
     onclick: async (event) => {
       closeDropdown(event.currentTarget);
       try {
-        await post('/api/terminal/open', { path, ...body });
+        const result = await post('/api/terminal/open', { path, ...body });
+        if (result.window) {
+          toast(resumedMessage(result));
+          announceChange();
+        }
       } catch (error) {
         toast(error.message);
       }
@@ -165,7 +176,7 @@ export function openMenu(path, sessions, caps) {
     sessions.map((session) => choice([
       h('span', { class: 'menu-title' }, sessionLabel(session)),
       h('span', { class: 'menu-meta' }, timeAgo(session.updatedAt)),
-    ], { sessionId: session.sessionId }, session.transcript?.lastPrompt ?? undefined)));
+    ], { sessionId: session.sessionId }, caps.tmux ? `Resume in ${resumeWhere(caps)}` : session.transcript?.lastPrompt ?? undefined)));
 }
 
 /** Open a folder in the configured editor; a plain link, handled by the editor's URL scheme. */
