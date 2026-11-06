@@ -1,5 +1,7 @@
 # switchyard
 
+[![Tests](https://github.com/lokiwins/switchyard/actions/workflows/test.yml/badge.svg)](https://github.com/lokiwins/switchyard/actions/workflows/test.yml)
+
 A local status board for parallel development: your running AI agent sessions, your git worktrees, and your pull requests, side by side.
 
 ```bash
@@ -7,7 +9,7 @@ npm start          # http://localhost:4477
 npm test
 ```
 
-Requires Node 20+, `git`, and an authenticated `gh` CLI. There are no npm dependencies.
+Requires Node 22+, `git`, and an authenticated `gh` CLI. There are no npm dependencies.
 
 ## What it shows
 
