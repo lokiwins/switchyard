@@ -48,16 +48,27 @@ A web page can't touch your terminal, but the switchyard server runs on your mac
 
 - **Jump** (running sessions) gets you to the session as precisely as its host app allows. switchyard finds the host by walking up the session's parent processes:
   - **iTerm / Terminal**: selects the exact tab running the session.
+  - **tmux**: switches the session to the task's window, then selects the tab the session is attached in, or attaches it (`tmux attach-session -t =<session>`) in a new tab.
   - **VS Code, Cursor, Windsurf**: brings forward the window for the session's folder. You pick the terminal there.
   - **Other apps** (e.g. Codex in the ChatGPT app): brings the app to the front.
 
   If the session's tab was closed, Jump resumes it in a new tab instead.
 - **Allow / Deny** appear on a session waiting on a permission prompt, showing what Claude wants to run or touch. Allow runs it once. Deny stops Claude to wait for you, like "No" in the terminal. The terminal's own prompt stays open the whole time, and whichever you answer first wins. This needs a one-time hook (see below).
-- **Reply ▾** (sessions in iTerm) types a one-line message into the session's tab and presses Return, as if you'd typed it there. A message sent while Claude is working is queued until its current step finishes. It's refused while a question or prompt is open, because the text would answer it. It lands after anything already typed in that tab's input box.
+- **Reply ▾** (sessions in tmux or iTerm) types a one-line message into the session and presses Return, as if you'd typed it there. A message sent while Claude is working is queued until its current step finishes. It's refused while a question or prompt is open, because the text would answer it. It lands after anything already typed in its input box. tmux sessions get it through `tmux send-keys`, so they don't need to be attached or have a tab.
+- **Stop** (working sessions in tmux) presses Esc in the session, ending Claude's current turn as it would in the terminal.
 - **Resume** (ended sessions) opens a new tab that runs `cd <dir> && claude --resume <id>`.
 - **Terminal** (worktrees, PRs) opens a new tab in that folder.
 - **Code** opens the folder in your editor.
 - **⧉** buttons copy the command instead, for anywhere else.
+
+### New task (needs tmux)
+
+**New task ▾** on the Agents page starts Claude on a new branch in its own worktree:
+
+1. Creates the worktree beside the repo as `<repo>-<last branch segment>` (`fix/login` in `my-repo` becomes `my-repo-login`). An existing local branch is checked out. A branch that only exists on origin is checked out tracking it. Otherwise a new branch starts from origin's default branch, fetched first, without tracking it, so a push can't land on main. If tmux fails to start the window, the new worktree is removed again so you can retry.
+2. Opens a window (tab) of the same name in the `switchyard` tmux session, starting the session if it isn't running, and types `claude` in it (with your task as its first prompt, if you gave one). The window opens in the background, so if you're attached you stay where you are. Its shell starts from the same PATH as a new terminal tab, so `claude` there is the one your terminal runs, even when switchyard itself runs under a Node version manager. Every task is a tab in that one session: attach once (`tmux attach -t switchyard`) and switch between them with `prefix n`/`prefix p`, or `prefix w` to pick from a list.
+
+The session shows up on the Agents page within seconds. Jump, Reply and Stop reach it through tmux, wherever it's attached. Install tmux (`brew install tmux`) and restart switchyard to get the button. Claude Code trusts a worktree when you have trusted its main checkout, so the new session starts without a trust prompt.
 
 New tabs go into the front iTerm window. If iTerm has no windows, a new window opens; if it isn't running, it launches and uses the window it opens. Terminal.app always opens a new window, because it has no scriptable "new tab".
 
@@ -109,6 +120,6 @@ Lists replace the defaults rather than adding to them.
 
 The server binds to `127.0.0.1` and rejects requests whose `Host` header isn't `localhost`/`127.0.0.1`, which blocks DNS rebinding. Responses carry a strict CSP. The API exposes local paths and your prompts, so don't proxy it anywhere.
 
-The action endpoints (`POST /api/prs/copilot-review`, `/api/approvals/decide` and `/api/terminal/*`) also require an `Origin` matching the dashboard and an `application/json` body, so other websites open in your browser can't trigger it. They only act on things the server itself discovered. The browser names a PR, a session ID or a worktree path, never a command. The server builds every command from a fixed template, passes values to AppleScript as arguments rather than splicing them into the script, and refuses multi-line commands. A reply is the one place where the browser supplies text. It's typed as plain text, and control characters such as Return or Esc are refused so it can't act as keystrokes. It still reaches Claude Code exactly as if you'd typed it, including `/` commands and `!` shell commands, so the Origin check is what keeps other sites from sending one.
+The action endpoints (`POST /api/prs/copilot-review`, `/api/approvals/decide`, `/api/tasks/new` and `/api/terminal/*`) also require an `Origin` matching the dashboard and an `application/json` body, so other websites open in your browser can't trigger it. They only act on things the server itself discovered. The browser names a PR, a session ID or a worktree path, never a command. The server builds every command from a fixed template, passes values to AppleScript as arguments rather than splicing them into the script, and refuses multi-line commands. New task only works in repositories switchyard discovered, checks the branch name with `git check-ref-format`, and passes it, the folder and the task to git and tmux as separate arguments; the task is shell-quoted where it's typed after `claude`. A reply is the one place where the browser supplies text. It's typed as plain text, and control characters such as Return or Esc are refused so it can't act as keystrokes. It still reaches Claude Code exactly as if you'd typed it, including `/` commands and `!` shell commands, so the Origin check is what keeps other sites from sending one.
 
 The hook endpoint (`POST /hooks/permission-request`) is called by Claude Code, not the page. It refuses any request carrying an `Origin` header, which browsers always send, so a website can't reach it. A local program could post a fake request, but that only adds a row to the page; answering it affects nothing. The hook trusts whatever answers on its port. If switchyard isn't running, another program could take that port and approve prompts. Any program running as you could already do worse, so this only matters on a Mac shared with other accounts. There, use `npm run hook -- remove` while switchyard is off.

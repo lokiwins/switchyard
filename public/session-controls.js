@@ -1,9 +1,9 @@
 import { h, toast } from './dom.js';
-import { actionButton, announceChange, closeDropdown, dropdown, post } from './actions.js';
+import { actionButton, announceChange, closeDropdown, dropdown, post, tmuxPlace } from './actions.js';
 
 /*
  * Answering a running session from the page: allow or deny the tool call it's
- * waiting on, or type a message into its terminal tab.
+ * waiting on, type a message into its terminal, or stop what it is doing.
  */
 
 // Apps whose tabs the server can type into (see canTypeInto in src/terminal.js).
@@ -37,7 +37,22 @@ export function approvalButtons([approval]) {
   ];
 }
 
-export const canReply = (session) => session.host?.kind === 'terminal' && TYPEABLE_APPS.has(session.host.app) && !session.needsYou;
+const inTmux = (session) => session.host?.kind === 'tmux';
+
+export const canReply = (session) => !session.needsYou
+  && (inTmux(session) || (session.host?.kind === 'terminal' && TYPEABLE_APPS.has(session.host.app)));
+
+/** Where a reply is typed, for hints. */
+const replyTarget = (session) => (inTmux(session) ? `tmux window ${tmuxPlace(session.host)}` : `${session.host.label} tab`);
+
+/** "Stop": presses Esc in a working tmux session, ending its current turn. */
+export function stopButton(session) {
+  if (!inTmux(session) || session.status !== 'busy') return null;
+  return actionButton('Stop', 'Interrupt what Claude is doing (Esc), as in its terminal', async () => {
+    await post('/api/terminal/interrupt', { sessionId: session.sessionId });
+    return 'Interrupted';
+  }, 'btn btn-sm btn-secondary');
+}
 
 async function sendReply(event, session) {
   event.preventDefault();
@@ -64,7 +79,7 @@ export function replyMenu(session) {
   return dropdown({
     key: `reply:${session.sessionId}`,
     label: 'Reply ▾',
-    title: `Type a message into this session's ${session.host.label} tab`,
+    title: `Type a message into this session's ${replyTarget(session)}`,
     panelClass: 'reply-panel',
   },
   h('form', { class: 'reply-form', onsubmit: (event) => sendReply(event, session) },
@@ -80,7 +95,7 @@ export function replyMenu(session) {
       oninput: (event) => drafts.set(session.sessionId, event.target.value),
     }),
     h('button', { type: 'submit', class: 'btn btn-sm' }, 'Send')),
-  h('p', { class: 'reply-hint' }, `Typed into its ${session.host.label} tab, after anything already in the input box there.`));
+  h('p', { class: 'reply-hint' }, `Typed into its ${replyTarget(session)}, after anything already in the input box there.`));
 }
 
 /** Whether you're typing in a reply box, so a background refresh mustn't replace it. */

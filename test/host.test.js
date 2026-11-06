@@ -1,20 +1,23 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appNameFromPath, describeHost, findHost, parseProcessTable } from '../src/agents/host.js';
+import { appNameFromPath, describeHost, findHost, hostsFor, parseProcessTable } from '../src/agents/host.js';
 
 const table = parseProcessTable([
-  '  100     1 /Applications/iTerm.app/Contents/MacOS/iTerm2',
-  '  200   100 /usr/bin/login',
-  '  300   200 -zsh',
-  '  400   300 claude',
-  '  500     1 /Applications/Visual Studio Code.app/Contents/MacOS/Electron',
-  '  510   500 /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)',
-  '  520   510 /bin/zsh',
-  '  530   520 claude',
-  '  600     1 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
-  '  610   600 codex',
-  '  700     1 /usr/sbin/sshd',
-  '  710   700 claude',
+  '  100     1 ?? /Applications/iTerm.app/Contents/MacOS/iTerm2',
+  '  200   100 ?? /usr/bin/login',
+  '  300   200 ?? -zsh',
+  '  400   300 ttys004 claude',
+  '  500     1 ?? /Applications/Visual Studio Code.app/Contents/MacOS/Electron',
+  '  510   500 ?? /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)',
+  '  520   510 ?? /bin/zsh',
+  '  530   520 ?? claude',
+  '  600     1 ?? /Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+  '  610   600 ?? codex',
+  '  700     1 ?? /usr/sbin/sshd',
+  '  710   700 ?? claude',
+  '  800     1 ?? tmux',
+  '  810   800 ttys010 -zsh',
+  '  820   810 ttys010 claude',
 ].join('\n'));
 
 test('parseProcessTable keeps commands that contain spaces', () => {
@@ -43,4 +46,18 @@ test('describeHost knows the common editors by their URL scheme', () => {
   assert.equal(describeHost('Cursor').scheme, 'cursor');
   assert.equal(describeHost('Windsurf').scheme, 'windsurf');
   assert.equal(describeHost(null), null);
+});
+
+test('parseProcessTable reads each process tty, null when it has none', () => {
+  assert.equal(table.get(400).tty, '/dev/ttys004');
+  assert.equal(table.get(100).tty, null);
+});
+
+test('hostsFor names the tmux session, window and pane a session runs in', () => {
+  const pane = { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' };
+  const panes = new Map([['/dev/ttys010', pane]]);
+  const hosts = hostsFor([400, 820, 710], table, panes);
+  assert.equal(hosts.get(400).app, 'iTerm');
+  assert.deepEqual(hosts.get(820), { kind: 'tmux', label: 'tmux', ...pane });
+  assert.equal(hosts.get(710), null);
 });

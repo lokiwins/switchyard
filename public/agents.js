@@ -4,6 +4,7 @@ import { locateSession, renderLiveList } from './agent-views.js';
 import { renderEnded } from './ended-views.js';
 import { applyNav, startNavBadges } from './nav.js';
 import { isTypingReply } from './session-controls.js';
+import { isEditingTask, newTaskMenu } from './new-task.js';
 
 // Sessions change by the second and this feed is local-only and cheap, so it polls fast.
 const POLL_MS = 4_000;
@@ -29,6 +30,7 @@ const ui = {
   showAllEnded: false,
   openDetails: new Set(),
   loading: false,
+  newTaskSignature: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -145,10 +147,19 @@ function renderEndedPanel(state, filter) {
   }));
 }
 
+/** The repo list changes rarely; rebuilding the form only then keeps what you've typed. */
+function renderNewTask(state) {
+  const signature = JSON.stringify([state.capabilities?.tmux, state.repos.map((r) => r.mainPath)]);
+  if (signature === ui.newTaskSignature || isEditingTask()) return;
+  ui.newTaskSignature = signature;
+  $('new-task').replaceChildren(newTaskMenu(state) ?? '');
+}
+
 function render() {
   renderViews();
   const { state } = ui;
   if (!state) return;
+  renderNewTask(state);
   $('updated').textContent = `Updated ${timeAgo(state.generatedAt)}`;
   renderErrors(state.errors);
   renderTiles(state);

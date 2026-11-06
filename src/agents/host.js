@@ -17,11 +17,13 @@ const KNOWN_HOSTS = {
   Windsurf: { kind: 'editor', label: 'Windsurf', scheme: 'windsurf' },
 };
 
-/** Parse `ps -axo pid=,ppid=,comm=` into pid -> { ppid, command }. */
+/** Parse `ps -axo pid=,ppid=,tty=,comm=` into pid -> { ppid, tty, command }; tty is null for "??". */
 export function parseProcessTable(text) {
   return new Map(text.split('\n').flatMap((line) => {
-    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.*\S)\s*$/);
-    return match ? [[Number(match[1]), { ppid: Number(match[2]), command: match[3] }]] : [];
+    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.*\S)\s*$/);
+    if (!match) return [];
+    const tty = match[3] === '??' ? null : `/dev/${match[3]}`;
+    return [[Number(match[1]), { ppid: Number(match[2]), tty, command: match[4] }]];
   }));
 }
 
@@ -48,12 +50,27 @@ export function findHost(pid, table) {
   return null;
 }
 
+/**
+ * pid -> host. A tmux server runs detached from any app, so a session inside
+ * tmux is known by its tty instead: the tty of the tmux pane it runs in.
+ */
+export function hostsFor(pids, table, tmuxPanes) {
+  return new Map(pids.map((pid) => {
+    const pane = tmuxPanes.get(table.get(pid)?.tty);
+    if (pane) return [pid, { kind: 'tmux', label: 'tmux', ...pane }];
+    return [pid, findHost(pid, table)];
+  }));
+}
+
 /** pid -> host for each pid; an empty map if `ps` is unavailable. */
-export async function detectHosts(pids) {
+export async function detectHosts(pids, { listTmuxPanes = async () => new Map() } = {}) {
   if (pids.length === 0) return new Map();
   try {
-    const table = parseProcessTable(await run('ps', ['-axo', 'pid=,ppid=,comm=']));
-    return new Map(pids.map((pid) => [pid, findHost(pid, table)]));
+    const [table, panes] = await Promise.all([
+      run('ps', ['-axo', 'pid=,ppid=,tty=,comm=']).then(parseProcessTable),
+      listTmuxPanes(),
+    ]);
+    return hostsFor(pids, table, panes);
   } catch {
     return new Map();
   }

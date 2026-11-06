@@ -1,8 +1,8 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
-import { jumpButton } from './actions.js';
+import { jumpButton, tmuxPlace } from './actions.js';
 import { sessionRow, statusBadge, whereLabel } from './session-row.js';
 import { sessionDetail, sessionTitle } from './session-text.js';
-import { approvalButtons, approvalDetail, approvalsFor, replyMenu } from './session-controls.js';
+import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
 
 const STATUS_LABELS = { busy: 'Working', idle: 'Waiting' };
 
@@ -38,7 +38,7 @@ export function renderLiveRow(state, session, details = null) {
     className: session.parked ? 'is-parked' : null,
     badge: statusBadge({ tone: sessionTone(session), dot: sessionDot(session), label: sessionLabel(session) }),
     title: sessionTitle(session),
-    titleHint: [session.cwd, session.host && `running in ${session.host.label}`].filter(Boolean).join(' · '),
+    titleHint: [session.cwd, session.host && `running in ${session.host.kind === 'tmux' ? `tmux window ${tmuxPlace(session.host)}` : session.host.label}`].filter(Boolean).join(' · '),
     where: whereLabel({
       repoName: where?.repo.name,
       branch: where?.worktree.branch ?? session.transcript?.gitBranch,
@@ -52,6 +52,7 @@ export function renderLiveRow(state, session, details = null) {
     actions: [
       approvals.length > 0 && approvalButtons(approvals),
       replyMenu(session),
+      stopButton(session),
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),
       jumpButton(session),
       copyButton('cd', `cd ${shellQuote(session.cwd)}`),

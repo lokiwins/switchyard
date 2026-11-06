@@ -207,6 +207,15 @@ main {
   border: 0; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--gray-200);
 }
 .reply-form input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+.task-form { display: grid; gap: var(--space-2); }
+.task-field { display: grid; gap: 2px; font-size: var(--text-xs); color: var(--gray-500); }
+.task-field input, .task-field select {
+  padding: 4px 8px; font: inherit; font-size: var(--text-xs); line-height: var(--leading-xs);
+  color: var(--gray-900); background: var(--surface);
+  border: 0; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--gray-200);
+}
+.task-field input:focus, .task-field select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+.task-actions { display: flex; gap: var(--space-2); align-items: flex-end; justify-content: space-between; }
 .reply-hint { margin: 0; font-size: 11px; line-height: var(--leading-xs); color: var(--gray-500); }
 .hint {
   margin: 0; padding: 6px var(--space-3);

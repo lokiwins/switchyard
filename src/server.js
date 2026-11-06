@@ -13,7 +13,9 @@ import { ActionError } from './errors.js';
 import { buildLocalIndex, createPrService } from './prs.js';
 import { resolveTerminalApp } from './settings.js';
 import { createStateService } from './state.js';
+import { createTaskService } from './tasks.js';
 import { createTerminal } from './terminal.js';
+import { createTmux } from './tmux.js';
 
 // Loopback only: the API exposes local paths and agent prompts.
 const HOST = '127.0.0.1';
@@ -33,6 +35,7 @@ const STATIC_FILES = {
   '/session-row.js': 'session-row.js',
   '/session-text.js': 'session-text.js',
   '/session-controls.js': 'session-controls.js',
+  '/new-task.js': 'new-task.js',
   '/dom.js': 'dom.js',
   '/views.js': 'views.js',
   '/styles.css': 'styles.css',
@@ -109,6 +112,8 @@ const POST_ROUTES = {
   '/api/approvals/decide': ({ approvals }, body) => approvals.decide(body),
   '/api/terminal/focus': ({ actions }, body) => actions.focusSession(body),
   '/api/terminal/reply': ({ actions }, body) => actions.replyToSession(body),
+  '/api/terminal/interrupt': ({ actions }, body) => actions.interruptSession(body),
+  '/api/tasks/new': ({ tasks }, body) => tasks.startTask(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
 };
@@ -278,14 +283,15 @@ function loadConfigOrExit() {
   }
 }
 
-function main() {
+async function main() {
   const config = loadConfigOrExit();
   const cache = createSwrCache();
+  const tmux = createTmux();
   // The board reuses the PR sync's details for your PRs; the sync is created just below.
   let prService = null;
   const stateService = createStateService({
     config,
-    claude: createClaudeProvider({ claudeDir: config.claudeDir }),
+    claude: createClaudeProvider({ claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes }),
     cache,
     prSnapshot: () => prService?.syncSnapshot() ?? null,
   });
@@ -295,11 +301,14 @@ function main() {
   });
   const terminal = createTerminal({ app: resolveTerminalApp(config.settings.terminal.app) });
   // Actions only need sessions and worktree paths, so they read the fast sessions view.
-  const actions = createActionService({ stateService: { getState: stateService.getSessions }, terminal });
-  const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme };
+  const sessionsView = { getState: stateService.getSessions };
+  const actions = createActionService({ stateService: sessionsView, terminal, tmux });
+  const tasks = createTaskService({ stateService: sessionsView, tmux });
+  // Checked once: install tmux, then restart switchyard to get New task.
+  const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme, tmux: await tmux.isInstalled() };
   const approvals = createApprovalBroker();
   const hookInstalled = createHookCheck(config);
-  createServer(createHandler({ stateService, prService, actions, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {
+  createServer(createHandler({ stateService, prService, actions, tasks, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {
     process.stdout.write(`switchyard: http://localhost:${config.port}  (roots: ${config.roots.join(', ')})\n`);
     // Warm the cache so the first page load is quick.
     stateService.getState().catch((error) => process.stderr.write(`Initial scan failed: ${error.message}\n`));
@@ -308,4 +317,7 @@ function main() {
   });
 }
 
-main();
+main().catch((error) => {
+  process.stderr.write(`switchyard: ${error.stack ?? error}\n`);
+  process.exit(1);
+});
