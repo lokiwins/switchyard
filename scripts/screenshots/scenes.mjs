@@ -9,6 +9,15 @@
 
 const settle = (page) => page.waitForLoadState('networkidle');
 
+/**
+ * The Agents page draws sessions first and their PR links once GitHub (here,
+ * the fake gh) answers, so wait for both or captures race each other.
+ */
+async function agentsLoaded(page) {
+  await page.getByText('Investigate the flaky invoice test').first().waitFor();
+  await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
+}
+
 /** @type {{ name: string, title: string, path: string, fullPage?: boolean, prepare?: (page: import('playwright').Page) => Promise<void> }[]} */
 export const SCENES = [
   {
@@ -16,16 +25,14 @@ export const SCENES = [
     title: 'Agents: running sessions and what they are doing',
     path: '/',
     fullPage: true,
-    prepare: async (page) => {
-      await page.getByText('Fix the login redirect on the settings page').first().waitFor();
-      await page.getByText('Investigate the flaky invoice test').first().waitFor();
-    },
+    prepare: agentsLoaded,
   },
   {
     name: 'new-task',
     title: 'New task: start Claude on a task in its own worktree',
     path: '/',
     prepare: async (page) => {
+      await agentsLoaded(page);
       await page.locator('summary', { hasText: 'New task' }).click();
       await page.getByPlaceholder('What should Claude do?').fill('Show order history on the account page');
     },
@@ -35,6 +42,7 @@ export const SCENES = [
     title: 'Review a permission prompt in full before answering it',
     path: '/',
     prepare: async (page) => {
+      await agentsLoaded(page);
       await page.getByRole('button', { name: 'Review', exact: true }).first().click();
       await page.locator('dialog.review-pane[open]').waitFor();
       await settle(page);
@@ -46,7 +54,8 @@ export const SCENES = [
     path: '/worktrees',
     fullPage: true,
     prepare: async (page) => {
-      await page.getByText('storefront-dark-mode').first().waitFor();
+      await page.getByText('chore/remove-banner').first().waitFor();
+      await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
     },
   },
   {
@@ -54,6 +63,7 @@ export const SCENES = [
     title: 'Clean up a worktree whose PR has merged',
     path: '/worktrees',
     prepare: async (page) => {
+      await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
       await page.locator('summary', { hasText: 'Clean up' }).first().click();
     },
   },
