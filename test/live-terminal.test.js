@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ActionError } from '../src/errors.js';
-import { createLiveTerminals, parseSize, seedBytes } from '../src/live-terminal.js';
+import { createFlow, createLiveTerminals, parseSize, seedBytes } from '../src/live-terminal.js';
 
 const SESSION = 'c9c573f7-e5a4-4da9-9837-c8fe1b428fc2';
 
@@ -165,4 +165,43 @@ test('resize asks for the size on the terminal\'s window, within sane bounds', a
     assert.throws(() => terminals.resize({ token: 'tok', ...bad }), (error) => error.status === 400, JSON.stringify(bad));
   }
   assert.throws(() => terminals.resize({ token: 'guess', cols: 100, rows: 40 }), (error) => error.status === 404);
+});
+
+test('createFlow pauses above the high-water mark and resumes below the low one, once each', () => {
+  const calls = [];
+  const flow = createFlow({ high: 100, low: 40, pause: () => calls.push('pause'), resume: () => calls.push('resume') });
+  flow.sent(60);
+  flow.sent(60);
+  flow.sent(60);
+  assert.deepEqual(calls, ['pause']);
+  flow.acked(100);
+  assert.equal(flow.inFlight, 80);
+  flow.acked(50);
+  assert.deepEqual(calls, ['pause', 'resume']);
+  flow.acked(1000);
+  assert.equal(flow.inFlight, 0);
+  assert.equal(flow.paused, false);
+});
+
+test('a page that falls behind pauses the pane, and catching up continues it and redraws from a copy', async () => {
+  const { terminals, sink, commands, client } = setup();
+  await terminals.start({ sessionId: SESSION }, sink);
+  client().onEvent({ type: 'output', pane: '%3', data: Buffer.alloc(600 * 1024, 0x61) });
+  assert.equal(commands.at(-1), "refresh-client -A '%3:pause'");
+  const before = sink.events.length;
+  terminals.ack({ token: 'tok', bytes: 600 * 1024 });
+  assert.equal(commands.at(-1), "refresh-client -A '%3:continue'");
+  await settle();
+  assert.equal(sink.events[before][0], 'resize');
+  assert.ok(sink.events[before + 1][1].startsWith(CLEAR));
+});
+
+test('ack refuses unknown tokens and nonsense counts', async () => {
+  const { terminals, sink } = setup();
+  await terminals.start({ sessionId: SESSION }, sink);
+  assert.throws(() => terminals.ack({ token: 'guess', bytes: 10 }), (error) => error.status === 404);
+  for (const bytes of [0, -5, 1.5, '10', 10 ** 12]) {
+    assert.throws(() => terminals.ack({ token: 'tok', bytes }), (error) => error.status === 400, String(bytes));
+  }
+  assert.ok(terminals.ack({ token: 'tok', bytes: 10 }).inFlight >= 0);
 });

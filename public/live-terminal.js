@@ -20,6 +20,8 @@ const XTERM_CSS = '/vendor/xterm/xterm.css';
 const INPUT_CHUNK_CHARS = 600;
 // Wait for the pane to stop changing size before asking tmux to match it.
 const RESIZE_SETTLE_MS = 120;
+// How often, at most, to tell the server how much output has been drawn.
+const ACK_EVERY_MS = 200;
 // Transparent cells let the glass pane show through; the rest picks out cursor and selection.
 const THEME = {
   background: 'rgba(0, 0, 0, 0)',
@@ -70,12 +72,17 @@ function useWebgl(terminal, WebglAddon) {
 
 const fromBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
-/** Typing, sent in order: everything typed before a request returns goes in the next one. */
+/**
+ * Typing, sent in order: everything typed before a request returns goes in
+ * the next one. Typing while disconnected is dropped, not saved for later:
+ * keys you couldn't see land would be a surprise when the terminal returns.
+ */
 function createTypist(getToken) {
   let queue = '';
   let sending = false;
   async function flush() {
-    if (sending || !queue || !getToken()) return;
+    if (!getToken()) queue = '';
+    if (sending || !queue) return;
     sending = true;
     const data = queue.slice(0, INPUT_CHUNK_CHARS);
     queue = queue.slice(data.length);
@@ -92,6 +99,37 @@ function createTypist(getToken) {
   return (data) => {
     queue += data;
     flush();
+  };
+}
+
+/**
+ * Tells the server how much of its output xterm.js has drawn, so it can pause
+ * the pane while the page is behind (a flood of output, a background tab).
+ * Batched: at most one report every ACK_EVERY_MS, none while nothing arrives.
+ */
+function createAcker(getToken) {
+  let drawn = 0;
+  let timer = null;
+  const report = () => {
+    timer = null;
+    const token = getToken();
+    const bytes = drawn;
+    drawn = 0;
+    if (!token || bytes === 0) return;
+    post('/api/terminal/ack', { token, bytes }).catch(() => {});
+  };
+  return {
+    drawn(bytes) {
+      drawn += bytes;
+      timer ??= setTimeout(report, ACK_EVERY_MS);
+    },
+    // A new connection is a new terminal on the server, which starts at zero.
+    reset() {
+      clearTimeout(timer);
+      timer = null;
+      drawn = 0;
+    },
+    stop() { clearTimeout(timer); },
   };
 }
 
@@ -140,12 +178,15 @@ async function openTerminal(session) {
   });
   const fit = new FitAddon();
   const fitter = createFitter(fit, () => token);
+  const acker = createAcker(() => token);
   const watchSize = new ResizeObserver(() => fitter.soon());
+  const reconnect = h('button', { type: 'button', class: 'term-close', hidden: true, onclick: () => connect() }, 'Reconnect');
 
   const close = () => {
     source?.close();
     watchSize.disconnect();
     fitter.stop();
+    acker.stop();
     terminal.dispose();
     dialog.close();
     dialog.remove();
@@ -162,6 +203,7 @@ async function openTerminal(session) {
       h('strong', {}, sessionTitle(session)),
       h('span', { class: 'term-place' }, tmuxPlace(session.host))),
     status,
+    reconnect,
     h('button', { type: 'button', class: 'term-close', title: 'Close the terminal (the session keeps running)', onclick: close }, 'Close')),
   screen);
   document.body.append(dialog);
@@ -180,30 +222,47 @@ async function openTerminal(session) {
     terminal.resize(cols, rows);
     status.textContent = `${cols}×${rows}`;
   };
-  source = new EventSource(`/api/terminal/live?sessionId=${encodeURIComponent(session.sessionId)}`);
-  source.addEventListener('ready', (event) => {
-    const info = JSON.parse(event.data);
-    token = info.token;
-    // A reconnect starts over from a fresh copy of the screen.
-    terminal.reset();
-    showSize(info);
-    dialog.classList.add('is-live');
-    fitter.reset();
-    fitter.soon();
-    terminal.focus();
-  });
-  source.addEventListener('output', (event) => terminal.write(fromBase64(event.data)));
-  source.addEventListener('resize', (event) => showSize(JSON.parse(event.data)));
-  source.addEventListener('end', () => {
-    source.close();
+  const disconnected = (text, { canReconnect }) => {
     token = null;
     dialog.classList.remove('is-live');
-    status.textContent = 'Session ended';
-  });
-  source.onerror = () => {
-    dialog.classList.remove('is-live');
-    status.textContent = source.readyState === EventSource.CLOSED ? 'Could not connect' : 'Reconnecting…';
+    status.textContent = text;
+    reconnect.hidden = !canReconnect;
   };
+
+  // Each connection is a new terminal on the server: a new token, a fresh copy of the screen.
+  function connect() {
+    source?.close();
+    reconnect.hidden = true;
+    status.textContent = 'Connecting…';
+    source = new EventSource(`/api/terminal/live?sessionId=${encodeURIComponent(session.sessionId)}`);
+    source.addEventListener('ready', (event) => {
+      const info = JSON.parse(event.data);
+      token = info.token;
+      acker.reset();
+      terminal.reset();
+      showSize(info);
+      dialog.classList.add('is-live');
+      fitter.reset();
+      fitter.soon();
+      terminal.focus();
+    });
+    source.addEventListener('output', (event) => {
+      const bytes = fromBase64(event.data);
+      terminal.write(bytes, () => acker.drawn(bytes.length));
+    });
+    source.addEventListener('resize', (event) => showSize(JSON.parse(event.data)));
+    source.addEventListener('end', () => {
+      source.close();
+      disconnected('Session ended', { canReconnect: false });
+    });
+    // The browser retries a dropped stream by itself; it gives up when switchyard
+    // refuses it (e.g. the session ended) or isn't running.
+    source.onerror = () => {
+      if (source.readyState === EventSource.CLOSED) disconnected('Disconnected', { canReconnect: true });
+      else disconnected('Reconnecting…', { canReconnect: false });
+    };
+  }
+  connect();
 }
 
 /** Open the session's tmux pane here, live. */
