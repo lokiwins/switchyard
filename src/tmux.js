@@ -63,11 +63,11 @@ function parseNewWindow(text) {
 }
 
 export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {}) {
-  async function tmux(args, { fromNewTab = false } = {}) {
+  async function tmux(args, { fromNewTab = false, encoding } = {}) {
     try {
       return fromNewTab
         ? await exec(locate(), args, { env: { ...process.env, PATH: LOGIN_PATH } })
-        : await exec('tmux', args);
+        : await exec('tmux', args, encoding ? { encoding } : undefined);
     } catch (error) {
       if (/ENOENT/.test(error.message)) throw new TmuxError(501, 'tmux is not installed (brew install tmux)');
       throw new TmuxError(502, `tmux: ${error.message}`);
@@ -143,6 +143,19 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
 
     async interrupt(pane) {
       await tmux(['send-keys', '-t', pane, INTERRUPT_KEY]);
+    },
+
+    /** A pane's window, size and cursor position. */
+    async paneSize(pane) {
+      const [window, ...numbers] = (await tmux(['display-message', '-p', '-t', pane, '#{window_id} #{pane_width} #{pane_height} #{cursor_x} #{cursor_y}']))
+        .trim().split(' ');
+      const [cols, rows, cursorX, cursorY] = numbers.map(Number);
+      return { window, cols, rows, cursorX, cursorY };
+    },
+
+    /** What a pane shows, with colours, plus up to `history` lines of scrollback, as raw bytes. */
+    async capturePane(pane, history) {
+      return tmux(['capture-pane', '-p', '-e', '-t', pane, '-S', `-${history}`], { encoding: 'buffer' });
     },
 
     /** The terminals (ttys) currently attached to a session. */
