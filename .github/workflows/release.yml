@@ -1,0 +1,83 @@
+name: Release
+
+# release-please keeps a release PR open that bumps package.json and writes
+# CHANGELOG.md from the conventional commits merged since the last release.
+# Merging that PR tags the version and publishes a GitHub release with the
+# same notes; the screenshots job then adds pictures of every scene that is
+# new or looks different since the previous release.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  screenshots:
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Find the previous release
+        id: previous
+        env:
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: echo "tag=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
+
+      - id: shots
+        uses: ./.github/actions/screenshots
+        with:
+          base: ${{ steps.previous.outputs.tag }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots-${{ needs.release-please.outputs.tag }}
+          path: ${{ steps.shots.outputs.shots }}
+
+      - name: Add the screenshots to the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+          REPORT: ${{ steps.shots.outputs.report }}
+          SHOTS: ${{ steps.shots.outputs.shots }}
+        run: |
+          images="$(bash scripts/screenshots/publish.sh "$SHOTS" "$REPORT" "releases/$TAG")"
+          section="$(node scripts/screenshots/report.mjs --report "$REPORT" --images "$images" --mode release)"
+          if [ -z "$section" ]; then
+            echo "Nothing looks different since the previous release."
+            exit 0
+          fi
+          notes="$RUNNER_TEMP/notes.md"
+          gh release view "$TAG" --json body --jq .body > "$notes"
+          printf '\n%s\n' "$section" >> "$notes"
+          gh release edit "$TAG" --notes-file "$notes"

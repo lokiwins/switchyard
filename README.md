@@ -139,3 +139,21 @@ The live terminal is a keyboard on the session, so it gets more checks. Opening 
 Review reads the file an Edit or Write would change, only to show the diff: a regular text file of at most 1 MB at an absolute path, nothing else. The diff comes from `GET /api/approvals/detail`, which another site's page can't read, and only for a prompt that is waiting. The rendered Markdown is built element by element, never as HTML, so a file can't run script or load anything; links open only for `http`, `https` and `mailto`, and images show their alt text.
 
 The hook endpoint (`POST /hooks/permission-request`) is called by Claude Code, not the page. It refuses any request carrying an `Origin` header, which browsers always send, so a website can't reach it. A local program could post a fake request, but that only adds a row to the page; answering it affects nothing. The hook trusts whatever answers on its port. If switchyard isn't running, another program could take that port and approve prompts. Any program running as you could already do worse, so this only matters on a Mac shared with other accounts. There, use `npm run hook -- remove` while switchyard is off.
+
+## Releases and screenshots
+
+Releases come from the commit messages. PRs are squash-merged with [Conventional Commit](https://www.conventionalcommits.org) titles (`feat: …`, `fix: …`, `perf: …`), and [release-please](https://github.com/googleapis/release-please) keeps a release PR open that bumps `package.json` and adds those titles to `CHANGELOG.md`. Merging the release PR tags the version (`v0.2.0`) and publishes a GitHub release with the same notes. Before 1.0, `feat` bumps the minor version and `fix` the patch; a breaking change (`feat!:`) also bumps only the minor.
+
+Screenshots come from switchyard itself, run against made-up data: `scripts/screenshots` builds a throwaway home with two repos (`acme/storefront`, `acme/billing-api`), their worktrees, Claude sessions in them and a stand-in `gh` with their PRs, so nothing of yours (and no network) is involved. Each **scene** in `scripts/screenshots/scenes.mjs` opens a page and gets it into a state worth showing, such as New task open or a permission prompt in the Review pane.
+
+- **On a PR** that touches `public/`, `src/` or the screenshot scripts, the Screenshots workflow captures every scene at the PR's merge base and at its head, compares them pixel by pixel, and comments with before and after images of the scenes that look different. If `public/` changed but no scene does, the comment asks for one.
+- **On a release**, the same comparison runs against the previous release, and the scenes that are new or look different are added to the release notes under *Screenshots*.
+
+The images are stored on the `screenshots` branch. When a change adds or reworks something on screen, add or update a scene. To capture locally (from a worktree without a `config.json`, which would show your own data):
+
+```bash
+cd scripts/screenshots
+npm ci && npx playwright install --only-shell chromium
+node capture.mjs --out /tmp/shots base=../../../switchyard-main head=../..
+node compare.mjs --base /tmp/shots/base --head /tmp/shots/head --out /tmp/shots/report.json
+```

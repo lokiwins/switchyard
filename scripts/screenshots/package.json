@@ -1,0 +1,16 @@
+{
+  "name": "switchyard-screenshots",
+  "private": true,
+  "description": "Screenshots of switchyard on made-up data, for PR previews and release notes. Kept apart so switchyard itself has no npm dependencies.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "capture": "node capture.mjs",
+    "compare": "node compare.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.65.0"
+  }
+}
