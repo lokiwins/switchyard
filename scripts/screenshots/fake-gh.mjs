@@ -48,6 +48,17 @@ function searchPrs(args, prs, viewer) {
   return open;
 }
 
+const flag = (args, name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+
+/** `gh pr list` for one repo, which releases before the batched branch query used. */
+function listPrs(args, prs, viewer) {
+  const state = flag(args, '--state') ?? 'open';
+  const author = flag(args, '--author');
+  return prs.filter((pr) => repoOf(pr) === flag(args, '--repo')
+    && (state === 'all' || pr.state === state.toUpperCase())
+    && (!author || pr.author.login === (author === '@me' ? viewer : author)));
+}
+
 /**
  * gh's stdout for `args`, or throws for a call the stub doesn't know.
  * @param {string[]} args
@@ -60,6 +71,9 @@ export function respond(args, { viewer, prs }) {
   if (command === 'api' && args.includes('--method')) return '{}';
   if (command === 'search' && sub === 'prs') {
     return JSON.stringify(searchPrs(args, prs, viewer).map((pr) => pick(pr, jsonFields(args))));
+  }
+  if (command === 'pr' && sub === 'list') {
+    return JSON.stringify(listPrs(args, prs, viewer).map((pr) => pick(pr, jsonFields(args))));
   }
   if (command === 'pr' && sub === 'view') {
     const repo = args[args.indexOf('--repo') + 1];

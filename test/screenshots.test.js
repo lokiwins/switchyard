@@ -33,6 +33,14 @@ test('fake gh searches open PRs by author and review request, returning only the
   assert.deepEqual(search('--review-requested=@me').map((p) => p.number), [3, 4]);
 });
 
+test('fake gh lists a repo\'s PRs by state and author, as releases before the batched query did', () => {
+  const list = (...extra) => JSON.parse(respond(['pr', 'list', '--repo', 'acme/app', '--json', 'number', ...extra], fixture))
+    .map((p) => p.number);
+  assert.deepEqual(list('--state', 'open', '--limit', '100'), [1, 3, 4]);
+  assert.deepEqual(list('--author', '@me', '--state', 'all', '--limit', '30'), [1, 2]);
+  assert.deepEqual(JSON.parse(respond(['pr', 'list', '--repo', 'acme/other', '--json', 'number'], fixture)), []);
+});
+
 test('fake gh views a PR, reports the viewer, and fails on calls it does not know', () => {
   assert.deepEqual(JSON.parse(respond(['pr', 'view', '2', '--repo', 'acme/app', '--json', 'number,state'], fixture)), { number: 2, state: 'MERGED' });
   assert.throws(() => respond(['pr', 'view', '9', '--repo', 'acme/app', '--json', 'number'], fixture), /no pull requests found/);

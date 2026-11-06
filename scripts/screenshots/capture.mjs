@@ -106,6 +106,8 @@ async function captureScene(browser, scene, { port, now, file }) {
     await page.screenshot({ path: file, fullPage: Boolean(scene.fullPage), animations: 'disabled', caret: 'hide' });
     return { ok: true };
   } catch (error) {
+    // What the page showed when the scene gave up, for working out why (kept out of comparisons).
+    await context.pages()[0]?.screenshot({ path: file.replace(/\.png$/, '.failed.png') }).catch(() => {});
     return { ok: false, error: error.message.split('\n')[0] };
   } finally {
     await context.close();

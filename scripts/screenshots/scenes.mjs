@@ -7,6 +7,8 @@
  * keys: renaming one reads as a scene removed and a new one added.
  */
 
+// Menus are <details class="menu"> whose <summary> is the button. Match the label from its
+// start: hasText alone is a case-insensitive substring, so "Clean up" would also match "1 to clean up".
 const settle = (page) => page.waitForLoadState('networkidle');
 
 /**
@@ -33,7 +35,7 @@ export const SCENES = [
     path: '/',
     prepare: async (page) => {
       await agentsLoaded(page);
-      await page.locator('summary', { hasText: 'New task' }).click();
+      await page.locator('details.menu > summary', { hasText: /^New task/ }).click();
       await page.getByPlaceholder('What should Claude do?').fill('Show order history on the account page');
     },
   },
@@ -64,7 +66,8 @@ export const SCENES = [
     path: '/worktrees',
     prepare: async (page) => {
       await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
-      await page.locator('summary', { hasText: 'Clean up' }).first().click();
+      await page.locator('details.menu > summary', { hasText: /^Clean up/ }).first().click();
+      await page.getByRole('menu').filter({ visible: true }).first().waitFor();
     },
   },
   {
