@@ -38,17 +38,22 @@ export function actionButton(label, title, perform, className = 'btn btn-action'
   }, label);
 }
 
+/** Where a session runs in tmux, as tmux itself writes it: "switchyard:my-repo-login". */
+export const tmuxPlace = (host) => `${host.session}:${host.windowName}`;
+
 /** Get to a running session: its exact tab in a terminal, its window in an editor, or its app. */
 export function jumpButton(session) {
   const host = session.host;
   if (!host) return null;
-  const isTerminal = host.kind === 'terminal';
-  const title = isTerminal ? `Switch to this session's tab in ${host.label}`
+  const isTerminal = host.kind === 'terminal' || host.kind === 'tmux';
+  const title = host.kind === 'tmux' ? `Switch to tmux window ${tmuxPlace(host)}, attaching the session in a new tab if needed`
+    : isTerminal ? `Switch to this session's tab in ${host.label}`
     : host.kind === 'editor' ? `Bring the ${host.label} window for this folder forward`
       : `Bring ${host.label} to the front`;
   return actionButton(isTerminal ? 'Jump' : `Open ${host.label}`, title, async () => {
     const result = await post('/api/terminal/focus', { sessionId: session.sessionId });
     if (result.precision === 'resumed') return `The session had closed, so it's resuming in a new ${result.host} tab`;
+    if (result.precision === 'attached') return `Attached tmux session ${host.session} in a new ${result.host} tab, showing ${host.windowName}`;
     if (result.precision === 'window') return `Opened ${result.host}. The session is in one of its terminals.`;
     return null;
   });

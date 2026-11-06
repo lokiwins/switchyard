@@ -4,9 +4,9 @@ const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
 /** Run a command without a shell and resolve with stdout. */
-export function run(cmd, args, { cwd, timeout = DEFAULT_TIMEOUT_MS } = {}) {
+export function run(cmd, args, { cwd, env, timeout = DEFAULT_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { cwd, timeout, maxBuffer: MAX_BUFFER_BYTES }, (err, stdout, stderr) => {
+    execFile(cmd, args, { cwd, env, timeout, maxBuffer: MAX_BUFFER_BYTES }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(`${cmd} ${args.join(' ')} failed: ${(stderr || err.message).trim()}`));
         return;

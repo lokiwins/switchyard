@@ -33,7 +33,7 @@ export function readStatus(registryStatus) {
   return { status: registryStatus ?? 'unknown', needsYou: false, inBackground: false };
 }
 
-export function createClaudeProvider({ claudeDir }) {
+export function createClaudeProvider({ claudeDir, listTmuxPanes }) {
   const sessionsDir = join(claudeDir, 'sessions');
   const projectsDir = join(claudeDir, 'projects');
 
@@ -78,7 +78,7 @@ export function createClaudeProvider({ claudeDir }) {
   /** Sessions whose process is still running, enriched from their transcripts. */
   async function liveSessions() {
     const entries = await runningEntries();
-    const hosts = await detectHosts(entries.map((entry) => entry.pid));
+    const hosts = await detectHosts(entries.map((entry) => entry.pid), { listTmuxPanes });
     return Promise.all(entries.map(async (entry) => ({
       agent: 'claude-code',
       pid: entry.pid,
@@ -91,7 +91,7 @@ export function createClaudeProvider({ claudeDir }) {
       kind: entry.kind ?? null,
       startedAt: entry.startedAt ?? null,
       statusUpdatedAt: entry.statusUpdatedAt ?? entry.updatedAt ?? null,
-      // Which app the session runs in (iTerm, VS Code…), so Jump knows how to get there.
+      // Which app (iTerm, VS Code…) or tmux session it runs in, so Jump and Reply know how to get there.
       host: hosts.get(entry.pid) ?? null,
       resumeCommand: resumeCommand(entry.cwd, entry.sessionId),
       transcript: await summarize(transcriptPath(entry.cwd, entry.sessionId)),

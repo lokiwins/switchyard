@@ -3,6 +3,7 @@ import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuote } from './shell.js';
 import { canTypeInto, createTerminal, ttyOf } from './terminal.js';
+import { createTmux } from './tmux.js';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
 const WORKTREE_LAUNCHES = new Set(['shell', 'claude']);
@@ -65,6 +66,7 @@ export function findWorktreePath(state, path) {
 export function createActionService({
   stateService,
   terminal,
+  tmux = createTmux(),
   terminalFor = (app) => createTerminal({ app }),
   lookupTty = ttyOf,
   isAlive = isProcessAlive,
@@ -107,6 +109,20 @@ export function createActionService({
   }
 
   /**
+   * A tmux window: make it the one its session shows, then select the tab the
+   * session is attached in, or attach it in a new tab of the configured
+   * terminal when it isn't attached anywhere selectable.
+   */
+  async function focusTmux(host) {
+    await tmux.selectWindow(host.window);
+    for (const tty of await tmux.clientTtys(host.session)) {
+      if (await terminal.focus(tty).catch(() => false)) return { precision: 'tab', host: host.label };
+    }
+    await terminal.open(tmux.attachCommand(host.session));
+    return { precision: 'attached', host: terminal.app };
+  }
+
+  /**
    * Get to a session as precisely as its host allows: the exact tab in a
    * terminal app, the folder's window in an editor, otherwise the app itself.
    * A session that has stopped running is resumed in a new tab instead.
@@ -124,6 +140,7 @@ export function createActionService({
     const host = session.host;
     if (!host) throw new ActionError(404, "Couldn't tell which app this session is running in");
 
+    if (host.kind === 'tmux') return focusTmux(host);
     if (host.kind === 'terminal') {
       if (!(await focusTerminalTab(session, host))) return reopen(session);
       return { precision: 'tab', host: host.label };
@@ -141,16 +158,37 @@ export function createActionService({
    * Claude Code queues a message sent while it's working. A message sent while
    * a prompt is open would answer the prompt, so that is refused.
    */
-  async function replyToSession(body) {
-    const sessionId = parseSessionId(body);
-    const text = parseReply(body);
+  async function liveSession(sessionId) {
     const state = await stateService.getState();
     const session = state.liveSessions.find((s) => s.sessionId === sessionId);
     if (!session) throw new ActionError(404, "That session isn't running");
-    if (session.host?.kind !== 'terminal' || !canTypeInto(session.host.app)) {
-      throw new ActionError(501, 'Replying from switchyard works for sessions running in iTerm');
+    return session;
+  }
+
+  /**
+   * The tmux pane a session runs in, checked now rather than when the list was built:
+   * if Claude has exited, the pane is back at a shell, which would run what we type.
+   */
+  async function currentTmuxPane(session) {
+    const tty = isAlive(session.pid) ? await lookupTty(session.pid) : null;
+    const pane = tty ? (await tmux.listPanes()).get(tty) : null;
+    if (pane?.pane !== session.host.pane) throw new ActionError(409, 'That session is no longer running in its tmux pane');
+    return pane.pane;
+  }
+
+  async function replyToSession(body) {
+    const sessionId = parseSessionId(body);
+    const text = parseReply(body);
+    const session = await liveSession(sessionId);
+    const inTmux = session.host?.kind === 'tmux';
+    if (!inTmux && (session.host?.kind !== 'terminal' || !canTypeInto(session.host.app))) {
+      throw new ActionError(501, 'Replying from switchyard works for sessions running in tmux or iTerm');
     }
     if (session.needsYou) throw new ActionError(409, 'It is showing a question or permission prompt; answer that first');
+    if (inTmux) {
+      await tmux.sendLine(await currentTmuxPane(session), text);
+      return { queued: session.status === 'busy' };
+    }
     if (!isAlive(session.pid)) throw new ActionError(409, 'That session has ended');
     const tty = await lookupTty(session.pid);
     if (!tty) throw new ActionError(409, "That session's tab has closed");
@@ -158,6 +196,14 @@ export function createActionService({
       throw new ActionError(404, `Couldn't find this session's tab in ${session.host.label}.`);
     }
     return { queued: session.status === 'busy' };
+  }
+
+  /** Stop what a session is doing (Esc), as you would in its terminal. Needs tmux to reach it without a tab. */
+  async function interruptSession(body) {
+    const session = await liveSession(parseSessionId(body));
+    if (session.host?.kind !== 'tmux') throw new ActionError(501, 'Interrupting from switchyard works for sessions running in tmux');
+    await tmux.interrupt(await currentTmuxPane(session));
+    return { interrupted: true };
   }
 
   /** Open a new tab that resumes an ended session in its own folder. */
@@ -196,5 +242,5 @@ export function createActionService({
     return { opened: true };
   }
 
-  return { focusSession, replyToSession, resumeSession, openWorktree };
+  return { focusSession, replyToSession, interruptSession, resumeSession, openWorktree };
 }

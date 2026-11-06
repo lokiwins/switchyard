@@ -6,9 +6,10 @@ import { assertSingleLine, createTerminal } from '../src/terminal.js';
 const ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const iterm = { kind: 'terminal', label: 'iTerm', app: 'iTerm', appName: 'iTerm' };
 const vscode = { kind: 'editor', label: 'VS Code', scheme: 'vscode', appName: 'Visual Studio Code' };
+const inTmux = { kind: 'tmux', label: 'tmux', session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' };
 const chatgpt = { kind: 'app', label: 'ChatGPT', appName: 'ChatGPT' };
 
-function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {} } = {}) {
+function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004' } = {}) {
   const calls = [];
   const fullState = {
     liveSessions: [{ sessionId: ID, pid: 42, cwd: '/w/my repo', host, status: 'idle', needsYou: false, resumeCommand: `cd '/w/my repo' && claude --resume ${ID}`, ...session }],
@@ -22,9 +23,18 @@ function setup({ host = iterm, tty = '/dev/ttys004', tabFound = true, alive = tr
     open: async (command) => { calls.push(['open', command]); },
     type: async (t, text) => { calls.push(['type', t, text]); return tabFound; },
   };
+  const tmux = {
+    selectWindow: async (window) => { calls.push(['select-window', window]); },
+    clientTtys: async (name) => { calls.push(['clients', name]); return clients; },
+    sendLine: async (pane, text) => { calls.push(['tmux-type', pane, text]); },
+    interrupt: async (pane) => { calls.push(['tmux-interrupt', pane]); },
+    attachCommand: (name) => `tmux attach-session -t =${name}`,
+    listPanes: async () => new Map(paneTty ? [[paneTty, { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' }]] : []),
+  };
   const actions = createActionService({
     stateService: { getState: async () => fullState },
     terminal,
+    tmux,
     terminalFor: () => terminal,
     lookupTty: async () => tty,
     isAlive: () => alive,
@@ -168,4 +178,49 @@ test('terminal actions report unsupported platforms and apps', async () => {
 
 test('editorUrl encodes the folder path', () => {
   assert.equal(editorUrl('cursor', '/w/a b#c?d'), 'cursor://file/w/a%20b%23c%3Fd');
+});
+
+test('Jump shows the task\'s tmux window and selects the tab its session is attached in', async () => {
+  const { actions, calls } = setup({ host: inTmux, clients: ['/dev/ttys002'] });
+  assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'tab', host: 'tmux' });
+  assert.deepEqual(calls, [['select-window', '@4'], ['clients', 'switchyard'], ['focus', '/dev/ttys002']]);
+});
+
+test('Jump attaches a detached tmux session in a new tab, showing the task\'s window', async () => {
+  const { actions, calls } = setup({ host: inTmux });
+  assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'attached', host: 'iTerm' });
+  assert.deepEqual(calls, [['select-window', '@4'], ['clients', 'switchyard'], ['open', 'tmux attach-session -t =switchyard']]);
+});
+
+test('Jump attaches again when the attached terminal is not one it can select', async () => {
+  const { actions, calls } = setup({ host: inTmux, clients: ['/dev/ttys002'], tabFound: false });
+  assert.equal((await actions.focusSession({ sessionId: ID })).precision, 'attached');
+  assert.deepEqual(calls.at(-1), ['open', 'tmux attach-session -t =switchyard']);
+});
+
+test('Reply types into the tmux pane, from any terminal app', async () => {
+  const { actions, calls } = setup({ host: inTmux, session: { status: 'busy' } });
+  assert.deepEqual(await actions.replyToSession({ sessionId: ID, text: 'keep going' }), { queued: true });
+  assert.deepEqual(calls, [['tmux-type', '%3', 'keep going']]);
+});
+
+test('Reply to a tmux session still refuses while a prompt is open', async () => {
+  await rejectsWith(setup({ host: inTmux, session: { needsYou: true } }).actions.replyToSession({ sessionId: ID, text: 'y' }), 409);
+});
+
+test('Reply and Stop refuse when Claude no longer runs in that tmux pane', async () => {
+  await rejectsWith(setup({ host: inTmux, alive: false }).actions.replyToSession({ sessionId: ID, text: 'hi' }), 409);
+  await rejectsWith(setup({ host: inTmux, paneTty: null }).actions.replyToSession({ sessionId: ID, text: 'hi' }), 409);
+  await rejectsWith(setup({ host: inTmux, alive: false }).actions.interruptSession({ sessionId: ID }), 409);
+});
+
+test('Interrupt presses Escape in a tmux session', async () => {
+  const { actions, calls } = setup({ host: inTmux, session: { status: 'busy' } });
+  assert.deepEqual(await actions.interruptSession({ sessionId: ID }), { interrupted: true });
+  assert.deepEqual(calls, [['tmux-interrupt', '%3']]);
+});
+
+test('Interrupt only works for sessions switchyard can reach through tmux', async () => {
+  await rejectsWith(setup().actions.interruptSession({ sessionId: ID }), 501);
+  await rejectsWith(setup({ host: inTmux }).actions.interruptSession({ sessionId: 'bbbbbbbb-0000' }), 404);
 });
