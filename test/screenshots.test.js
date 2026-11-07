@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildBranchPrQuery } from '../src/github.js';
 import { respond } from '../scripts/screenshots/fake-gh.mjs';
-import { COMMENT_MARKER, classify, prComment, releaseSection } from '../scripts/screenshots/report.mjs';
+import { COMMENT_MARKER, classify, prComment, releaseAssetName, releaseSection } from '../scripts/screenshots/report.mjs';
 
 const pr = (fields) => ({
   number: 1, title: 'A change', state: 'OPEN', headRefName: 'feat/a', author: { login: 'dev' },
@@ -99,4 +99,8 @@ test('release notes show the current screenshot of new and changed scenes, or no
   assert.match(section, /### Page "B" \(new\)\n\n<img alt="Page &quot;B&quot;"/);
   assert.doesNotMatch(section, /Page C/);
   assert.equal(releaseSection([{ name: 'c', title: 'C', status: 'same' }], { imageUrl }), '');
+});
+
+test('release screenshots are named for the release they are attached to', () => {
+  assert.equal(releaseAssetName('review-pane'), 'screenshot-review-pane.png');
 });

@@ -64,19 +64,28 @@ jobs:
           name: screenshots-${{ needs.release-please.outputs.tag }}
           path: ${{ steps.shots.outputs.shots }}
 
-      - name: Add the screenshots to the release notes
+      - name: Attach the screenshots to the release and show them in its notes
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.release-please.outputs.tag }}
           REPORT: ${{ steps.shots.outputs.report }}
           SHOTS: ${{ steps.shots.outputs.shots }}
         run: |
-          images="$(bash scripts/screenshots/publish.sh "$SHOTS" "$REPORT" "releases/$TAG")"
-          section="$(node scripts/screenshots/report.mjs --report "$REPORT" --images "$images" --mode release)"
+          section="$(node scripts/screenshots/report.mjs --report "$REPORT" --mode release \
+            --images "https://github.com/$GH_REPO/releases/download/$TAG")"
           if [ -z "$section" ]; then
             echo "Nothing looks different since the previous release."
             exit 0
           fi
+          # Named as report.mjs's releaseAssetName links them: screenshot-<scene>.png.
+          assets="$RUNNER_TEMP/assets"
+          mkdir -p "$assets"
+          for name in $(jq -r '.entries[] | select(.status == "new" or .status == "changed") | .name' "$REPORT"); do
+            cp "$SHOTS/head/$name.png" "$assets/screenshot-$name.png"
+          done
+          gh release upload "$TAG" "$assets"/*.png --clobber
+
           notes="$RUNNER_TEMP/notes.md"
           gh release view "$TAG" --json body --jq .body > "$notes"
           printf '\n%s\n' "$section" >> "$notes"
