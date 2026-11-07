@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Pushes the new and changed screenshots of a comparison to the `screenshots`
-# branch, so PR comments and release notes can show them inline.
+# Pushes the new and changed screenshots of a PR's comparison to the
+# `screenshots` branch, so its comment can show them inline. The branch only
+# holds these previews and can be deleted at any time; release screenshots are
+# attached to the release instead.
 #
 #   publish.sh <shots dir> <report.json> <dest path on the branch>
 #

@@ -4,6 +4,10 @@
  * showing what changed on screen, or a Screenshots section for release notes.
  *
  *   node report.mjs --report report.json --images <url prefix> --mode pr|release [--ui-changed]
+ *
+ * PR images are served as <prefix>/{base,head}/<scene>.png (the screenshots
+ * branch); release images as <prefix>/screenshot-<scene>.png (files attached
+ * to the release).
  */
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
@@ -31,6 +35,9 @@ export function classify(base, head, differs) {
     .map(([name, shot]) => ({ name, title: shot.title, status: 'removed' }));
   return [...current, ...removed];
 }
+
+/** The file a scene's screenshot is attached to a release as. */
+export const releaseAssetName = (name) => `screenshot-${name}.png`;
 
 export const isVisible = (entry) => entry.status === 'new' || entry.status === 'changed';
 
@@ -101,10 +108,10 @@ function main() {
     throw new Error('Usage: report.mjs --report report.json --images <url prefix> --mode pr|release [--ui-changed] [--base-ref main]');
   }
   const { entries } = JSON.parse(readFileSync(values.report, 'utf8'));
-  const imageUrl = (side, name) => `${values.images.replace(/\/$/, '')}/${side}/${name}.png`;
+  const prefix = values.images.replace(/\/$/, '');
   process.stdout.write(values.mode === 'pr'
-    ? prComment(entries, { imageUrl, uiChanged: values['ui-changed'], baseRef: values['base-ref'] })
-    : releaseSection(entries, { imageUrl }));
+    ? prComment(entries, { imageUrl: (side, name) => `${prefix}/${side}/${name}.png`, uiChanged: values['ui-changed'], baseRef: values['base-ref'] })
+    : releaseSection(entries, { imageUrl: (_side, name) => `${prefix}/${releaseAssetName(name)}` }));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

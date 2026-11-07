@@ -147,9 +147,9 @@ Releases come from the commit messages. PRs are squash-merged with [Conventional
 Screenshots come from switchyard itself, run against made-up data: `scripts/screenshots` builds a throwaway home with two repos (`acme/storefront`, `acme/billing-api`), their worktrees, Claude sessions in them and a stand-in `gh` with their PRs, so nothing of yours (and no network) is involved. Each **scene** in `scripts/screenshots/scenes.mjs` opens a page and gets it into a state worth showing, such as New task open or a permission prompt in the Review pane.
 
 - **On a PR** that touches `public/`, `src/` or the screenshot scripts, the Screenshots workflow captures every scene at the PR's merge base and at its head, compares them pixel by pixel, and comments with before and after images of the scenes that look different. If `public/` changed but no scene does, the comment asks for one.
-- **On a release**, the same comparison runs against the previous release, and the scenes that are new or look different are added to the release notes under *Screenshots*.
+- **On a release**, the same comparison runs against the previous release, and the scenes that are new or look different are attached to the release as `screenshot-<scene>.png` and shown in its notes under *Screenshots*.
 
-The images are stored on the `screenshots` branch. When a change adds or reworks something on screen, add or update a scene. To capture locally (from a worktree without a `config.json`, which would show your own data):
+PR preview images are stored on the `screenshots` branch, which only exists for those comments: delete it whenever you like, and older comments lose their pictures. When a change adds or reworks something on screen, add or update a scene. To capture locally (from a worktree without a `config.json`, which would show your own data):
 
 ```bash
 cd scripts/screenshots
