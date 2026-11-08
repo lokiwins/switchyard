@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appNameFromPath, describeHost, findHost, hostsFor, parseProcessTable } from '../src/agents/host.js';
+import { appNameFromPath, createHostDetector, describeHost, findHost, hostsFor, parseProcessTable } from '../src/agents/host.js';
 
 const table = parseProcessTable([
   '  100     1 ?? /Applications/iTerm.app/Contents/MacOS/iTerm2',
@@ -60,4 +60,30 @@ test('hostsFor names the tmux session, window and pane a session runs in', () =>
   assert.equal(hosts.get(400).app, 'iTerm');
   assert.deepEqual(hosts.get(820), { kind: 'tmux', label: 'tmux', ...pane });
   assert.equal(hosts.get(710), null);
+});
+
+test('the host detector lists every process only for sessions it has not seen, but tmux panes every time', async () => {
+  let listings = 0;
+  let panes = new Map();
+  const detect = createHostDetector({
+    processes: async () => { listings += 1; return table; },
+    listTmuxPanes: async () => panes,
+  });
+  assert.equal((await detect([400, 820])).get(400).app, 'iTerm');
+  const pane = { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' };
+  panes = new Map([['/dev/ttys010', pane]]);
+  const hosts = await detect([400, 820]);
+  assert.equal(listings, 1);
+  assert.deepEqual(hosts.get(820), { kind: 'tmux', label: 'tmux', ...pane });
+  await detect([400]);
+  await detect([400, 820]);
+  assert.equal(listings, 2, 'a pid that went away is looked up again, since pids are reused');
+});
+
+test('the host detector gives no hosts when ps fails, and a pid ps did not list stays unknown', async () => {
+  const failing = createHostDetector({ processes: async () => { throw new Error('ps failed'); } });
+  assert.deepEqual(await failing([400]), new Map());
+  const detect = createHostDetector({ processes: async () => table });
+  assert.equal((await detect([99999])).get(99999), null);
+  assert.deepEqual(await detect([]), new Map());
 });

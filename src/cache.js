@@ -34,6 +34,12 @@ export function createSwrCache({ now = Date.now } = {}) {
     return entry.value;
   }
 
+  /** Load a key afresh: after any load already under way, which may have started before a change. */
+  async function reload(key, load) {
+    await entries.get(key)?.pending?.catch(() => {});
+    return refresh(key, load);
+  }
+
   function lastError(key) {
     return entries.get(key)?.error ?? null;
   }
@@ -48,5 +54,5 @@ export function createSwrCache({ now = Date.now } = {}) {
     entries.delete(key);
   }
 
-  return { get, peek, lastError, invalidate };
+  return { get, reload, peek, lastError, invalidate };
 }

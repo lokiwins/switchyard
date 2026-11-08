@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { mapLimit } from '../exec.js';
 import { shellQuote } from '../shell.js';
 import { summarizeFile, transcriptDirName } from './claude-transcript.js';
-import { detectHosts } from './host.js';
+import { createHostDetector } from './host.js';
 import { getProcessStarts, isProcessAlive, startTimesMatch } from './process.js';
 
 export { summarizeTranscript, transcriptDirName } from './claude-transcript.js';
@@ -37,6 +37,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes }) {
   const sessionsDir = join(claudeDir, 'sessions');
   const projectsDir = join(claudeDir, 'projects');
 
+  const detectHosts = createHostDetector({ listTmuxPanes });
   const transcriptPath = (cwd, sessionId) => join(projectsDir, transcriptDirName(cwd), `${sessionId}.jsonl`);
 
   // Transcripts are append-only, so size identifies a summary's freshness.
@@ -78,7 +79,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes }) {
   /** Sessions whose process is still running, enriched from their transcripts. */
   async function liveSessions() {
     const entries = await runningEntries();
-    const hosts = await detectHosts(entries.map((entry) => entry.pid), { listTmuxPanes });
+    const hosts = await detectHosts(entries.map((entry) => entry.pid));
     return Promise.all(entries.map(async (entry) => ({
       agent: 'claude-code',
       pid: entry.pid,
