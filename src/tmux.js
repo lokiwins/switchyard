@@ -153,6 +153,11 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       return { window, cols, rows, cursorX, cursorY };
     },
 
+    /** What a pane shows right now, as plain text. */
+    async screenText(pane) {
+      return tmux(['capture-pane', '-p', '-t', pane]);
+    },
+
     /** What a pane shows, with colours, plus up to `history` lines of scrollback, as raw bytes. */
     async capturePane(pane, history) {
       return tmux(['capture-pane', '-p', '-e', '-t', pane, '-S', `-${history}`], { encoding: 'buffer' });

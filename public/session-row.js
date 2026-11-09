@@ -28,7 +28,9 @@ export function sessionRow({
 function renderDetail(detail, { open, onToggle }) {
   if (!detail) return h('span', { class: 'row-detail muted' }, 'Nothing yet');
   const kind = `row-detail is-${detail.kind}`;
-  const content = [detail.label && h('span', { class: 'row-detail-label' }, `${detail.label}:`), detail.text];
+  // Some details have a fuller form to show when opened, e.g. a dialog as the terminal draws it.
+  const body = open && detail.full ? h('span', { class: 'row-detail-full' }, detail.full) : detail.text;
+  const content = [detail.label && h('span', { class: 'row-detail-label' }, `${detail.label}:`), body];
   if (!onToggle) return h('span', { class: kind, title: detail.text }, content);
   return h('button', {
     type: 'button',

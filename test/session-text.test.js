@@ -50,3 +50,15 @@ test('waiting and ended sessions show the last reply, or how an interrupted one 
     { kind: 'cut-off', label: 'Cut off while', text: 'Reading a.js' });
   assert.deepEqual(sessionDetail({ sessionId: 'x', transcript: { title: 'Greeting', lastPrompt: 'hi' } }), { kind: 'prompt', label: 'You', text: 'hi' });
 });
+
+test('a waiting session whose dialog was read off its screen shows the question and options, and the dialog when opened', () => {
+  const screenPrompt = {
+    question: 'Which color do you prefer?',
+    options: [{ number: 1, label: 'Red', selected: true }, { number: 2, label: 'Blue', selected: false }],
+    text: 'Which color do you prefer?\n❯ 1. Red\n  2. Blue',
+  };
+  assert.deepEqual(sessionDetail(live({ needsYou: true, screenPrompt }, { activity: 'Asking: colors' })), {
+    kind: 'needs-you', label: 'Asks', text: 'Which color do you prefer? 1. Red · 2. Blue', full: screenPrompt.text,
+  });
+  assert.equal(sessionDetail(live({ needsYou: true, screenPrompt: { ...screenPrompt, question: null } })).text, '1. Red · 2. Blue');
+});

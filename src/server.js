@@ -394,7 +394,7 @@ async function main() {
   let prService = null;
   const stateService = createStateService({
     config,
-    claude: createClaudeProvider({ claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes }),
+    claude: createClaudeProvider({ claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: tmux.screenText }),
     cache,
     prSnapshot: () => prService?.syncSnapshot() ?? null,
   });

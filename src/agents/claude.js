@@ -1,10 +1,12 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { mapLimit } from '../exec.js';
 import { shellQuote } from '../shell.js';
 import { summarizeFile, transcriptDirName } from './claude-transcript.js';
 import { createHostDetector } from './host.js';
 import { getProcessStarts, isProcessAlive, startTimesMatch } from './process.js';
+import { parseScreenPrompt } from './screen-prompt.js';
 
 export { summarizeTranscript, transcriptDirName } from './claude-transcript.js';
 
@@ -12,6 +14,10 @@ const SUMMARY_CONCURRENCY = 8;
 const DEFAULT_RECENT_LIMIT = 5;
 // Only look this many transcripts deep for resumable ones, so busy folders stay cheap.
 const RECENT_SCAN_FACTOR = 3;
+// The registry can say "waiting" a moment before the dialog is drawn, so a screen without one
+// is read once more if the session only just started waiting.
+const SCREEN_RETRY_MS = 250;
+const JUST_STARTED_WAITING_MS = 2_000;
 
 /** A session that never got a prompt (opened, then /exit) has nothing to resume. */
 const isResumable = (transcript) => Boolean(transcript?.lastPrompt) || transcript?.endState === 'interrupted';
@@ -33,7 +39,25 @@ export function readStatus(registryStatus) {
   return { status: registryStatus ?? 'unknown', needsYou: false, inBackground: false };
 }
 
-export function createClaudeProvider({ claudeDir, listTmuxPanes }) {
+/**
+ * What a session waiting on you in tmux is asking, read off its screen (see
+ * screen-prompt.js); null for any other session, or if the screen can't be read.
+ */
+export async function readScreenPrompt(session, readScreen, { retryMs = SCREEN_RETRY_MS, now = Date.now() } = {}) {
+  if (!readScreen || !session.needsYou || session.host?.kind !== 'tmux') return null;
+  try {
+    const prompt = parseScreenPrompt(await readScreen(session.host.pane));
+    const justStarted = now - (session.statusUpdatedAt ?? 0) < JUST_STARTED_WAITING_MS;
+    if (prompt || !justStarted) return prompt;
+    await delay(retryMs);
+    return parseScreenPrompt(await readScreen(session.host.pane));
+  } catch {
+    return null;
+  }
+}
+
+/** `readScreen(pane)` gives a tmux pane's visible text; without it, no screen prompts are read. */
+export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = null }) {
   const sessionsDir = join(claudeDir, 'sessions');
   const projectsDir = join(claudeDir, 'projects');
 
@@ -80,7 +104,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes }) {
   async function liveSessions() {
     const entries = await runningEntries();
     const hosts = await detectHosts(entries.map((entry) => entry.pid));
-    return Promise.all(entries.map(async (entry) => ({
+    const sessions = await Promise.all(entries.map(async (entry) => ({
       agent: 'claude-code',
       pid: entry.pid,
       sessionId: entry.sessionId,
@@ -97,6 +121,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes }) {
       resumeCommand: resumeCommand(entry.cwd, entry.sessionId),
       transcript: await summarize(transcriptPath(entry.cwd, entry.sessionId)),
     })));
+    return Promise.all(sessions.map(async (session) => ({ ...session, screenPrompt: await readScreenPrompt(session, readScreen) })));
   }
 
   async function listTranscripts(dir) {

@@ -166,3 +166,9 @@ test('isInstalled reports whether tmux runs', async () => {
   assert.equal(await createTmux({ exec: async () => 'tmux 3.5a' }).isInstalled(), true);
   assert.equal(await createTmux({ exec: async () => { throw new Error('spawn tmux ENOENT'); } }).isInstalled(), false);
 });
+
+test('screenText reads what a pane shows now, as plain text', async () => {
+  const { exec, calls } = fakeExec({ 'capture-pane': ' ❯ 1. Yes\n' });
+  assert.equal(await createTmux({ exec }).screenText('%3'), ' ❯ 1. Yes\n');
+  assert.deepEqual(calls, [['tmux', 'capture-pane', '-p', '-t', '%3']]);
+});
