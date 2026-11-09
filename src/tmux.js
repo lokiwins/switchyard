@@ -10,10 +10,19 @@ import { shellQuoteAlways } from './shell.js';
  * id (`@4`) and a pane by its id (`%3`). Ids are unique on the tmux server
  * and don't change, so typing and keys reach the right pane wherever, or
  * whether, the session is attached.
+ *
+ * Jump shows a task in a terminal tab of its own: a small "view" session
+ * holding only the task's window (linked, not moved), attached in the tab.
+ * Closing the tab ends the view and leaves the task running; the task's
+ * window closing empties the view, which ends it and closes the tab.
  */
 
 const PANE_FORMAT = '#{pane_tty}\t#{session_name}\t#{window_id}\t#{window_name}\t#{pane_id}';
 const NEW_WINDOW_FORMAT = '#{window_id}\t#{pane_id}';
+const CLIENT_FORMAT = '#{client_tty}\t#{client_control_mode}\t#{window_id}';
+// A view session's name: this, then the number of the window it shows.
+const VIEW_PREFIX = 'switchyard-view-';
+const WINDOW_ID = /^@(\d+)$/;
 const MAX_WINDOW_NAME = 60;
 // The PATH a new terminal tab starts from. tmux gives a new window the PATH
 // of the tmux command that made it (`-e PATH=` doesn't change that), so that
@@ -33,11 +42,16 @@ export class TmuxError extends ActionError {}
 
 export const hasControlCharacters = (text) => CONTROL_CHARACTERS.test(text);
 
-/** Parse `list-panes -a -F PANE_FORMAT` into tty -> { session, window, windowName, pane }. */
+const isView = (session) => session.startsWith(VIEW_PREFIX);
+
+/**
+ * Parse `list-panes -a -F PANE_FORMAT` into tty -> { session, window, windowName, pane }.
+ * A pane in a view is listed again under the view's name, which is left out: the session it belongs to is its home.
+ */
 export function parsePanes(text) {
   return new Map(text.split('\n').flatMap((line) => {
     const [tty, session, window, windowName, pane] = line.split('\t');
-    return tty && session && window && pane ? [[tty, { session, window, windowName: windowName ?? '', pane }]] : [];
+    return tty && session && window && pane && !isView(session) ? [[tty, { session, window, windowName: windowName ?? '', pane }]] : [];
   }));
 }
 
@@ -131,11 +145,6 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       }
     },
 
-    /** Make a window the one its session shows. */
-    async selectWindow(window) {
-      await tmux(['select-window', '-t', window]);
-    },
-
     /** Type one line into a pane and press Enter. */
     async sendLine(pane, text) {
       if (hasControlCharacters(text)) throw new TmuxError(400, 'Refusing to type control characters');
@@ -171,17 +180,43 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       return tmux(['capture-pane', '-p', '-e', '-t', pane, '-S', `-${history}`], { encoding: 'buffer' });
     },
 
-    /** The terminals (ttys) currently attached to a session. */
-    async clientTtys(name) {
-      return (await tmux(['list-clients', '-t', `=${name}`, '-F', '#{client_tty}'])).split('\n').filter(Boolean);
+    /** The terminals (ttys) showing a window right now; switchyard's own control-mode clients aren't terminals. */
+    async clientsShowing(window) {
+      return (await tmux(['list-clients', '-F', CLIENT_FORMAT])).split('\n').flatMap((line) => {
+        const [tty, controlMode, shown] = line.split('\t');
+        return tty && controlMode === '0' && shown === window ? [tty] : [];
+      });
+    },
+
+    /**
+     * A view of one window, for a terminal tab: made if it isn't there, and
+     * the shell command that attaches it. Attached, the view ends when its
+     * tab closes (destroy-unattached), and the tab is titled after the window.
+     */
+    async openView(window) {
+      const number = WINDOW_ID.exec(window)?.[1];
+      if (!number) throw new TmuxError(400, 'Expected a tmux window id like @4');
+      const name = `${VIEW_PREFIX}${number}`;
+      const target = `=${name}`;
+      try {
+        await exec('tmux', ['has-session', '-t', target]);
+      } catch {
+        const [first] = (await tmux(['new-session', '-d', '-s', name, '-P', '-F', '#{window_id}'])).trim().split('\n');
+        await tmux(['link-window', '-s', window, '-t', `${target}:`, ';', 'kill-window', '-t', first]);
+      }
+      // set-option takes a pane target, which "=name" alone isn't; "=name:" is the session's current window.
+      const session = shellQuoteAlways(`${target}:`);
+      return [
+        `exec tmux attach-session -t ${shellQuoteAlways(target)}`,
+        `set-option -t ${session} destroy-unattached on`,
+        `set-option -t ${session} set-titles on`,
+        `set-option -t ${session} set-titles-string '#W'`,
+      ].join(" ';' ");
     },
 
     /** Close a window; closing a session's last window ends the session. */
     async killWindow(window) {
       await tmux(['kill-window', '-t', window]);
     },
-
-    /** A shell command attaching the session. Any tmux session can be named anything, so the name is always quoted. */
-    attachCommand: (name) => `tmux attach-session -t ${shellQuoteAlways(`=${name}`)}`,
   };
 }

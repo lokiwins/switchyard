@@ -107,12 +107,6 @@ test('hasWindow is false when the session is not running', async () => {
   assert.equal(await createTmux({ exec }).hasWindow('switchyard', 'x'), false);
 });
 
-test('selectWindow makes a window the one its session shows', async () => {
-  const { exec, calls } = fakeExec();
-  await createTmux({ exec }).selectWindow('@4');
-  assert.deepEqual(calls, [['tmux', 'select-window', '-t', '@4']]);
-});
-
 test('sendLine types the text literally, then presses Enter', async () => {
   const { exec, calls } = fakeExec();
   await createTmux({ exec }).sendLine('%3', '-rf C-c Enter');
@@ -149,10 +143,37 @@ test('pressKey presses a digit or → in the pane, and no other key', async () =
   assert.equal(calls.length, 2);
 });
 
-test('clientTtys lists the terminals attached to a session', async () => {
-  const { exec, calls } = fakeExec({ 'list-clients': '/dev/ttys002\n' });
-  assert.deepEqual(await createTmux({ exec }).clientTtys('my-repo-fix'), ['/dev/ttys002']);
-  assert.deepEqual(calls[0], ['tmux', 'list-clients', '-t', '=my-repo-fix', '-F', '#{client_tty}']);
+test('clientsShowing lists the terminals showing a window, leaving out control-mode clients', async () => {
+  const { exec, calls } = fakeExec({ 'list-clients': '/dev/ttys002\t0\t@4\n/dev/ttys003\t0\t@5\n\t1\t@4\n' });
+  assert.deepEqual(await createTmux({ exec }).clientsShowing('@4'), ['/dev/ttys002']);
+  assert.deepEqual(calls[0], ['tmux', 'list-clients', '-F', '#{client_tty}\t#{client_control_mode}\t#{window_id}']);
+});
+
+test('openView makes a session holding only the task\'s window, and gives the command that shows it in a tab', async () => {
+  const { exec, calls } = fakeExec({ 'has-session': new Error("can't find session"), 'new-session': '@9\n' });
+  const command = await createTmux({ exec }).openView('@4');
+  assert.deepEqual(calls, [
+    ['tmux', 'has-session', '-t', '=switchyard-view-4'],
+    ['tmux', 'new-session', '-d', '-s', 'switchyard-view-4', '-P', '-F', '#{window_id}'],
+    // The new session's own first window goes, leaving the task's.
+    ['tmux', 'link-window', '-s', '@4', '-t', '=switchyard-view-4:', ';', 'kill-window', '-t', '@9'],
+  ]);
+  assert.equal(command, "exec tmux attach-session -t '=switchyard-view-4' ';' "
+    + "set-option -t '=switchyard-view-4:' destroy-unattached on ';' "
+    + "set-option -t '=switchyard-view-4:' set-titles on ';' "
+    + "set-option -t '=switchyard-view-4:' set-titles-string '#W'");
+});
+
+test('openView reuses a view that is still there, and takes only a window id', async () => {
+  const { exec, calls } = fakeExec();
+  assert.match(await createTmux({ exec }).openView('@4'), /^exec tmux attach-session -t '=switchyard-view-4'/);
+  assert.deepEqual(calls, [['tmux', 'has-session', '-t', '=switchyard-view-4']]);
+  for (const window of ['4', '@4; rm', '%3', '']) await rejectsWith(createTmux({ exec }).openView(window), 400);
+});
+
+test('parsePanes leaves out the views Jump opens, since their panes are the task\'s own', () => {
+  const panes = parsePanes('/dev/ttys010\tswitchyard\t@4\tfix\t%3\n/dev/ttys010\tswitchyard-view-4\t@4\tfix\t%3\n');
+  assert.equal(panes.get('/dev/ttys010').session, 'switchyard');
 });
 
 test('commands explain when tmux is not installed', async () => {
@@ -163,12 +184,6 @@ test('commands explain when tmux is not installed', async () => {
 test('other tmux failures are reported as such', async () => {
   const { exec } = fakeExec({ 'send-keys': new Error("can't find pane: %9") });
   await rejectsWith(createTmux({ exec }).interrupt('%9'), 502);
-});
-
-test('attachCommand addresses the session by exact name, quoted so zsh doesn\'t expand "=name"', () => {
-  const tmux = createTmux({ exec: async () => '' });
-  assert.equal(tmux.attachCommand('my-repo-fix'), "tmux attach-session -t '=my-repo-fix'");
-  assert.equal(tmux.attachCommand("a'b $(x)"), "tmux attach-session -t '=a'\\''b $(x)'");
 });
 
 test('isInstalled reports whether tmux runs', async () => {

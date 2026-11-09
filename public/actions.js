@@ -47,7 +47,7 @@ export function jumpButton(session) {
   const host = session.host;
   if (!host) return null;
   const isTerminal = host.kind === 'terminal' || host.kind === 'tmux';
-  const title = host.kind === 'tmux' ? `Switch to tmux window ${tmuxPlace(host)}, attaching the session in a new tab if needed`
+  const title = host.kind === 'tmux' ? `Switch to the tab showing tmux window ${tmuxPlace(host)}, or open it in a new tab`
     : isTerminal ? `Switch to this session's tab in ${host.label}`
     : host.kind === 'editor' ? `Bring the ${host.label} window for this folder forward`
       : `Bring ${host.label} to the front`;
@@ -58,7 +58,7 @@ export function jumpButton(session) {
         ? `The session had closed, so it's resuming in tmux window ${result.window}`
         : `The session had closed, so it's resuming in a new ${result.host} tab`;
     }
-    if (result.precision === 'attached') return `Attached tmux session ${host.session} in a new ${result.host} tab, showing ${host.windowName}`;
+    if (result.precision === 'opened') return `Opened ${host.windowName} in a new ${result.host} tab`;
     if (result.precision === 'window') return `Opened ${result.host}. The session is in one of its terminals.`;
     return null;
   });
