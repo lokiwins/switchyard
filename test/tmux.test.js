@@ -134,13 +134,13 @@ test('interrupt presses Escape in the pane', async () => {
   assert.deepEqual(calls, [['tmux', 'send-keys', '-t', '%3', 'Escape']]);
 });
 
-test('pressKey presses a digit or → in the pane, and no other key', async () => {
+test('pressKey presses only the keys that work a dialog: a digit, arrows and Tab', async () => {
   const { exec, calls } = fakeExec();
-  await createTmux({ exec }).pressKey('%3', '2');
-  await createTmux({ exec }).pressKey('%3', 'Right');
-  assert.deepEqual(calls, [['tmux', 'send-keys', '-t', '%3', '2'], ['tmux', 'send-keys', '-t', '%3', 'Right']]);
-  for (const key of ['0', '12', 'Enter', 'C-c', 'Escape']) await rejectsWith(createTmux({ exec }).pressKey('%3', key), 400);
-  assert.equal(calls.length, 2);
+  for (const key of ['2', 'Right', 'Up', 'Down', 'Tab']) await createTmux({ exec }).pressKey('%3', key);
+  assert.deepEqual(calls.map((call) => call.at(-1)), ['2', 'Right', 'Up', 'Down', 'Tab']);
+  assert.deepEqual(calls[0], ['tmux', 'send-keys', '-t', '%3', '2']);
+  for (const key of ['0', '12', 'Enter', 'C-c', 'Escape', 'Left']) await rejectsWith(createTmux({ exec }).pressKey('%3', key), 400);
+  assert.equal(calls.length, 5);
 });
 
 test('clientsShowing lists the terminals showing a window, leaving out control-mode clients', async () => {
@@ -191,8 +191,8 @@ test('isInstalled reports whether tmux runs', async () => {
   assert.equal(await createTmux({ exec: async () => { throw new Error('spawn tmux ENOENT'); } }).isInstalled(), false);
 });
 
-test('screenText reads what a pane shows now, as plain text', async () => {
+test('screenText reads what a pane shows now, with its colours', async () => {
   const { exec, calls } = fakeExec({ 'capture-pane': ' ❯ 1. Yes\n' });
   assert.equal(await createTmux({ exec }).screenText('%3'), ' ❯ 1. Yes\n');
-  assert.deepEqual(calls, [['tmux', 'capture-pane', '-p', '-t', '%3']]);
+  assert.deepEqual(calls, [['tmux', 'capture-pane', '-p', '-e', '-t', '%3']]);
 });

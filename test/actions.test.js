@@ -336,6 +336,48 @@ test('Answer goes on to the next tab of a question with tabs, and only then', as
   await rejectsWith(setup(waiting).actions.answerPrompt(answer({ next: true })), 409);
 });
 
+// A permission prompt as the keys pressed so far leave it: arrows move the selection, Tab opens the
+// selected Yes or No as a text field. `stuck` keys do nothing, as if the terminal hadn't caught up.
+function permissionAfter(keys, { stuck = [] } = {}) {
+  const moves = keys.filter((key) => !stuck.includes(key));
+  const selected = Math.min(3, Math.max(0, moves.filter((k) => k === 'Down').length - moves.filter((k) => k === 'Up').length));
+  const labels = ['Yes', 'Yes, and always allow access to /w', 'Yes, and switch to auto mode', 'No'];
+  if (moves.includes('Tab')) labels[selected] = selected === 0 ? 'Yes, and tell Claude what to do next' : 'No, and tell Claude what to do differently';
+  return [RULE, ' Do you want to proceed?', ...labels.map((label, i) => `${i === selected ? ' ❯' : '  '} ${i + 1}. ${label}`),
+    moves.includes('Tab') ? ' Esc to cancel' : ' Esc to cancel · Tab to amend'].join('\n');
+}
+const proceed = (fields) => ({ sessionId: ID, question: 'Do you want to proceed?', ...fields });
+
+test('Answer amends No: moves the selection to it, opens it with Tab, then types your instruction', async () => {
+  const { actions, calls } = setup({ ...waiting, screen: permissionAfter });
+  const result = await actions.answerPrompt(proceed({ number: 4, label: 'No', text: 'delete other.md instead', amend: true }));
+  assert.deepEqual(result, { answered: 'No, and delete other.md instead' });
+  assert.deepEqual(calls.map((c) => c.slice(1)), [['%3', 'Down'], ['%3', 'Down'], ['%3', 'Down'], ['%3', 'Tab'], ['%3', 'delete other.md instead']]);
+});
+
+test('Answer amends the option already selected without moving', async () => {
+  const { actions, calls } = setup({ ...waiting, screen: permissionAfter });
+  assert.deepEqual(await actions.answerPrompt(proceed({ number: 1, label: 'Yes', text: 'then run the tests', amend: true })),
+    { answered: 'Yes, and then run the tests' });
+  assert.deepEqual(calls.map((c) => c[2]), ['Tab', 'then run the tests']);
+});
+
+test('Answer amends nothing, typing nothing, if the selection or the text field doesn\'t follow the keys', async () => {
+  for (const stuck of [['Down'], ['Tab']]) {
+    const { actions, calls } = setup({ ...waiting, screen: (keys) => permissionAfter(keys, { stuck }) });
+    await rejectsWith(actions.answerPrompt(proceed({ number: 4, label: 'No', text: 'stop', amend: true })), 409);
+    assert.ok(!calls.some((c) => c[0] === 'tmux-type'), `nothing typed when ${stuck} does nothing`);
+    assert.ok(!calls.some((c) => c[2] === 'Tab') || stuck[0] === 'Tab', 'no Tab before the right option is selected');
+  }
+});
+
+test('Answer amends only an option that offers it, and only with an instruction', async () => {
+  const fields = { number: 2, label: 'Yes, and always allow access to /w', text: 'x', amend: true };
+  await rejectsWith(setup({ ...waiting, screen: permissionAfter }).actions.answerPrompt(proceed(fields)), 400);
+  await rejectsWith(setup({ ...waiting, screen: permissionAfter }).actions.answerPrompt(proceed({ number: 4, label: 'No', amend: true })), 400);
+  await rejectsWith(setup(waiting).actions.answerPrompt(answer({ number: 1, label: 'Red', text: 'x', amend: true })), 400);
+});
+
 test('Answer checks what was asked for before looking for the session', async () => {
   await rejectsWith(setup(waiting).actions.answerPrompt({ sessionId: 'bbbbbbbb-0000', number: 0 }), 400);
 });

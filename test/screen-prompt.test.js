@@ -139,6 +139,36 @@ test('a question with tabs: boxes ticked or not, and a way on to the next tab', 
   assert.equal(parseScreenPrompt(question).tabs, false);
 });
 
+// The tab bar as captured with colours (capture-pane -e): the active tab has a background.
+const ESC = '\x1b';
+const ACTIVE = `${ESC}[38;5;16m${ESC}[48;5;153m`;
+const PLAIN = `${ESC}[39m${ESC}[49m`;
+const tabBar = (active) => ['☒ Fruit', '☒ Color', '✔ Submit']
+  .map((tab) => (tab.endsWith(active) ? `${ACTIVE} ${tab} ${PLAIN}` : ` ${tab} `)).join('');
+const tabbed = (active) => [RULE, `←  ${tabBar(active)}  →`, '', 'Ready to submit your answers?', '', '❯ 1. Submit answers', '  2. Cancel'].join('\n');
+
+test('a question with tabs says whether its last tab is the one showing, read from the highlight', () => {
+  assert.equal(parseScreenPrompt(tabbed('Submit')).lastTab, true);
+  assert.equal(parseScreenPrompt(tabbed('Color')).lastTab, false);
+  // Without colours the active tab can't be told, so it isn't taken to be the last.
+  assert.equal(parseScreenPrompt(multiSelect).lastTab, false);
+  assert.equal(parseScreenPrompt(question).lastTab, false);
+});
+
+test('colours are read past, not into the text', () => {
+  const prompt = parseScreenPrompt(tabbed('Submit'));
+  assert.equal(prompt.question, 'Ready to submit your answers?');
+  assert.ok(!prompt.text.includes(ESC));
+  assert.equal(parseScreenPrompt(question.replace('Which color', `${ESC}[1mWhich color${ESC}[22m`)).question, 'Which color do you prefer?');
+});
+
+test("a permission prompt's Yes and No can carry your own instruction when it offers Tab to amend", () => {
+  const amends = (screen) => parseScreenPrompt(screen).options.filter((o) => o.amends).map((o) => o.label);
+  assert.deepEqual(amends(permission), ['Yes', 'No']);
+  assert.deepEqual(amends(permission.replace(' · Tab to amend', '')), []);
+  assert.deepEqual(amends(question), []);
+});
+
 test('options that open a text field to type your own answer', () => {
   const takesText = (screen) => parseScreenPrompt(screen).options.filter((o) => o.takesText).map((o) => o.label);
   assert.deepEqual(takesText(question), ['Type something.']);
