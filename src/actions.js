@@ -148,17 +148,15 @@ export function createActionService({
   }
 
   /**
-   * A tmux window: make it the one its session shows, then select the tab the
-   * session is attached in, or attach it in a new tab of the configured
-   * terminal when it isn't attached anywhere selectable.
+   * A task in tmux: select the tab already showing its window, or open it
+   * in a tab of its own, showing just that window (see openView in tmux.js).
    */
   async function focusTmux(host) {
-    await tmux.selectWindow(host.window);
-    for (const tty of await tmux.clientTtys(host.session)) {
+    for (const tty of await tmux.clientsShowing(host.window)) {
       if (await terminal.focus(tty).catch(() => false)) return { precision: 'tab', host: host.label };
     }
-    await terminal.open(tmux.attachCommand(host.session));
-    return { precision: 'attached', host: terminal.app };
+    await terminal.open(await tmux.openView(host.window));
+    return { precision: 'opened', host: terminal.app };
   }
 
   /**

@@ -27,14 +27,13 @@ function setup({
     type: async (t, text) => { calls.push(['type', t, text]); return tabFound; },
   };
   const tmux = {
-    selectWindow: async (window) => { calls.push(['select-window', window]); },
-    clientTtys: async (name) => { calls.push(['clients', name]); return clients; },
+    clientsShowing: async (window) => { calls.push(['clients', window]); return clients; },
+    openView: async (window) => { calls.push(['view', window]); return `exec tmux attach-session -t =switchyard-view-${window.slice(1)}`; },
     sendLine: async (pane, text) => { calls.push(['tmux-type', pane, text]); },
     interrupt: async (pane) => { calls.push(['tmux-interrupt', pane]); },
     pressKey: async (pane, key) => { calls.push(['tmux-key', pane, key]); },
     // A function of the keys pressed so far, to show a screen changing.
     screenText: async () => (typeof screen === 'function' ? screen(calls.filter((c) => c[0] === 'tmux-key').map((c) => c[2])) : screen),
-    attachCommand: (name) => `tmux attach-session -t =${name}`,
     listPanes: async () => new Map(paneTty ? [[paneTty, { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' }]] : []),
     hasWindow: async (session, name) => session === 'switchyard' && windows.includes(name),
     newWindow: async (options) => { calls.push(['new-window', options]); return { window: '@9', pane: '%9' }; },
@@ -193,22 +192,22 @@ test('editorUrl encodes the folder path', () => {
   assert.equal(editorUrl('cursor', '/w/a b#c?d'), 'cursor://file/w/a%20b%23c%3Fd');
 });
 
-test('Jump shows the task\'s tmux window and selects the tab its session is attached in', async () => {
+test('Jump selects the tab already showing the task\'s tmux window', async () => {
   const { actions, calls } = setup({ host: inTmux, clients: ['/dev/ttys002'] });
   assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'tab', host: 'tmux' });
-  assert.deepEqual(calls, [['select-window', '@4'], ['clients', 'switchyard'], ['focus', '/dev/ttys002']]);
+  assert.deepEqual(calls, [['clients', '@4'], ['focus', '/dev/ttys002']]);
 });
 
-test('Jump attaches a detached tmux session in a new tab, showing the task\'s window', async () => {
+test('Jump opens the task in a tab of its own when no tab shows it', async () => {
   const { actions, calls } = setup({ host: inTmux });
-  assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'attached', host: 'iTerm' });
-  assert.deepEqual(calls, [['select-window', '@4'], ['clients', 'switchyard'], ['open', 'tmux attach-session -t =switchyard']]);
+  assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'opened', host: 'iTerm' });
+  assert.deepEqual(calls, [['clients', '@4'], ['view', '@4'], ['open', 'exec tmux attach-session -t =switchyard-view-4']]);
 });
 
-test('Jump attaches again when the attached terminal is not one it can select', async () => {
+test('Jump opens a tab of its own when the one showing the task is not one it can select', async () => {
   const { actions, calls } = setup({ host: inTmux, clients: ['/dev/ttys002'], tabFound: false });
-  assert.equal((await actions.focusSession({ sessionId: ID })).precision, 'attached');
-  assert.deepEqual(calls.at(-1), ['open', 'tmux attach-session -t =switchyard']);
+  assert.equal((await actions.focusSession({ sessionId: ID })).precision, 'opened');
+  assert.deepEqual(calls.at(-1), ['open', 'exec tmux attach-session -t =switchyard-view-4']);
 });
 
 test('Reply types into the tmux pane, from any terminal app', async () => {
