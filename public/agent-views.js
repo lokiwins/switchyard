@@ -4,6 +4,7 @@ import { sessionRow, statusBadge, whereLabel } from './session-row.js';
 import { sessionDetail, sessionTitle } from './session-text.js';
 import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
 import { terminalButton } from './live-terminal.js';
+import { answerMenu, planButton } from './screen-answer.js';
 
 const STATUS_LABELS = { busy: 'Working', idle: 'Waiting' };
 
@@ -52,6 +53,8 @@ export function renderLiveRow(state, session, details = null) {
     timeHint: `${sessionLabel(session)} since ${new Date(session.statusUpdatedAt).toLocaleString()}`,
     actions: [
       approvals.length > 0 && approvalButtons(approvals, session),
+      planButton(session, approvals),
+      answerMenu(session, approvals),
       replyMenu(session),
       stopButton(session),
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),

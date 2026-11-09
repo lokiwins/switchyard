@@ -115,8 +115,9 @@ function placePanel(menu) {
 /**
  * A dropdown that stays open across re-renders: a native <details> whose
  * panel is placed under its button. `key` names it among the page's menus.
+ * Opening it puts the cursor in its first text box, unless `focusInput` is false.
  */
-export function dropdown({ key, label, title, className = 'btn btn-action', panelClass = '' }, ...content) {
+export function dropdown({ key, label, title, className = 'btn btn-action', panelClass = '', focusInput = true }, ...content) {
   return h('details', {
     class: 'menu',
     open: openMenuKey === key,
@@ -126,7 +127,7 @@ export function dropdown({ key, label, title, className = 'btn btn-action', pane
         openMenuKey = key;
         closeMenus(menu);
         placePanel(menu);
-        menu.querySelector('input, textarea')?.focus();
+        if (focusInput) menu.querySelector('input, textarea')?.focus();
       } else if (openMenuKey === key) {
         openMenuKey = null;
       }

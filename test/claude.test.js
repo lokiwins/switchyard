@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createClaudeProvider, readScreenPrompt, readStatus, resumeCommand, summarizeTranscript, transcriptDirName } from '../src/agents/claude.js';
+import { createClaudeProvider, readPlan, readScreenPrompt, readStatus, resumeCommand, summarizeTranscript, transcriptDirName } from '../src/agents/claude.js';
 import { classifyEnding } from '../src/agents/claude-transcript.js';
 
 const line = (entry) => JSON.stringify(entry);
@@ -226,4 +226,15 @@ test('a screen read too early is read once more, but only just after the session
 
 test('a pane that cannot be read gives no prompt', async () => {
   assert.equal(await readScreenPrompt(waitingInTmux, async () => { throw new Error("can't find pane: %3"); }), null);
+});
+
+test("a plan approval's plan is read from the file it names in the plans folder", async () => {
+  const plansDir = join(await mkdtemp(join(tmpdir(), 'gwm-plans-')), 'plans');
+  await mkdir(plansDir);
+  await writeFile(join(plansDir, 'plan-a-line.md'), '# Plan\n\n1. Add a line\n');
+  assert.equal(await readPlan(plansDir, 'plan-a-line.md'), '# Plan\n\n1. Add a line\n');
+  assert.equal(await readPlan(plansDir, 'gone.md'), null);
+  assert.equal(await readPlan(plansDir, null), null);
+  await writeFile(join(plansDir, 'huge.md'), 'x'.repeat(300 * 1024));
+  assert.equal(await readPlan(plansDir, 'huge.md'), null, 'too big to send to the page');
 });

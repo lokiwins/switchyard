@@ -140,6 +140,15 @@ test('interrupt presses Escape in the pane', async () => {
   assert.deepEqual(calls, [['tmux', 'send-keys', '-t', '%3', 'Escape']]);
 });
 
+test('pressKey presses a digit or → in the pane, and no other key', async () => {
+  const { exec, calls } = fakeExec();
+  await createTmux({ exec }).pressKey('%3', '2');
+  await createTmux({ exec }).pressKey('%3', 'Right');
+  assert.deepEqual(calls, [['tmux', 'send-keys', '-t', '%3', '2'], ['tmux', 'send-keys', '-t', '%3', 'Right']]);
+  for (const key of ['0', '12', 'Enter', 'C-c', 'Escape']) await rejectsWith(createTmux({ exec }).pressKey('%3', key), 400);
+  assert.equal(calls.length, 2);
+});
+
 test('clientTtys lists the terminals attached to a session', async () => {
   const { exec, calls } = fakeExec({ 'list-clients': '/dev/ttys002\n' });
   assert.deepEqual(await createTmux({ exec }).clientTtys('my-repo-fix'), ['/dev/ttys002']);

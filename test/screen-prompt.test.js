@@ -111,6 +111,51 @@ test('a plan approval: the question wrapped over two lines, not the numbered ste
   assert.ok(!prompt.text.includes('printf'));
 });
 
+const multiSelect = [
+  RULE,
+  '←  ☒ Fruits  ✔ Submit  →',
+  '',
+  'Which fruits do you like?',
+  '',
+  '❯ 1. [✔] Apple',
+  '         Apples',
+  '  2. [ ] Pear',
+  '         Pears',
+  '  3. [ ] Type something',
+  '     Submit',
+  RULE,
+  '  4. Chat about this',
+  '',
+  'Enter to select · Tab/Arrow keys to navigate · Esc to cancel',
+].join('\n');
+
+test('a question with tabs: boxes ticked or not, and a way on to the next tab', () => {
+  const prompt = parseScreenPrompt(multiSelect);
+  assert.equal(prompt.question, 'Which fruits do you like?');
+  assert.deepEqual(prompt.options.map(({ label, checked }) => [label, checked]), [
+    ['Apple', true], ['Pear', false], ['Type something', false], ['Chat about this', undefined],
+  ]);
+  assert.equal(prompt.tabs, true);
+  assert.equal(parseScreenPrompt(question).tabs, false);
+});
+
+test('options that open a text field to type your own answer', () => {
+  const takesText = (screen) => parseScreenPrompt(screen).options.filter((o) => o.takesText).map((o) => o.label);
+  assert.deepEqual(takesText(question), ['Type something.']);
+  assert.deepEqual(takesText(multiSelect), ['Type something']);
+  assert.deepEqual(takesText(plan), ['Tell Claude what to change']);
+  assert.deepEqual(takesText(permission), []);
+});
+
+test("a plan approval names the plan's file; other dialogs don't", () => {
+  assert.equal(parseScreenPrompt(plan).planFile, 'plan-a-line.md');
+  assert.equal(parseScreenPrompt(question).planFile, null);
+  const mentionedEarlier = `Saved an old one to ~/.claude/plans/old-plan.md\n${plan}`;
+  assert.equal(parseScreenPrompt(mentionedEarlier).planFile, 'plan-a-line.md', 'the dialog names its own plan last');
+  const elsewhere = plan.replace('~/.claude/plans/plan-a-line.md', '~/.claude/plans/../secrets.md');
+  assert.equal(parseScreenPrompt(elsewhere).planFile, null);
+});
+
 test('a dialog taller than the screen runs from the top of the screen', () => {
   const prompt = parseScreenPrompt(['Pick a branch to base it on', '❯ 1. main', '  2. develop', 'Esc to cancel'].join('\n'));
   assert.equal(prompt.question, 'Pick a branch to base it on');

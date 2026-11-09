@@ -11,7 +11,7 @@ const chatgpt = { kind: 'app', label: 'ChatGPT', appName: 'ChatGPT' };
 
 function setup({
   host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004',
-  useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'],
+  useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'], screen = '',
 } = {}) {
   const calls = [];
   const fullState = {
@@ -31,6 +31,9 @@ function setup({
     clientTtys: async (name) => { calls.push(['clients', name]); return clients; },
     sendLine: async (pane, text) => { calls.push(['tmux-type', pane, text]); },
     interrupt: async (pane) => { calls.push(['tmux-interrupt', pane]); },
+    pressKey: async (pane, key) => { calls.push(['tmux-key', pane, key]); },
+    // A function of the keys pressed so far, to show a screen changing.
+    screenText: async () => (typeof screen === 'function' ? screen(calls.filter((c) => c[0] === 'tmux-key').map((c) => c[2])) : screen),
     attachCommand: (name) => `tmux attach-session -t =${name}`,
     listPanes: async () => new Map(paneTty ? [[paneTty, { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' }]] : []),
     hasWindow: async (session, name) => session === 'switchyard' && windows.includes(name),
@@ -51,6 +54,8 @@ function setup({
     platform: 'darwin',
     useTmux,
     folderExists: (path) => folders.includes(path),
+    textFieldDelayMs: 0,
+    textFieldWaitMs: 20,
   });
   return { actions, calls };
 }
@@ -267,4 +272,77 @@ test('with tmux, Open still starts a shell or a new session in a terminal tab', 
   const { actions, calls } = setup({ useTmux: true });
   await actions.openWorktree({ path: '/w/feat', launch: 'claude' });
   assert.deepEqual(calls, [['open', 'cd /w/feat && claude']]);
+});
+
+const RULE = '─'.repeat(80);
+const QUESTION = [RULE, 'Which color?', '❯ 1. Red', '  2. Blue', '  3. Type something.', 'Enter to select · Esc to cancel'].join('\n');
+const TABBED = [RULE, '←  ☐ Fruits  ✔ Submit  →', 'Which fruits?', '❯ 1. [ ] Apple', '  2. [✔] Pear', 'Enter to select · Esc to cancel'].join('\n');
+const waiting = { host: inTmux, session: { needsYou: true }, screen: QUESTION };
+const answer = (fields) => ({ sessionId: ID, question: 'Which color?', ...fields });
+
+test('Answer presses the chosen option\'s number in the tmux pane', async () => {
+  const { actions, calls } = setup(waiting);
+  assert.deepEqual(await actions.answerPrompt(answer({ number: 2, label: 'Blue' })), { answered: 'Blue' });
+  assert.deepEqual(calls, [['tmux-key', '%3', '2']]);
+});
+
+test('Answer refuses, pressing nothing, when the screen no longer shows that question and option', async () => {
+  for (const fields of [{ number: 2, label: 'Green' }, { number: 1, label: 'Blue' }, { question: 'Which shape?', number: 2, label: 'Blue' }]) {
+    const { actions, calls } = setup(waiting);
+    await rejectsWith(actions.answerPrompt(answer(fields)), 409);
+    assert.deepEqual(calls, []);
+  }
+  await rejectsWith(setup({ ...waiting, screen: '❯ ' }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 409);
+});
+
+// The question once 3 is pressed: its text field is open, with the cursor on it.
+const fieldOpen = (keys) => (keys.includes('3') ? QUESTION.replace('❯ 1. Red', '  1. Red').replace('  3. Type something.', '❯ 3. Type something.') : QUESTION);
+
+test('Answer types your own answer once the option\'s text field is open', async () => {
+  const { actions, calls } = setup({ ...waiting, screen: fieldOpen });
+  assert.deepEqual(await actions.answerPrompt(answer({ number: 3, label: 'Type something.', text: ' purple ' })), { answered: 'purple' });
+  assert.deepEqual(calls, [['tmux-key', '%3', '3'], ['tmux-type', '%3', 'purple']]);
+});
+
+test('Answer types nothing if the text field never opens, so the text can\'t answer the dialog instead', async () => {
+  const { actions, calls } = setup(waiting);
+  await rejectsWith(actions.answerPrompt(answer({ number: 3, label: 'Type something.', text: '1' })), 409);
+  assert.deepEqual(calls, [['tmux-key', '%3', '3']]);
+});
+
+test('Answer refuses a second answer to the same session while one is being sent', async () => {
+  const { actions, calls } = setup({ ...waiting, screen: fieldOpen });
+  const first = actions.answerPrompt(answer({ number: 3, label: 'Type something.', text: 'teal' }));
+  await rejectsWith(actions.answerPrompt(answer({ number: 2, label: 'Blue' })), 409);
+  await first;
+  assert.deepEqual(calls.map((c) => c[2]), ['3', 'teal']);
+});
+
+test('Answer refuses text for an option without a text field, and text that would act as keys', async () => {
+  await rejectsWith(setup(waiting).actions.answerPrompt(answer({ number: 2, label: 'Blue', text: 'hi' })), 400);
+  await rejectsWith(setup(waiting).actions.answerPrompt(answer({ number: 3, label: 'Type something.', text: 'a\nb' })), 400);
+  await rejectsWith(setup(waiting).actions.answerPrompt(answer({ number: 3, label: 'Type something.' })), 400);
+});
+
+test('Answer takes an option number from 1 to 9 only', async () => {
+  for (const number of [0, 10, '2', 1.5, undefined]) {
+    await rejectsWith(setup(waiting).actions.answerPrompt(answer({ number, label: 'Blue' })), 400);
+  }
+});
+
+test('Answer goes on to the next tab of a question with tabs, and only then', async () => {
+  const { actions, calls } = setup({ ...waiting, screen: TABBED });
+  assert.deepEqual(await actions.answerPrompt({ sessionId: ID, question: 'Which fruits?', next: true }), { answered: 'next' });
+  assert.deepEqual(calls, [['tmux-key', '%3', 'Right']]);
+  await rejectsWith(setup(waiting).actions.answerPrompt(answer({ next: true })), 409);
+});
+
+test('Answer checks what was asked for before looking for the session', async () => {
+  await rejectsWith(setup(waiting).actions.answerPrompt({ sessionId: 'bbbbbbbb-0000', number: 0 }), 400);
+});
+
+test('Answer only works for a tmux session that is waiting on you', async () => {
+  await rejectsWith(setup({ ...waiting, session: { needsYou: false } }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 409);
+  await rejectsWith(setup({ ...waiting, host: iterm }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 501);
+  await rejectsWith(setup({ ...waiting, alive: false }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 409);
 });
