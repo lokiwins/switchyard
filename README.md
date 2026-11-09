@@ -46,7 +46,20 @@ Three pages share a header nav. Each nav link carries a badge counting what need
 
 ## Acting from the dashboard (macOS)
 
-A web page can't touch your terminal, but the switchyard server runs on your machine, so the buttons ask it to:
+A web page can't touch your terminal, but the switchyard server runs on your machine, so the buttons ask it to. What each one can do depends on where the session runs:
+
+| | iTerm | Terminal | VS Code, Cursor, Windsurf | Inside tmux, in any of these |
+|---|---|---|---|---|
+| Listed on the Agents page, with its status | ✓ | ✓ | ✓ | ✓ |
+| **Allow / Deny** a permission prompt (needs the hook) | ✓ | ✓ | ✓ | ✓ |
+| **Jump** | the exact tab | the exact tab | the folder's window | the task's own tab |
+| **Reply ▾** | ✓ | – | – | ✓ |
+| What a waiting session asks | ✓ | – | – | ✓ |
+| **Answer ▾** and **Plan** | ✓ | – | – | ✓ |
+| **Stop** | – | – | – | ✓ |
+| **Terminal** (the live pane) | – | – | – | ✓ |
+
+A session running inside tmux is recognised by its tmux pane, whichever app tmux itself runs in, so starting Claude in tmux gives every control. Sessions started with **New task** always run in tmux. The gaps are where switchyard can't get at the terminal from outside: Terminal can only be sent keys by bringing its tab to the front, and an editor's built-in terminal can't be read or typed into at all. **Resume** works for an ended session from any of them. With tmux installed it opens in a window of the `switchyard` tmux session; without tmux it opens a new tab in the terminal the session ran in, or in your configured terminal.
 
 - **Jump** (running sessions) gets you to the session as precisely as its host app allows. switchyard finds the host by walking up the session's parent processes:
   - **iTerm / Terminal**: selects the exact tab running the session.
