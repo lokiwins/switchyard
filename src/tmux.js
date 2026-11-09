@@ -33,8 +33,8 @@ const MAX_WINDOW_NAME = 60;
 const LOGIN_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
 // Escape stops Claude Code's current turn without exiting it.
 const INTERRUPT_KEY = 'Escape';
-// The keys that answer a dialog: an option's number, or → to its next tab.
-const DIALOG_KEYS = /^([1-9]|Right)$/;
+// The keys that work a dialog: an option's number, → to its next tab, ↑/↓ to select, Tab to amend.
+const DIALOG_KEYS = /^([1-9]|Right|Up|Down|Tab)$/;
 // Typed text must not contain keys of its own (Return, Esc, Ctrl-…).
 const CONTROL_CHARACTERS = /[\0-\x1f\x7f-\x9f\u2028\u2029]/;
 
@@ -152,9 +152,9 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       await tmux(['send-keys', '-t', pane, 'Enter']);
     },
 
-    /** Press an option's number, or → (Right), in a dialog on a pane's screen. */
+    /** Press a key that works a dialog on a pane's screen: an option's number, Right, Up, Down or Tab. */
     async pressKey(pane, key) {
-      if (!DIALOG_KEYS.test(key)) throw new TmuxError(400, 'Only an option number or → can be pressed');
+      if (!DIALOG_KEYS.test(key)) throw new TmuxError(400, 'Only an option number, arrows or Tab can be pressed');
       await tmux(['send-keys', '-t', pane, key]);
     },
 
@@ -170,9 +170,9 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       return { window, cols, rows, cursorX, cursorY };
     },
 
-    /** What a pane shows right now, as plain text. */
+    /** What a pane shows right now, as text with its colours (a dialog's active tab is shown only by colour). */
     async screenText(pane) {
-      return tmux(['capture-pane', '-p', '-t', pane]);
+      return tmux(['capture-pane', '-p', '-e', '-t', pane]);
     },
 
     /** What a pane shows, with colours, plus up to `history` lines of scrollback, as raw bytes. */

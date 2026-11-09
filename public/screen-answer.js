@@ -9,11 +9,15 @@ import { sessionTitle } from './session-text.js';
  * session's terminal; the server first checks its screen still shows that
  * question and option. Options that open a text field send your text too, a
  * multiple-choice question's options tick boxes, and a question in several
- * parts has "Next" to go on to its next tab (the last one submits).
+ * parts has "Next" to go on to its next tab (the last one submits). A
+ * permission prompt's Yes and No can also carry an instruction for Claude,
+ * as Tab to amend does in the terminal.
  */
 
 // What you've typed for each option that takes text, kept while the page re-renders.
 const drafts = new Map();
+// What the terminal's text field asks for, once Tab has opened a Yes or No.
+const AMEND_PLACEHOLDERS = { Yes: 'Yes, and tell Claude what to do next', No: 'No, and tell Claude what to do differently' };
 
 const promptOf = (session) => session.screenPrompt;
 
@@ -56,9 +60,12 @@ function optionButton(session, option, { className, done }) {
   }, optionText(option));
 }
 
-/** An option that opens a text field: your answer, typed there and sent. */
-function textOption(session, option, { formClass, inputClass, buttonClass, done }) {
-  const key = `${session.sessionId}:${option.number}`;
+/**
+ * An option that opens a text field: your answer, typed there and sent. With `amend`, a Yes or
+ * No with your instruction added, which the option itself (pressed as a button) leaves out.
+ */
+function textOption(session, option, { formClass, inputClass, buttonClass, done }, { amend = false } = {}) {
+  const key = `${session.sessionId}:${option.number}${amend ? ':amend' : ''}`;
   return h('form', {
     class: formClass,
     onsubmit: async (event) => {
@@ -67,7 +74,7 @@ function textOption(session, option, { formClass, inputClass, buttonClass, done 
       const button = form.querySelector('button');
       button.disabled = true;
       try {
-        const answered = await answer(session, { number: option.number, label: option.label, text: form.elements.text.value });
+        const answered = await answer(session, { number: option.number, label: option.label, text: form.elements.text.value, amend });
         drafts.delete(key);
         toast(`Answered: ${answered}`);
         done(form);
@@ -85,7 +92,7 @@ function textOption(session, option, { formClass, inputClass, buttonClass, done 
     maxlength: '2000',
     required: true,
     autocomplete: 'off',
-    placeholder: `${option.number}. ${option.label}`,
+    placeholder: `${option.number}. ${amend ? AMEND_PLACEHOLDERS[option.label] : option.label}`,
     'aria-label': option.label,
     value: drafts.get(key) ?? '',
     oninput: (event) => drafts.set(key, event.target.value),
@@ -112,12 +119,17 @@ function nextTabButton(session, { className }) {
   }, 'Next →');
 }
 
-/** The dialog's options as controls, styled for where they're shown. */
+function optionControls(session, option, styles) {
+  if (option.takesText) return textOption(session, option, styles);
+  return [optionButton(session, option, styles), option.amends && textOption(session, option, styles, { amend: true })];
+}
+
+/** The dialog's options as controls, styled for where they're shown. On a question's last tab, → does nothing. */
 function answerControls(session, styles) {
   const prompt = promptOf(session);
   return [
-    prompt.options.map((option) => (option.takesText ? textOption(session, option, styles) : optionButton(session, option, styles))),
-    prompt.tabs && nextTabButton(session, styles),
+    prompt.options.map((option) => optionControls(session, option, styles)),
+    prompt.tabs && !prompt.lastTab && nextTabButton(session, styles),
   ];
 }
 

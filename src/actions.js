@@ -15,8 +15,8 @@ const MAX_REPLY_LENGTH = 2000;
 // Control characters would act as keys (Return submits, Esc interrupts) rather than text;
 // C1 controls and Unicode line separators are refused too, in case a terminal acts on them.
 const CONTROL_CHARACTERS = /[\0-\x1f\x7f-\x9f\u2028\u2029]/;
-// After pressing the number of an option with a text field, text is typed only once the
-// screen shows that option selected, at least this long after the press and within the wait.
+// After keys that should open a text field, text is typed only once the screen shows it
+// open, checked from this long after the keys until the wait runs out.
 const TEXT_FIELD_DELAY_MS = 100;
 const TEXT_FIELD_WAIT_MS = 1_000;
 const SCREEN_POLL_MS = 50;
@@ -55,7 +55,9 @@ export function parseAnswer(body) {
   if (!Number.isInteger(number) || number < 1 || number > 9 || typeof label !== 'string') {
     throw new ActionError(400, 'Expected { number: 1-9, label: "<option>" }');
   }
-  return { number, label, text: body.text === undefined ? null : parseReply(body) };
+  // Amending (Tab on a Yes or No) always comes with an instruction.
+  const amend = body.amend === true;
+  return { number, label, amend, text: body.text === undefined && !amend ? null : parseReply(body) };
 }
 
 /** A session that has ended, from the Agents list or a worktree's last session. */
@@ -253,16 +255,40 @@ export function createActionService({
   // Panes an answer is being sent to: a second answer would land on whatever the first one brings up.
   const answering = new Set();
 
-  /** Whether the pane's screen shows option `number` of `question` selected, waiting up to textFieldWaitMs. */
-  async function showsSelected(pane, question, number) {
+  /** Whether the pane's screen comes to show `question` with an option `matches`, waiting up to textFieldWaitMs. */
+  async function screenShows(pane, question, matches) {
     await delay(textFieldDelayMs);
     const deadline = Date.now() + textFieldWaitMs;
     for (;;) {
       const prompt = parseScreenPrompt(await tmux.screenText(pane));
-      if (prompt?.question === question && prompt.options.find((o) => o.number === number)?.selected) return true;
+      if (prompt?.question === question && prompt.options.some(matches)) return true;
       if (Date.now() >= deadline) return false;
       await delay(SCREEN_POLL_MS);
     }
+  }
+
+  /**
+   * Add an instruction to a permission prompt's Yes or No, as Tab does in the
+   * terminal: arrows move the selection to it (its number would answer
+   * straight away), Tab turns it into a text field, then the text is typed.
+   * Each step waits for the screen to show it worked; typed into anything
+   * else, the text would be keys.
+   */
+  async function amend(pane, prompt, option, text) {
+    const from = prompt.options.findIndex((o) => o.selected);
+    const to = prompt.options.indexOf(option);
+    if (from < 0) throw new ActionError(409, "Its screen doesn't show which option is selected");
+    for (let i = 0; i < Math.abs(to - from); i += 1) await tmux.pressKey(pane, to > from ? 'Down' : 'Up');
+    const isSelected = (o) => o.number === option.number && o.selected;
+    if (!(await screenShows(pane, prompt.question, (o) => isSelected(o) && o.label === option.label))) {
+      throw new ActionError(409, `Couldn't select "${option.label}" on its screen, so nothing was typed`);
+    }
+    await tmux.pressKey(pane, 'Tab');
+    if (!(await screenShows(pane, prompt.question, (o) => isSelected(o) && o.label !== option.label))) {
+      throw new ActionError(409, `"${option.label}" didn't open for an instruction, so nothing was typed`);
+    }
+    await tmux.sendLine(pane, text);
+    return { answered: `${option.label}, and ${text}` };
   }
 
   async function pressAnswer(pane, body, choice) {
@@ -275,13 +301,17 @@ export function createActionService({
     }
     const option = prompt.options.find((o) => o.number === choice.number);
     if (option?.label !== choice.label) throw new ActionError(409, `Its screen no longer shows "${choice.number}. ${choice.label}"`);
+    if (choice.amend) {
+      if (!option.amends) throw new ActionError(400, 'This option takes no instruction');
+      return amend(pane, prompt, option, choice.text);
+    }
     if (option.takesText !== (choice.text !== null)) {
       throw new ActionError(400, option.takesText ? 'Type your answer for this option' : 'This option takes no text');
     }
     await tmux.pressKey(pane, String(option.number));
     if (choice.text === null) return { answered: option.label };
     // Typed into a dialog whose text field didn't open, the text would be keys: "1" would pick option 1.
-    if (!(await showsSelected(pane, prompt.question, option.number))) {
+    if (!(await screenShows(pane, prompt.question, (o) => o.number === option.number && o.selected))) {
       throw new ActionError(409, `Its text field for "${option.label}" didn't open, so nothing was typed`);
     }
     await tmux.sendLine(pane, choice.text);
