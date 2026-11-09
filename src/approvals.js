@@ -67,6 +67,8 @@ const hookOutput = (decision) => ({ hookSpecificOutput: { hookEventName: 'Permis
  */
 export function createApprovalBroker({
   now = Date.now, newId = randomUUID, settleGraceMs = SETTLE_GRACE_MS, maxPending = MAX_PENDING, describe = describeApproval,
+  // Called when a prompt arrives or goes, so open pages can be told.
+  onChange = () => {},
 } = {}) {
   // id -> { view, toolInput, resolve }. The tool input stays here: the page fetches it per prompt, for review.
   const requests = new Map();
@@ -76,6 +78,7 @@ export function createApprovalBroker({
     if (!request) return;
     requests.delete(id);
     request.resolve(output);
+    onChange();
   }
 
   /**
@@ -97,6 +100,7 @@ export function createApprovalBroker({
     const decision = new Promise((resolve) => {
       requests.set(id, { view: { id, ...fields, createdAt: now() }, toolInput, resolve });
     });
+    onChange();
     return { decision, cancel: () => settle(id, null) };
   }
 

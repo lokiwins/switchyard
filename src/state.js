@@ -246,6 +246,13 @@ export function createStateService({
     return new Set([...active, ...myOpenPrs.map((pr) => pr.repository.nameWithOwner)]);
   }
 
+  /** The repos under the roots, with each one's origin URL; both change rarely, so they're cached together. */
+  async function discoverWithRemotes() {
+    const discovered = await discoverRepos(config.roots);
+    const remotes = await mapLimit(discovered.repos, REPO_CONCURRENCY, (repo) => getRemoteUrl(repo.mainPath));
+    return { ...discovered, remotes };
+  }
+
   /**
    * The whole board. `github: false` uses only PR data a full scan already
    * cached; `git: false` also skips git status, leaving just sessions.
@@ -253,7 +260,7 @@ export function createStateService({
   async function build({ force = false, github = true, git = true } = {}) {
     const scan = { force, github, git };
     const errors = [];
-    const discovered = await cache.get('repos', REPOS_TTL_MS, () => discoverRepos(config.roots), { force });
+    const discovered = await cache.get('repos', REPOS_TTL_MS, () => discoverWithRemotes(), { force });
     errors.push(...discovered.errors);
     // Watching is what lets a scan skip git status in worktrees where nothing changed.
     if (git) await statusTracker.track(discovered.repos);
@@ -272,8 +279,7 @@ export function createStateService({
       errors.push({ source: 'github', message: error.message });
       return [];
     });
-    const remotes = await mapLimit(discovered.repos, REPO_CONCURRENCY, (repo) => getRemoteUrl(repo.mainPath));
-    const reposWithRemote = discovered.repos.map((repo, i) => ({ repo, github: parseGithubRemote(remotes[i]) }));
+    const reposWithRemote = discovered.repos.map((repo, i) => ({ repo, github: parseGithubRemote(discovered.remotes[i]) }));
     const prRepos = relevantGithubRepos(reposWithRemote, myOpenPrs, byWorktree);
 
     const branchPrs = await loadBranchPrs(branchRequests(reposWithRemote, prRepos), scan);
@@ -319,5 +325,7 @@ export function createStateService({
       refreshFullScanIfOld();
       return cache.get('sessions', SESSIONS_TTL_MS, () => build({ force, github: false, git: false }), { force });
     },
+    /** The sessions view rebuilt now, for a session that just changed; the repo list stays cached. */
+    refreshSessions: () => cache.reload('sessions', () => build({ github: false, git: false })),
   };
 }

@@ -7,6 +7,7 @@ import { createSwrCache } from './cache.js';
 import { loadConfig } from './config.js';
 import { navCounts } from './nav.js';
 import { createActionService } from './actions.js';
+import { createAgentFeed, watchFolder } from './agent-feed.js';
 import { createApprovalBroker } from './approvals.js';
 import { HOOK_PATH, isHookInstalled, readClaudeSettings } from './claude-hook.js';
 import { CSP, newStyleNonce, withStyleNonce } from './csp.js';
@@ -208,14 +209,48 @@ async function navFor({ stateService, prService }, { state, prs } = {}) {
   return navCounts({ state: sessions, prs: prPage });
 }
 
+/** The Agents page's data: sessions plus the prompts waiting to be answered and the badges. */
+async function agentsPayload(services, data) {
+  services.approvals.reconcile(data);
+  return {
+    ...data,
+    approvals: services.approvals.pending(),
+    nav: await navFor(services, { state: data }),
+    capabilities: { ...services.capabilities, approvalsHook: await services.hookInstalled() },
+  };
+}
+
+const SSE_HEADERS = { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' };
+
+/**
+ * Server-sent events: the Agents page's data now, then again whenever a
+ * session or a waiting prompt changes (see agent-feed.js).
+ */
+async function streamAgents(req, res, services) {
+  const { stateService, agentFeed } = services;
+  res.writeHead(200, SSE_HEADERS);
+  const send = (data) => {
+    if (!res.writableEnded && !res.destroyed) res.write(`event: agents\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  // Subscribe first, so a change while the first copy is built isn't missed; the page keeps the newest.
+  const unsubscribe = agentFeed.subscribe(send);
+  const heartbeat = setInterval(() => res.write(': ping\n\n'), STREAM_HEARTBEAT_MS);
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+  try {
+    // The cached copy shows at once; it can predate a change missed while the page was hidden, so a fresh one follows.
+    send(await agentsPayload(services, await stateService.getSessions()));
+    agentFeed.changed();
+  } catch (error) {
+    res.write(`event: failure\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
+  }
+}
+
 async function streamPrs(req, res, services) {
   const { prService, capabilities } = services;
-  res.writeHead(200, {
-    ...SECURITY_HEADERS,
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-store',
-    Connection: 'keep-alive',
-  });
+  res.writeHead(200, SSE_HEADERS);
   // Skip a page identical to the last one sent (e.g. the initial send racing the first update).
   let lastSent = null;
   const send = async (page) => {
@@ -259,7 +294,7 @@ async function streamTerminal(req, res, url, { liveTerminals }) {
   try {
     close = await liveTerminals.start({ sessionId: url.searchParams.get('sessionId') }, {
       ready: (info) => {
-        res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+        res.writeHead(200, SSE_HEADERS);
         // If the stream drops, the browser reconnects after this long (a new terminal, a fresh copy).
         res.write(`retry: ${TERMINAL_RETRY_MS}\n\n`);
         event('ready', JSON.stringify(info));
@@ -308,21 +343,12 @@ function createHandler(services) {
         return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services), capabilities: services.capabilities } });
       }
       if (url.pathname === '/api/agents') {
-        const data = await stateService.getSessions({ force });
-        services.approvals.reconcile(data);
-        return sendJson(res, 200, {
-          success: true,
-          data: {
-            ...data,
-            approvals: services.approvals.pending(),
-            nav: await navFor(services, { state: data }),
-            capabilities: { ...services.capabilities, approvalsHook: await services.hookInstalled() },
-          },
-        });
+        return sendJson(res, 200, { success: true, data: await agentsPayload(services, await stateService.getSessions({ force })) });
       }
       if (url.pathname === '/api/nav') {
         return sendJson(res, 200, { success: true, data: await navFor(services) });
       }
+      if (url.pathname === '/api/agents/stream') return await streamAgents(req, res, services);
       if (url.pathname === '/api/prs/stream') return await streamPrs(req, res, services);
       if (url.pathname === '/api/terminal/live') return await streamTerminal(req, res, url, services);
       if (url.pathname === '/api/approvals/detail') return await sendApprovalDetail(res, url, services);
@@ -387,9 +413,16 @@ async function main() {
   // The full state: Clean up needs PR data, which the sessions view leaves out.
   const cleanup = createCleanupService({ stateService });
   const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme, tmux: tmuxInstalled };
-  const approvals = createApprovalBroker();
+  const approvals = createApprovalBroker({ onChange: () => agentFeed.changed() });
   const hookInstalled = createHookCheck(config);
-  createServer(createHandler({ stateService, prService, actions, tasks, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port })).listen(config.port, HOST, () => {
+  const services = { stateService, prService, actions, tasks, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port };
+  const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
+  const agentFeed = createAgentFeed({
+    load: () => stateService.refreshSessions().then((data) => agentsPayload(services, data)),
+    onError: logError('agent update'),
+  });
+  watchFolder(join(config.claudeDir, 'sessions'), agentFeed.changed, { onError: logError('watching Claude sessions') });
+  createServer(createHandler({ ...services, agentFeed })).listen(config.port, HOST, () => {
     process.stdout.write(`switchyard: http://localhost:${config.port}  (roots: ${config.roots.join(', ')})\n`);
     // Warm the cache so the first page load is quick.
     stateService.getState().catch((error) => process.stderr.write(`Initial scan failed: ${error.message}\n`));

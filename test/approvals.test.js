@@ -188,3 +188,14 @@ test('reviewing a prompt that was already answered says so', async () => {
   const { broker } = setup();
   await assert.rejects(broker.detail('req-404'), (error) => error.status === 404);
 });
+
+test('open pages are told when a prompt arrives and when it goes', () => {
+  let changes = 0;
+  const broker = createApprovalBroker({ newId: () => 'req-1', onChange: () => { changes += 1; } });
+  broker.ask(hookInput({ tool_name: 'AskUserQuestion' }));
+  assert.equal(changes, 0, 'a prompt left to the terminal changes nothing here');
+  broker.ask(hookInput());
+  assert.equal(changes, 1);
+  broker.decide({ id: 'req-1', behavior: 'allow' });
+  assert.equal(changes, 2);
+});

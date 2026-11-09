@@ -6,8 +6,10 @@ import { applyNav, startNavBadges } from './nav.js';
 import { isTypingReply } from './session-controls.js';
 import { isEditingTask, newTaskMenu } from './new-task.js';
 
-// Sessions change by the second and this feed is local-only and cheap, so it polls fast.
+// Changes are pushed as they happen (see /api/agents/stream). Without the stream the page polls
+// this often; with it, it only checks in after this long without an update, in case one was missed.
 const POLL_MS = 4_000;
+const STREAM_POLL_MS = 15_000;
 const FILTER_PREF = 'switchyard.agentFilter';
 
 const isWaiting = (s) => s.status === 'idle' && !s.parked;
@@ -31,6 +33,8 @@ const ui = {
   openDetails: new Set(),
   loading: false,
   newTaskSignature: null,
+  stream: null,
+  receivedAt: 0,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -168,6 +172,28 @@ function render() {
   renderEndedPanel(state, filter);
 }
 
+/** Show newer data; a poll answered from an older snapshot than a pushed update is dropped. */
+function show(data) {
+  ui.receivedAt = Date.now();
+  if (ui.state && data.generatedAt < ui.state.generatedAt) return;
+  ui.state = data;
+  applyNav(data.nav);
+  render();
+}
+
+function openStream() {
+  if (ui.stream || typeof EventSource === 'undefined') return;
+  ui.stream = new EventSource('/api/agents/stream');
+  ui.stream.addEventListener('agents', (event) => show(JSON.parse(event.data)));
+}
+
+function closeStream() {
+  ui.stream?.close();
+  ui.stream = null;
+}
+
+const streaming = () => ui.stream?.readyState === EventSource.OPEN;
+
 async function load({ force = false } = {}) {
   if (ui.loading) return;
   ui.loading = true;
@@ -177,9 +203,7 @@ async function load({ force = false } = {}) {
     const res = await fetch(`/api/agents${force ? '?refresh=1' : ''}`);
     const body = await res.json();
     if (!body.success) throw new Error(body.error ?? `HTTP ${res.status}`);
-    ui.state = body.data;
-    applyNav(body.data.nav);
-    render();
+    show(body.data);
   } catch (error) {
     renderErrors([{ source: 'monitor', message: `Could not load sessions: ${error.message}` }]);
   } finally {
@@ -194,13 +218,18 @@ $('search').addEventListener('input', (event) => {
   render();
 });
 document.addEventListener('switchyard:changed', (event) => load({ force: Boolean(event.detail?.force) }));
+// A hidden tab gives up its stream (browsers allow few connections per site) and catches up on return.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) load();
+  if (document.hidden) return closeStream();
+  openStream();
+  return load();
 });
 setInterval(() => {
-  if (!document.hidden) load();
+  if (document.hidden) return;
+  if (!streaming() || Date.now() - ui.receivedAt > STREAM_POLL_MS) load();
 }, POLL_MS);
 
 startNavBadges();
 renderViews();
 load();
+if (!document.hidden) openStream();

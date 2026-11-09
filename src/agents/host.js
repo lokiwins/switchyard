@@ -50,28 +50,46 @@ export function findHost(pid, table) {
   return null;
 }
 
+/** What can't change while a process runs: its tty, and the app it was started from. */
+const processFacts = (pid, table) => ({ tty: table.get(pid)?.tty ?? null, app: findHost(pid, table) });
+
 /**
- * pid -> host. A tmux server runs detached from any app, so a session inside
- * tmux is known by its tty instead: the tty of the tmux pane it runs in.
+ * A tmux server runs detached from any app, so a session inside tmux is known
+ * by its tty instead: the tty of the tmux pane it runs in.
  */
-export function hostsFor(pids, table, tmuxPanes) {
-  return new Map(pids.map((pid) => {
-    const pane = tmuxPanes.get(table.get(pid)?.tty);
-    if (pane) return [pid, { kind: 'tmux', label: 'tmux', ...pane }];
-    return [pid, findHost(pid, table)];
-  }));
+function hostFor({ tty, app }, tmuxPanes) {
+  const pane = tmuxPanes.get(tty);
+  return pane ? { kind: 'tmux', label: 'tmux', ...pane } : app;
 }
 
-/** pid -> host for each pid; an empty map if `ps` is unavailable. */
-export async function detectHosts(pids, { listTmuxPanes = async () => new Map() } = {}) {
-  if (pids.length === 0) return new Map();
-  try {
-    const [table, panes] = await Promise.all([
-      run('ps', ['-axo', 'pid=,ppid=,tty=,comm=']).then(parseProcessTable),
-      listTmuxPanes(),
-    ]);
-    return hostsFor(pids, table, panes);
-  } catch {
-    return new Map();
-  }
+/** pid -> host, from a process table and the tmux panes by tty. */
+export function hostsFor(pids, table, tmuxPanes) {
+  return new Map(pids.map((pid) => [pid, hostFor(processFacts(pid, table), tmuxPanes)]));
+}
+
+const listProcesses = () => run('ps', ['-axo', 'pid=,ppid=,tty=,comm=']).then(parseProcessTable);
+
+/**
+ * pid -> host for each pid; an empty map if `ps` is unavailable. Listing every
+ * process is the slow part, so each one's tty and app are remembered while
+ * it keeps being asked about, and only new pids need a fresh list. tmux panes
+ * are listed every time, since windows come and go.
+ */
+export function createHostDetector({ listTmuxPanes = async () => new Map(), processes = listProcesses } = {}) {
+  let known = new Map();
+  return async function detectHosts(pids) {
+    if (pids.length === 0) return new Map();
+    try {
+      const missing = pids.filter((pid) => !known.has(pid));
+      const [table, panes] = await Promise.all([missing.length > 0 ? processes() : null, listTmuxPanes()]);
+      // Pids no longer running are forgotten, since the system reuses them.
+      known = new Map(pids.flatMap((pid) => {
+        if (known.has(pid)) return [[pid, known.get(pid)]];
+        return table.has(pid) ? [[pid, processFacts(pid, table)]] : [];
+      }));
+      return new Map(pids.map((pid) => [pid, known.has(pid) ? hostFor(known.get(pid), panes) : null]));
+    } catch {
+      return new Map();
+    }
+  };
 }

@@ -59,3 +59,14 @@ test('peek returns the cached value without loading or refreshing it', async () 
   assert.equal(cache.peek('k'), 1);
   assert.equal(calls, 1);
 });
+
+test('reload waits out a load already under way, since it may predate a change, then loads again', async () => {
+  const cache = createSwrCache();
+  let release;
+  const first = cache.get('k', 1000, () => new Promise((resolve) => { release = () => resolve('before'); }));
+  const reloaded = cache.reload('k', async () => 'after');
+  release();
+  assert.equal(await first, 'before');
+  assert.equal(await reloaded, 'after');
+  assert.equal(cache.peek('k'), 'after');
+});
