@@ -5,7 +5,7 @@ import { parseScreenPrompt } from './agents/screen-prompt.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuote } from './shell.js';
-import { canTypeInto, createTerminal, ttyOf } from './terminal.js';
+import { canReadScreen, canTypeInto, createTerminal, ttyOf } from './terminal.js';
 import { freeWindowName, runInWindow } from './task-session.js';
 import { createTmux } from './tmux.js';
 
@@ -252,15 +252,53 @@ export function createActionService({
     return { interrupted: true };
   }
 
-  // Panes an answer is being sent to: a second answer would land on whatever the first one brings up.
+  // Panes and tabs an answer is being sent to: a second answer would land on whatever the first one brings up.
   const answering = new Set();
 
-  /** Whether the pane's screen comes to show `question` with an option `matches`, waiting up to textFieldWaitMs. */
-  async function screenShows(pane, question, matches) {
+  /** The tty of a session's terminal tab, checked now: if Claude has exited or the tab is someone else's, nothing is pressed. */
+  async function currentTab(session) {
+    const tty = isAlive(session.pid) ? await lookupTty(session.pid) : null;
+    if (!tty || tty !== session.host.tty) throw new ActionError(409, `That session is no longer running in its ${session.host.label} tab`);
+    return tty;
+  }
+
+  /**
+   * Where a session's dialog is read and answered: its tmux pane, or its iTerm
+   * tab. `id` names it for one-answer-at-a-time; read() gives the text it shows.
+   */
+  async function dialogScreen(session) {
+    const host = session.host;
+    if (host?.kind === 'tmux') {
+      const pane = await currentTmuxPane(session);
+      return {
+        id: pane,
+        read: () => tmux.screenText(pane),
+        press: (key) => tmux.pressKey(pane, key),
+        typeLine: (text) => tmux.sendLine(pane, text),
+      };
+    }
+    if (host?.kind === 'terminal' && canReadScreen(host.app)) {
+      const tty = await currentTab(session);
+      const driver = driverFor(host.app);
+      const found = (ok) => {
+        if (!ok) throw new ActionError(404, `Couldn't find this session's tab in ${host.label}.`);
+      };
+      return {
+        id: tty,
+        read: async () => (await driver.screen(tty)) ?? '',
+        press: async (key) => found(await driver.pressKey(tty, key)),
+        typeLine: async (text) => found(await driver.enterLine(tty, text)),
+      };
+    }
+    throw new ActionError(501, 'Answering from switchyard works for sessions running in tmux or iTerm');
+  }
+
+  /** Whether the screen comes to show `question` with an option `matches`, waiting up to textFieldWaitMs. */
+  async function screenShows(screen, question, matches) {
     await delay(textFieldDelayMs);
     const deadline = Date.now() + textFieldWaitMs;
     for (;;) {
-      const prompt = parseScreenPrompt(await tmux.screenText(pane));
+      const prompt = parseScreenPrompt(await screen.read());
       if (prompt?.question === question && prompt.options.some(matches)) return true;
       if (Date.now() >= deadline) return false;
       await delay(SCREEN_POLL_MS);
@@ -274,52 +312,52 @@ export function createActionService({
    * Each step waits for the screen to show it worked; typed into anything
    * else, the text would be keys.
    */
-  async function amend(pane, prompt, option, text) {
+  async function amend(screen, prompt, option, text) {
     const from = prompt.options.findIndex((o) => o.selected);
     const to = prompt.options.indexOf(option);
     if (from < 0) throw new ActionError(409, "Its screen doesn't show which option is selected");
-    for (let i = 0; i < Math.abs(to - from); i += 1) await tmux.pressKey(pane, to > from ? 'Down' : 'Up');
+    for (let i = 0; i < Math.abs(to - from); i += 1) await screen.press(to > from ? 'Down' : 'Up');
     const isSelected = (o) => o.number === option.number && o.selected;
-    if (!(await screenShows(pane, prompt.question, (o) => isSelected(o) && o.label === option.label))) {
+    if (!(await screenShows(screen, prompt.question, (o) => isSelected(o) && o.label === option.label))) {
       throw new ActionError(409, `Couldn't select "${option.label}" on its screen, so nothing was typed`);
     }
-    await tmux.pressKey(pane, 'Tab');
-    if (!(await screenShows(pane, prompt.question, (o) => isSelected(o) && o.label !== option.label))) {
+    await screen.press('Tab');
+    if (!(await screenShows(screen, prompt.question, (o) => isSelected(o) && o.label !== option.label))) {
       throw new ActionError(409, `"${option.label}" didn't open for an instruction, so nothing was typed`);
     }
-    await tmux.sendLine(pane, text);
+    await screen.typeLine(text);
     return { answered: `${option.label}, and ${text}` };
   }
 
-  async function pressAnswer(pane, body, choice) {
-    const prompt = parseScreenPrompt(await tmux.screenText(pane));
+  async function pressAnswer(screen, body, choice) {
+    const prompt = parseScreenPrompt(await screen.read());
     if (!prompt || prompt.question !== body.question) throw new ActionError(409, "Its screen isn't showing that question any more");
     if (choice.next) {
       if (!prompt.tabs) throw new ActionError(409, 'That question has no next tab');
-      await tmux.pressKey(pane, 'Right');
+      await screen.press('Right');
       return { answered: 'next' };
     }
     const option = prompt.options.find((o) => o.number === choice.number);
     if (option?.label !== choice.label) throw new ActionError(409, `Its screen no longer shows "${choice.number}. ${choice.label}"`);
     if (choice.amend) {
       if (!option.amends) throw new ActionError(400, 'This option takes no instruction');
-      return amend(pane, prompt, option, choice.text);
+      return amend(screen, prompt, option, choice.text);
     }
     if (option.takesText !== (choice.text !== null)) {
       throw new ActionError(400, option.takesText ? 'Type your answer for this option' : 'This option takes no text');
     }
-    await tmux.pressKey(pane, String(option.number));
+    await screen.press(String(option.number));
     if (choice.text === null) return { answered: option.label };
     // Typed into a dialog whose text field didn't open, the text would be keys: "1" would pick option 1.
-    if (!(await screenShows(pane, prompt.question, (o) => o.number === option.number && o.selected))) {
+    if (!(await screenShows(screen, prompt.question, (o) => o.number === option.number && o.selected))) {
       throw new ActionError(409, `Its text field for "${option.label}" didn't open, so nothing was typed`);
     }
-    await tmux.sendLine(pane, choice.text);
+    await screen.typeLine(choice.text);
     return { answered: choice.text };
   }
 
   /**
-   * Answer the dialog a tmux session is showing, as if you'd pressed the
+   * Answer the dialog a session in tmux or iTerm is showing, as if you'd pressed the
    * option's number in its terminal (or →, to go on to a question's next
    * tab). The screen is read again first: if it no longer shows the question
    * and option the page saw, nothing is pressed, since the same number
@@ -329,15 +367,14 @@ export function createActionService({
     const sessionId = parseSessionId(body);
     const choice = parseAnswer(body);
     const session = await liveSession(sessionId);
-    if (session.host?.kind !== 'tmux') throw new ActionError(501, 'Answering from switchyard works for sessions running in tmux');
     if (!session.needsYou) throw new ActionError(409, "It isn't waiting for an answer");
-    const pane = await currentTmuxPane(session);
-    if (answering.has(pane)) throw new ActionError(409, 'An answer to it is already being sent');
-    answering.add(pane);
+    const screen = await dialogScreen(session);
+    if (answering.has(screen.id)) throw new ActionError(409, 'An answer to it is already being sent');
+    answering.add(screen.id);
     try {
-      return await pressAnswer(pane, body, choice);
+      return await pressAnswer(screen, body, choice);
     } finally {
-      answering.delete(pane);
+      answering.delete(screen.id);
     }
   }
 

@@ -4,9 +4,9 @@ import { renderMarkdown } from './markdown.js';
 import { sessionTitle } from './session-text.js';
 
 /*
- * Answering the dialog a tmux session shows (a question, plan approval or
- * permission prompt) from the page. Each option presses its number in the
- * session's terminal; the server first checks its screen still shows that
+ * Answering the dialog a session shows in tmux or iTerm (a question, plan
+ * approval or permission prompt) from the page. Each option presses its
+ * number in the session's terminal; the server first checks its screen still shows that
  * question and option. Options that open a text field send your text too, a
  * multiple-choice question's options tick boxes, and a question in several
  * parts has "Next" to go on to its next tab (the last one submits). A
@@ -21,9 +21,15 @@ const AMEND_PLACEHOLDERS = { Yes: 'Yes, and tell Claude what to do next', No: 'N
 
 const promptOf = (session) => session.screenPrompt;
 
-/** Answer with the dialog's own controls, unless the approvals hook already gives the prompt Allow and Deny. */
-export const canAnswer = (session, approvals) => session.host?.kind === 'tmux' && session.needsYou
+/**
+ * Answer with the dialog's own controls, unless the approvals hook already gives the prompt Allow and Deny.
+ * The server reads a screen only where it can also press keys (a tmux pane or an iTerm tab).
+ */
+export const canAnswer = (session, approvals) => session.needsYou
   && approvals.length === 0 && (promptOf(session)?.options.length ?? 0) > 0;
+
+/** Where an answer's keys are pressed, for hints. */
+const answerTarget = (host) => (host.kind === 'tmux' ? `its tmux window ${tmuxPlace(host)}` : `its ${host.label} tab`);
 
 function optionText(option) {
   const box = option.checked === undefined ? '' : option.checked ? '☑ ' : '☐ ';
@@ -149,7 +155,7 @@ export function answerMenu(session, approvals) {
   answerControls(session, {
     className: 'menu-item', formClass: 'reply-form', inputClass: '', buttonClass: 'btn btn-sm', done: closeDropdown,
   }),
-  h('p', { class: 'reply-hint' }, `Pressed in its tmux window ${tmuxPlace(session.host)}, if its screen still shows this question.`));
+  h('p', { class: 'reply-hint' }, `Pressed in ${answerTarget(session.host)}, if its screen still shows this question.`));
 }
 
 /** "Plan": a plan approval's plan, rendered in the glass pane, with the dialog's options to answer it. */

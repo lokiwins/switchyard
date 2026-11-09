@@ -67,6 +67,50 @@ end run`,
   end tell
   return "missing"
 end run`,
+    // The text a tab shows, found with "whose", which is about twice as fast as walking every tab.
+    screen: `on run argv
+  tell application "iTerm"
+    repeat with w in windows
+      repeat with found in (sessions of tabs of w whose tty is (item 1 of argv))
+        repeat with s in found
+          return "screen:" & (contents of s)
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  return "missing"
+end run`,
+    // Sends characters to the tab without a Return: a dialog key, without bringing iTerm forward.
+    press: `on run argv
+  tell application "iTerm"
+    repeat with w in windows
+      repeat with found in (sessions of tabs of w whose tty is (item 1 of argv))
+        repeat with s in found
+          tell s to write text (item 2 of argv) newline no
+          return "pressed"
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  return "missing"
+end run`,
+    // A line for a dialog's text field: the text, then Return on its own. Sent together, as
+    // "write text" sends them, the field takes the newline as part of a paste and doesn't submit.
+    enterLine: `on run argv
+  tell application "iTerm"
+    repeat with w in windows
+      repeat with found in (sessions of tabs of w whose tty is (item 1 of argv))
+        repeat with s in found
+          tell s to write text (item 2 of argv) newline no
+          delay 0.1
+          tell s to write text (ASCII character 13) newline no
+          return "typed"
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  return "missing"
+end run`,
   },
   Terminal: {
     focus: `on run argv
@@ -100,14 +144,26 @@ export const TERMINAL_APPS = Object.keys(SCRIPTS);
 /** Whether switchyard can type into one of this app's tabs (Terminal can't target a tab without focusing it). */
 export const canTypeInto = (app) => Boolean(SCRIPTS[app]?.type);
 
+/** Whether switchyard can read one of this app's tabs, and press keys in it to answer a dialog. */
+export const canReadScreen = (app) => Boolean(SCRIPTS[app]?.screen);
+
+// The keys that work a dialog, as the characters a terminal sends for them.
+const DIALOG_KEYS = {
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [String(n), String(n)])),
+  Right: '\x1b[C',
+  Up: '\x1b[A',
+  Down: '\x1b[B',
+  Tab: '\t',
+};
+
 export class TerminalError extends ActionError {}
 
 // AppleScript error -1743: the user hasn't allowed this process to control the app.
 const NOT_AUTHORIZED = /-1743|not authori[sz]ed/i;
 
-async function osascript(script, args, app) {
+async function osascript(script, args, app, exec = run) {
   try {
-    return (await run('osascript', ['-e', script, ...args])).trim();
+    return (await exec('osascript', ['-e', script, ...args])).trim();
   } catch (error) {
     if (NOT_AUTHORIZED.test(error.message)) {
       throw new TerminalError(403,
@@ -133,7 +189,7 @@ export async function ttyOf(pid) {
   }
 }
 
-export function createTerminal({ app, platform = process.platform }) {
+export function createTerminal({ app, platform = process.platform, exec = run }) {
   const scripts = SCRIPTS[app];
   const supported = platform === 'darwin' && Boolean(scripts);
 
@@ -147,20 +203,43 @@ export function createTerminal({ app, platform = process.platform }) {
     /** Bring the tab owning `tty` to the front. Resolves false if no tab has it. */
     async focus(tty) {
       ensureSupported();
-      return (await osascript(scripts.focus, [tty], app)) === 'found';
+      return (await osascript(scripts.focus, [tty], app, exec)) === 'found';
     },
 
     /** Type a line into the tab owning `tty` and submit it. Resolves false if no tab has it. */
     async type(tty, text) {
       ensureSupported();
       if (!scripts.type) throw new TerminalError(501, `switchyard can't type into ${app} tabs`);
-      return (await osascript(scripts.type, [tty, assertSingleLine(text)], app)) === 'typed';
+      return (await osascript(scripts.type, [tty, assertSingleLine(text)], app, exec)) === 'typed';
+    },
+
+    /** The text the tab owning `tty` shows, or null if no tab has it. */
+    async screen(tty) {
+      ensureSupported();
+      if (!scripts.screen) throw new TerminalError(501, `switchyard can't read ${app} tabs`);
+      const output = await osascript(scripts.screen, [tty], app, exec);
+      return output.startsWith('screen:') ? output.slice('screen:'.length) : null;
+    },
+
+    /** Press a key that works a dialog (a digit, Right, Up, Down or Tab) in the tab owning `tty`. Resolves false if no tab has it. */
+    async pressKey(tty, key) {
+      ensureSupported();
+      if (!Object.hasOwn(DIALOG_KEYS, key)) throw new TerminalError(400, 'Only an option number, arrows or Tab can be pressed');
+      if (!scripts.press) throw new TerminalError(501, `switchyard can't press keys in ${app} tabs`);
+      return (await osascript(scripts.press, [tty, DIALOG_KEYS[key]], app, exec)) === 'pressed';
+    },
+
+    /** Type a line into a dialog's text field in the tab owning `tty`, then press Return. Resolves false if no tab has it. */
+    async enterLine(tty, text) {
+      ensureSupported();
+      if (!scripts.enterLine) throw new TerminalError(501, `switchyard can't type into ${app} tabs`);
+      return (await osascript(scripts.enterLine, [tty, assertSingleLine(text)], app, exec)) === 'typed';
     },
 
     /** Open a new tab and type `command` into it. */
     async open(command) {
       ensureSupported();
-      await osascript(scripts.open, [assertSingleLine(command)], app);
+      await osascript(scripts.open, [assertSingleLine(command)], app, exec);
     },
   };
 }

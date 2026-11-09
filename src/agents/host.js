@@ -55,11 +55,13 @@ const processFacts = (pid, table) => ({ tty: table.get(pid)?.tty ?? null, app: f
 
 /**
  * A tmux server runs detached from any app, so a session inside tmux is known
- * by its tty instead: the tty of the tmux pane it runs in.
+ * by its tty instead: the tty of the tmux pane it runs in. A terminal app's
+ * tab is found by its tty too, so that's kept with it.
  */
 function hostFor({ tty, app }, tmuxPanes) {
   const pane = tmuxPanes.get(tty);
-  return pane ? { kind: 'tmux', label: 'tmux', ...pane } : app;
+  if (pane) return { kind: 'tmux', label: 'tmux', ...pane };
+  return app?.kind === 'terminal' && tty ? { ...app, tty } : app;
 }
 
 /** pid -> host, from a process table and the tmux panes by tty. */
