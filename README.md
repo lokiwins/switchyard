@@ -46,7 +46,20 @@ Three pages share a header nav. Each nav link carries a badge counting what need
 
 ## Acting from the dashboard (macOS)
 
-A web page can't touch your terminal, but the switchyard server runs on your machine, so the buttons ask it to:
+A web page can't touch your terminal, but the switchyard server runs on your machine, so the buttons ask it to. What each one can do depends on where the session runs:
+
+| | iTerm | Terminal | VS Code, Cursor, Windsurf | Inside tmux, in any of these |
+|---|---|---|---|---|
+| Listed on the Agents page, with its status | ✓ | ✓ | ✓ | ✓ |
+| **Allow / Deny** a permission prompt (needs the hook) | ✓ | ✓ | ✓ | ✓ |
+| **Jump** | the exact tab | the exact tab | the folder's window | the task's own tab |
+| **Reply ▾** | ✓ | – | – | ✓ |
+| What a waiting session asks | ✓ | – | – | ✓ |
+| **Answer ▾** and **Plan** | ✓ | – | – | ✓ |
+| **Stop** | – | – | – | ✓ |
+| **Terminal** (the live pane) | – | – | – | ✓ |
+
+A session running inside tmux is recognised by its tmux pane, whichever app tmux itself runs in, so starting Claude in tmux gives every control. Sessions started with **New task** always run in tmux. The gaps are where switchyard can't get at the terminal from outside: Terminal can only be sent keys by bringing its tab to the front, and an editor's built-in terminal can't be read or typed into at all. **Resume** works for an ended session from any of them. With tmux installed it opens in a window of the `switchyard` tmux session; without tmux it opens a new tab in the terminal the session ran in, or in your configured terminal.
 
 - **Jump** (running sessions) gets you to the session as precisely as its host app allows. switchyard finds the host by walking up the session's parent processes:
   - **iTerm / Terminal**: selects the exact tab running the session.
@@ -55,9 +68,9 @@ A web page can't touch your terminal, but the switchyard server runs on your mac
   - **Other apps** (e.g. Codex in the ChatGPT app): brings the app to the front.
 
   If the session's tab was closed, Jump resumes it instead (see Resume).
-- **What a waiting session asks** (sessions in tmux): when a session is waiting on you, its row shows the question and its options as Claude Code draws them in the terminal: a question Claude asks you, a plan to approve, or a permission prompt. Click it to see the whole dialog, descriptions included. It's read off the session's tmux screen with `tmux capture-pane`, because these aren't in the transcript until they're answered. Answer it here with **Answer ▾**, in the terminal, or with **Terminal** below.
-- **Answer ▾** (sessions in tmux) lists the dialog's options. Picking one presses its number in the session's terminal, after switchyard reads the screen again to check it still shows that question and option, since the same number would answer something else. Options that open a text field ("Type something.", "Tell Claude what to change") take your text from the menu. A multiple-choice question's options tick boxes, and **Next →** goes on to the next tab of a question in several parts, until its last tab, where you submit. A permission prompt that offers *Tab to amend* also has a box under its Yes and its No for an instruction to send along ("Yes, and run the tests"), as Tab does in the terminal: switchyard moves the selection there with the arrow keys, presses Tab, and types it, checking the screen after each step. For a permission prompt the approvals hook has already sent, use Allow / Deny instead.
-- **Plan** (plan approvals in tmux) opens the plan in the glass pane, rendered from the Markdown file the dialog names in `~/.claude/plans`, with the dialog's options to answer it there.
+- **What a waiting session asks** (sessions in tmux or iTerm): when a session is waiting on you, its row shows the question and its options as Claude Code draws them in the terminal: a question Claude asks you, a plan to approve, or a permission prompt. Click it to see the whole dialog, descriptions included. It's read off the session's screen, because these aren't in the transcript until they're answered: with `tmux capture-pane` for a tmux pane, and through iTerm's scripting for an iTerm tab, without bringing it forward. Terminal and editor terminals (VS Code, Cursor) can't be read this way. Answer it here with **Answer ▾**, in the terminal, or with **Terminal** below.
+- **Answer ▾** (sessions in tmux or iTerm) lists the dialog's options. Picking one presses its number in the session's terminal, after switchyard reads the screen again to check it still shows that question and option, since the same number would answer something else. Options that open a text field ("Type something.", "Tell Claude what to change") take your text from the menu. A multiple-choice question's options tick boxes, and **Next →** goes on to the next tab of a question in several parts, until its last tab, where you submit. A permission prompt that offers *Tab to amend* also has a box under its Yes and its No for an instruction to send along ("Yes, and run the tests"), as Tab does in the terminal: switchyard moves the selection there with the arrow keys, presses Tab, and types it, checking the screen after each step. An iTerm tab gets the same keys through iTerm's scripting, after switchyard checks the session still runs in that tab. For a permission prompt the approvals hook has already sent, use Allow / Deny instead.
+- **Plan** (plan approvals in tmux or iTerm) opens the plan in the glass pane, rendered from the Markdown file the dialog names in `~/.claude/plans`, with the dialog's options to answer it there.
 - **Review / Allow / Deny** appear on a session waiting on a permission prompt, showing what Claude wants to run or touch. **Review** opens it in full in the glass pane (see below). Allow runs it once. Deny stops Claude to wait for you, like "No" in the terminal. The terminal's own prompt stays open the whole time, and whichever you answer first wins. This needs a one-time hook (see below).
 - **Reply ▾** (sessions in tmux or iTerm) types a one-line message into the session and presses Return, as if you'd typed it there. A message sent while Claude is working is queued until its current step finishes. It's refused while a question or prompt is open, because the text would answer it. It lands after anything already typed in its input box. tmux sessions get it through `tmux send-keys`, so they don't need to be attached or have a tab.
 - **Stop** (working sessions in tmux) presses Esc in the session, ending Claude's current turn as it would in the terminal.

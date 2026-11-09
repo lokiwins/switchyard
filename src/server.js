@@ -18,7 +18,7 @@ import { createStateService } from './state.js';
 import { createTaskService } from './tasks.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
-import { createTerminal } from './terminal.js';
+import { canReadScreen, createTerminal } from './terminal.js';
 import { STATIC_FILES } from './static-files.js';
 import { createTmux } from './tmux.js';
 
@@ -101,6 +101,15 @@ function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
 // A key pressed in a dialog redraws the screen without changing the session's
 // status, which is what pushes updates, so the page is sent one once it has.
 const SCREEN_REDRAW_MS = 300;
+
+/** The text a session's host shows: its tmux pane, or its iTerm tab; null for a host whose screen can't be read. */
+function screenReader(tmux, terminalFor = (app) => createTerminal({ app })) {
+  return (host) => {
+    if (host.kind === 'tmux') return tmux.screenText(host.pane);
+    if (host.kind === 'terminal' && host.tty && canReadScreen(host.app)) return terminalFor(host.app).screen(host.tty);
+    return null;
+  };
+}
 
 async function answerPrompt({ actions, agentFeed }, body) {
   const result = await actions.answerPrompt(body);
@@ -378,7 +387,7 @@ async function main() {
   let prService = null;
   const stateService = createStateService({
     config,
-    claude: createClaudeProvider({ claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: tmux.screenText }),
+    claude: createClaudeProvider({ claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux) }),
     cache,
     prSnapshot: () => prService?.syncSnapshot() ?? null,
   });

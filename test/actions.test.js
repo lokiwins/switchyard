@@ -25,15 +25,20 @@ function setup({
     focus: async (t) => { calls.push(['focus', t]); return tabFound; },
     open: async (command) => { calls.push(['open', command]); },
     type: async (t, text) => { calls.push(['type', t, text]); return tabFound; },
+    screen: async () => screenNow(),
+    pressKey: async (t, key) => { calls.push(['term-key', t, key]); return tabFound; },
+    enterLine: async (t, text) => { calls.push(['enter-line', t, text]); return tabFound; },
   };
+  // A function of the keys pressed so far, to show a screen changing.
+  const screenNow = () => (typeof screen === 'function'
+    ? screen(calls.filter((c) => c[0] === 'tmux-key' || c[0] === 'term-key').map((c) => c[2])) : screen);
   const tmux = {
     clientsShowing: async (window) => { calls.push(['clients', window]); return clients; },
     openView: async (window) => { calls.push(['view', window]); return `exec tmux attach-session -t =switchyard-view-${window.slice(1)}`; },
     sendLine: async (pane, text) => { calls.push(['tmux-type', pane, text]); },
     interrupt: async (pane) => { calls.push(['tmux-interrupt', pane]); },
     pressKey: async (pane, key) => { calls.push(['tmux-key', pane, key]); },
-    // A function of the keys pressed so far, to show a screen changing.
-    screenText: async () => (typeof screen === 'function' ? screen(calls.filter((c) => c[0] === 'tmux-key').map((c) => c[2])) : screen),
+    screenText: async () => screenNow(),
     listPanes: async () => new Map(paneTty ? [[paneTty, { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' }]] : []),
     hasWindow: async (session, name) => session === 'switchyard' && windows.includes(name),
     newWindow: async (options) => { calls.push(['new-window', options]); return { window: '@9', pane: '%9' }; },
@@ -378,12 +383,50 @@ test('Answer amends only an option that offers it, and only with an instruction'
   await rejectsWith(setup(waiting).actions.answerPrompt(answer({ number: 1, label: 'Red', text: 'x', amend: true })), 400);
 });
 
+const inITerm = { ...iterm, tty: '/dev/ttys004' };
+const waitingInITerm = { host: inITerm, session: { needsYou: true }, screen: QUESTION };
+
+test("Answer presses the option's number in an iTerm tab, found by its tty", async () => {
+  const { actions, calls } = setup(waitingInITerm);
+  assert.deepEqual(await actions.answerPrompt(answer({ number: 2, label: 'Blue' })), { answered: 'Blue' });
+  assert.deepEqual(calls, [['term-key', '/dev/ttys004', '2']]);
+});
+
+test('Answer types your own answer into an iTerm tab once its text field is open', async () => {
+  const { actions, calls } = setup({ ...waitingInITerm, screen: fieldOpen });
+  assert.deepEqual(await actions.answerPrompt(answer({ number: 3, label: 'Type something.', text: 'teal' })), { answered: 'teal' });
+  assert.deepEqual(calls, [['term-key', '/dev/ttys004', '3'], ['enter-line', '/dev/ttys004', 'teal']]);
+});
+
+test('Answer amends Yes or No in an iTerm tab with the arrow keys and Tab', async () => {
+  const { actions, calls } = setup({ ...waitingInITerm, screen: permissionAfter });
+  await actions.answerPrompt(proceed({ number: 4, label: 'No', text: 'stop', amend: true }));
+  assert.deepEqual(calls.map((c) => c[2]), ['Down', 'Down', 'Down', 'Tab', 'stop']);
+  assert.equal(calls.at(-1)[0], 'enter-line');
+});
+
+test("Answer presses nothing in an iTerm tab that isn't the session's any more", async () => {
+  for (const situation of [{ alive: false }, { tty: '/dev/ttys009' }, { tty: null }]) {
+    const { actions, calls } = setup({ ...waitingInITerm, ...situation });
+    await rejectsWith(actions.answerPrompt(answer({ number: 2, label: 'Blue' })), 409);
+    assert.deepEqual(calls, []);
+  }
+  const { actions } = setup({ ...waitingInITerm, tabFound: false });
+  await rejectsWith(actions.answerPrompt(answer({ number: 2, label: 'Blue' })), 404);
+});
+
+test("Answer works for sessions in tmux or iTerm, whose screens it can read", async () => {
+  await rejectsWith(setup({ ...waitingInITerm, host: { kind: 'terminal', label: 'Terminal', app: 'Terminal', tty: '/dev/ttys004' } })
+    .actions.answerPrompt(answer({ number: 1, label: 'Red' })), 501);
+  await rejectsWith(setup({ ...waitingInITerm, host: vscode }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 501);
+});
+
 test('Answer checks what was asked for before looking for the session', async () => {
   await rejectsWith(setup(waiting).actions.answerPrompt({ sessionId: 'bbbbbbbb-0000', number: 0 }), 400);
 });
 
 test('Answer only works for a tmux session that is waiting on you', async () => {
   await rejectsWith(setup({ ...waiting, session: { needsYou: false } }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 409);
-  await rejectsWith(setup({ ...waiting, host: iterm }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 501);
+  await rejectsWith(setup({ ...waiting, host: chatgpt }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 501);
   await rejectsWith(setup({ ...waiting, alive: false }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 409);
 });

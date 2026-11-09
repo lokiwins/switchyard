@@ -42,17 +42,18 @@ export function readStatus(registryStatus) {
 }
 
 /**
- * What a session waiting on you in tmux is asking, read off its screen (see
- * screen-prompt.js); null for any other session, or if the screen can't be read.
+ * What a session waiting on you is asking, read off its screen (see
+ * screen-prompt.js); null for any other session, or if its screen can't be read.
+ * `readScreen(host)` gives the text a host shows, or null for one it can't read.
  */
 export async function readScreenPrompt(session, readScreen, { retryMs = SCREEN_RETRY_MS, now = Date.now() } = {}) {
-  if (!readScreen || !session.needsYou || session.host?.kind !== 'tmux') return null;
+  if (!readScreen || !session.needsYou || !session.host) return null;
   try {
-    const prompt = parseScreenPrompt(await readScreen(session.host.pane));
+    const prompt = parseScreenPrompt(await readScreen(session.host));
     const justStarted = now - (session.statusUpdatedAt ?? 0) < JUST_STARTED_WAITING_MS;
     if (prompt || !justStarted) return prompt;
     await delay(retryMs);
-    return parseScreenPrompt(await readScreen(session.host.pane));
+    return parseScreenPrompt(await readScreen(session.host));
   } catch {
     return null;
   }
@@ -70,7 +71,7 @@ export async function readPlan(plansDir, file) {
   }
 }
 
-/** `readScreen(pane)` gives a tmux pane's visible text; without it, no screen prompts are read. */
+/** `readScreen(host)` gives the text a session's tmux pane or terminal tab shows; without it, no screen prompts are read. */
 export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = null }) {
   const sessionsDir = join(claudeDir, 'sessions');
   const projectsDir = join(claudeDir, 'projects');

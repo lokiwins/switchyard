@@ -58,6 +58,7 @@ test('hostsFor names the tmux session, window and pane a session runs in', () =>
   const panes = new Map([['/dev/ttys010', pane]]);
   const hosts = hostsFor([400, 820, 710], table, panes);
   assert.equal(hosts.get(400).app, 'iTerm');
+  assert.equal(hosts.get(400).tty, '/dev/ttys004', "a terminal session's tab is found by its tty");
   assert.deepEqual(hosts.get(820), { kind: 'tmux', label: 'tmux', ...pane });
   assert.equal(hosts.get(710), null);
 });

@@ -200,18 +200,20 @@ test('endedSessions lists recent, non-live transcripts with where and how they e
 const DIALOG = ['─'.repeat(80), ' Which color do you prefer?', ' ❯ 1. Red', '   2. Blue', ' Esc to cancel'].join('\n');
 const waitingInTmux = { needsYou: true, statusUpdatedAt: 10_000, host: { kind: 'tmux', pane: '%3' } };
 
-test('a session waiting on you in tmux shows what its screen asks', async () => {
-  const panes = [];
-  const prompt = await readScreenPrompt(waitingInTmux, async (pane) => { panes.push(pane); return DIALOG; }, { now: 60_000 });
+test('a session waiting on you shows what its screen asks, read from its host', async () => {
+  const hosts = [];
+  const prompt = await readScreenPrompt(waitingInTmux, async (host) => { hosts.push(host); return DIALOG; }, { now: 60_000 });
   assert.equal(prompt.question, 'Which color do you prefer?');
-  assert.deepEqual(panes, ['%3']);
+  assert.deepEqual(hosts, [waitingInTmux.host]);
 });
 
-test('only sessions waiting on you in tmux have their screen read', async () => {
+test('only sessions waiting on you, in a host whose screen can be read, have a screen prompt', async () => {
   const readScreen = async () => { throw new Error('should not be read'); };
   assert.equal(await readScreenPrompt({ ...waitingInTmux, needsYou: false }, readScreen), null);
-  assert.equal(await readScreenPrompt({ ...waitingInTmux, host: { kind: 'terminal', app: 'iTerm' } }, readScreen), null);
+  assert.equal(await readScreenPrompt({ ...waitingInTmux, host: null }, readScreen), null);
   assert.equal(await readScreenPrompt(waitingInTmux, null), null);
+  // A host it can't read (Terminal, an editor) gives no screen.
+  assert.equal(await readScreenPrompt({ ...waitingInTmux, host: { kind: 'editor' } }, async () => null, { now: 60_000 }), null);
 });
 
 test('a screen read too early is read once more, but only just after the session started waiting', async () => {
