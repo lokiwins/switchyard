@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createClaudeProvider, readStatus, resumeCommand, summarizeTranscript, transcriptDirName } from '../src/agents/claude.js';
+import { createClaudeProvider, readScreenPrompt, readStatus, resumeCommand, summarizeTranscript, transcriptDirName } from '../src/agents/claude.js';
 import { classifyEnding } from '../src/agents/claude-transcript.js';
 
 const line = (entry) => JSON.stringify(entry);
@@ -195,4 +195,35 @@ test('endedSessions lists recent, non-live transcripts with where and how they e
   assert.equal(sessions[0].endState, 'interrupted');
   assert.equal(sessions[0].endedAt, Date.parse('2026-01-01T00:00:00Z'));
   assert.equal(sessions[0].resumeCommand, 'cd /w/repo && claude --resume died');
+});
+
+const DIALOG = ['─'.repeat(80), ' Which color do you prefer?', ' ❯ 1. Red', '   2. Blue', ' Esc to cancel'].join('\n');
+const waitingInTmux = { needsYou: true, statusUpdatedAt: 10_000, host: { kind: 'tmux', pane: '%3' } };
+
+test('a session waiting on you in tmux shows what its screen asks', async () => {
+  const panes = [];
+  const prompt = await readScreenPrompt(waitingInTmux, async (pane) => { panes.push(pane); return DIALOG; }, { now: 60_000 });
+  assert.equal(prompt.question, 'Which color do you prefer?');
+  assert.deepEqual(panes, ['%3']);
+});
+
+test('only sessions waiting on you in tmux have their screen read', async () => {
+  const readScreen = async () => { throw new Error('should not be read'); };
+  assert.equal(await readScreenPrompt({ ...waitingInTmux, needsYou: false }, readScreen), null);
+  assert.equal(await readScreenPrompt({ ...waitingInTmux, host: { kind: 'terminal', app: 'iTerm' } }, readScreen), null);
+  assert.equal(await readScreenPrompt(waitingInTmux, null), null);
+});
+
+test('a screen read too early is read once more, but only just after the session started waiting', async () => {
+  let reads = 0;
+  const drawnLate = async () => (++reads === 1 ? '❯ ' : DIALOG);
+  assert.equal((await readScreenPrompt(waitingInTmux, drawnLate, { retryMs: 1, now: 10_500 })).options.length, 2);
+  assert.equal(reads, 2);
+  reads = 0;
+  assert.equal(await readScreenPrompt(waitingInTmux, async () => { reads += 1; return '❯ '; }, { retryMs: 1, now: 60_000 }), null);
+  assert.equal(reads, 1, 'a long-waiting session with no dialog on screen costs one read');
+});
+
+test('a pane that cannot be read gives no prompt', async () => {
+  assert.equal(await readScreenPrompt(waitingInTmux, async () => { throw new Error("can't find pane: %3"); }), null);
 });

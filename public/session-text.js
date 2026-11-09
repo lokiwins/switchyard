@@ -39,8 +39,15 @@ export function sessionTitle(session) {
  * - interrupted: what it was doing when it was cut off
  * - otherwise: the last thing Claude said, falling back to your prompt
  */
+/** A dialog read off a waiting session's screen: the question and its options on one line, the dialog as drawn when opened. */
+function screenPromptDetail({ question, options, text }) {
+  const choices = options.map((o) => `${o.number}. ${o.label}`).join(' · ');
+  return { kind: 'needs-you', label: 'Asks', text: [question, choices].filter(Boolean).join(' '), full: text };
+}
+
 export function sessionDetail(session) {
   const t = session.transcript ?? {};
+  if (session.needsYou && session.screenPrompt) return screenPromptDetail(session.screenPrompt);
   if (session.needsYou) return { kind: 'needs-you', label: 'Needs you', text: t.activity ?? 'Waiting for your answer or approval' };
   if (session.status === 'busy') {
     if (session.inBackground) return { kind: 'activity', label: null, text: 'Waiting for a background command' };
@@ -59,5 +66,5 @@ export function sessionDetail(session) {
 /** Everything worth matching a search against. */
 export function sessionSearchText(session) {
   const t = session.transcript ?? {};
-  return [t.agentName, t.title, session.name, t.lastReply, t.activity, t.lastPrompt];
+  return [t.agentName, t.title, session.name, t.lastReply, t.activity, t.lastPrompt, session.screenPrompt?.question];
 }
