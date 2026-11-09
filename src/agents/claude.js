@@ -18,6 +18,8 @@ const RECENT_SCAN_FACTOR = 3;
 // is read once more if the session only just started waiting.
 const SCREEN_RETRY_MS = 250;
 const JUST_STARTED_WAITING_MS = 2_000;
+// A plan bigger than this is left to the terminal.
+const MAX_PLAN_BYTES = 256 * 1024;
 
 /** A session that never got a prompt (opened, then /exit) has nothing to resume. */
 const isResumable = (transcript) => Boolean(transcript?.lastPrompt) || transcript?.endState === 'interrupted';
@@ -56,10 +58,23 @@ export async function readScreenPrompt(session, readScreen, { retryMs = SCREEN_R
   }
 }
 
+/** A plan approval's plan, as Markdown, from its file in `plansDir`; null if it can't be read or is too big. */
+export async function readPlan(plansDir, file) {
+  if (!file) return null;
+  try {
+    const path = join(plansDir, file);
+    if ((await stat(path)).size > MAX_PLAN_BYTES) return null;
+    return await readFile(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 /** `readScreen(pane)` gives a tmux pane's visible text; without it, no screen prompts are read. */
 export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = null }) {
   const sessionsDir = join(claudeDir, 'sessions');
   const projectsDir = join(claudeDir, 'projects');
+  const plansDir = join(claudeDir, 'plans');
 
   const detectHosts = createHostDetector({ listTmuxPanes });
   const transcriptPath = (cwd, sessionId) => join(projectsDir, transcriptDirName(cwd), `${sessionId}.jsonl`);
@@ -121,7 +136,10 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
       resumeCommand: resumeCommand(entry.cwd, entry.sessionId),
       transcript: await summarize(transcriptPath(entry.cwd, entry.sessionId)),
     })));
-    return Promise.all(sessions.map(async (session) => ({ ...session, screenPrompt: await readScreenPrompt(session, readScreen) })));
+    return Promise.all(sessions.map(async (session) => {
+      const prompt = await readScreenPrompt(session, readScreen);
+      return { ...session, screenPrompt: prompt && { ...prompt, plan: await readPlan(plansDir, prompt.planFile) } };
+    }));
   }
 
   async function listTranscripts(dir) {

@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
+import { setTimeout as delay } from 'node:timers/promises';
 import { isProcessAlive } from './agents/process.js';
+import { parseScreenPrompt } from './agents/screen-prompt.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuote } from './shell.js';
@@ -13,6 +15,11 @@ const MAX_REPLY_LENGTH = 2000;
 // Control characters would act as keys (Return submits, Esc interrupts) rather than text;
 // C1 controls and Unicode line separators are refused too, in case a terminal acts on them.
 const CONTROL_CHARACTERS = /[\0-\x1f\x7f-\x9f\u2028\u2029]/;
+// After pressing the number of an option with a text field, text is typed only once the
+// screen shows that option selected, at least this long after the press and within the wait.
+const TEXT_FIELD_DELAY_MS = 100;
+const TEXT_FIELD_WAIT_MS = 1_000;
+const SCREEN_POLL_MS = 50;
 
 /** Editors open a folder (and focus the window that already has it) via <scheme>://file/<path>. */
 export function editorUrl(scheme, path) {
@@ -39,6 +46,16 @@ export function parseReply(body) {
     throw new ActionError(400, `A reply must be one line of text, up to ${MAX_REPLY_LENGTH} characters`);
   }
   return text;
+}
+
+/** Which option the page answered, checked before the screen is read: a number key 1–9, and your own text for a text field. */
+export function parseAnswer(body) {
+  if (body?.next === true) return { next: true };
+  const { number, label } = body ?? {};
+  if (!Number.isInteger(number) || number < 1 || number > 9 || typeof label !== 'string') {
+    throw new ActionError(400, 'Expected { number: 1-9, label: "<option>" }');
+  }
+  return { number, label, text: body.text === undefined ? null : parseReply(body) };
 }
 
 /** A session that has ended, from the Agents list or a worktree's last session. */
@@ -77,6 +94,8 @@ export function createActionService({
   isAlive = isProcessAlive,
   launcher = macLauncher,
   platform = process.platform,
+  textFieldDelayMs = TEXT_FIELD_DELAY_MS,
+  textFieldWaitMs = TEXT_FIELD_WAIT_MS,
 }) {
   const drivers = new Map();
   const driverFor = (app) => {
@@ -233,6 +252,67 @@ export function createActionService({
     return { interrupted: true };
   }
 
+  // Panes an answer is being sent to: a second answer would land on whatever the first one brings up.
+  const answering = new Set();
+
+  /** Whether the pane's screen shows option `number` of `question` selected, waiting up to textFieldWaitMs. */
+  async function showsSelected(pane, question, number) {
+    await delay(textFieldDelayMs);
+    const deadline = Date.now() + textFieldWaitMs;
+    for (;;) {
+      const prompt = parseScreenPrompt(await tmux.screenText(pane));
+      if (prompt?.question === question && prompt.options.find((o) => o.number === number)?.selected) return true;
+      if (Date.now() >= deadline) return false;
+      await delay(SCREEN_POLL_MS);
+    }
+  }
+
+  async function pressAnswer(pane, body, choice) {
+    const prompt = parseScreenPrompt(await tmux.screenText(pane));
+    if (!prompt || prompt.question !== body.question) throw new ActionError(409, "Its screen isn't showing that question any more");
+    if (choice.next) {
+      if (!prompt.tabs) throw new ActionError(409, 'That question has no next tab');
+      await tmux.pressKey(pane, 'Right');
+      return { answered: 'next' };
+    }
+    const option = prompt.options.find((o) => o.number === choice.number);
+    if (option?.label !== choice.label) throw new ActionError(409, `Its screen no longer shows "${choice.number}. ${choice.label}"`);
+    if (option.takesText !== (choice.text !== null)) {
+      throw new ActionError(400, option.takesText ? 'Type your answer for this option' : 'This option takes no text');
+    }
+    await tmux.pressKey(pane, String(option.number));
+    if (choice.text === null) return { answered: option.label };
+    // Typed into a dialog whose text field didn't open, the text would be keys: "1" would pick option 1.
+    if (!(await showsSelected(pane, prompt.question, option.number))) {
+      throw new ActionError(409, `Its text field for "${option.label}" didn't open, so nothing was typed`);
+    }
+    await tmux.sendLine(pane, choice.text);
+    return { answered: choice.text };
+  }
+
+  /**
+   * Answer the dialog a tmux session is showing, as if you'd pressed the
+   * option's number in its terminal (or →, to go on to a question's next
+   * tab). The screen is read again first: if it no longer shows the question
+   * and option the page saw, nothing is pressed, since the same number
+   * would answer something else.
+   */
+  async function answerPrompt(body) {
+    const sessionId = parseSessionId(body);
+    const choice = parseAnswer(body);
+    const session = await liveSession(sessionId);
+    if (session.host?.kind !== 'tmux') throw new ActionError(501, 'Answering from switchyard works for sessions running in tmux');
+    if (!session.needsYou) throw new ActionError(409, "It isn't waiting for an answer");
+    const pane = await currentTmuxPane(session);
+    if (answering.has(pane)) throw new ActionError(409, 'An answer to it is already being sent');
+    answering.add(pane);
+    try {
+      return await pressAnswer(pane, body, choice);
+    } finally {
+      answering.delete(pane);
+    }
+  }
+
   /** Open a new tab that resumes an ended session in its own folder. */
   async function resumeSession(body) {
     const sessionId = parseSessionId(body);
@@ -272,5 +352,5 @@ export function createActionService({
     return { opened: true };
   }
 
-  return { focusSession, replyToSession, interruptSession, tmuxTarget, resumeSession, openWorktree };
+  return { focusSession, replyToSession, interruptSession, answerPrompt, tmuxTarget, resumeSession, openWorktree };
 }

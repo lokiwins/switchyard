@@ -19,39 +19,12 @@ import { createTaskService } from './tasks.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
 import { createTerminal } from './terminal.js';
+import { STATIC_FILES } from './static-files.js';
 import { createTmux } from './tmux.js';
 
 // Loopback only: the API exposes local paths and agent prompts.
 const HOST = '127.0.0.1';
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const STATIC_FILES = {
-  '/': 'agents.html',
-  '/worktrees': 'worktrees.html',
-  '/prs': 'prs.html',
-  '/agents.js': 'agents.js',
-  '/nav.js': 'nav.js',
-  '/actions.js': 'actions.js',
-  '/app.js': 'app.js',
-  '/prs.js': 'prs.js',
-  '/pr-views.js': 'pr-views.js',
-  '/ended-views.js': 'ended-views.js',
-  '/agent-views.js': 'agent-views.js',
-  '/session-row.js': 'session-row.js',
-  '/session-text.js': 'session-text.js',
-  '/session-controls.js': 'session-controls.js',
-  '/new-task.js': 'new-task.js',
-  '/branch-name.js': 'branch-name.js',
-  '/markdown.js': 'markdown.js',
-  '/review-pane.js': 'review-pane.js',
-  '/live-terminal.js': 'live-terminal.js',
-  '/vendor/xterm/xterm.mjs': 'vendor/xterm/xterm.mjs',
-  '/vendor/xterm/addon-fit.mjs': 'vendor/xterm/addon-fit.mjs',
-  '/vendor/xterm/addon-webgl.mjs': 'vendor/xterm/addon-webgl.mjs',
-  '/vendor/xterm/xterm.css': 'vendor/xterm/xterm.css',
-  '/dom.js': 'dom.js',
-  '/views.js': 'views.js',
-  '/styles.css': 'styles.css',
-};
 const SECURITY_HEADERS = {
   'Content-Security-Policy': CSP,
   'X-Content-Type-Options': 'nosniff',
@@ -125,12 +98,23 @@ function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
   });
 }
 
+// A key pressed in a dialog redraws the screen without changing the session's
+// status, which is what pushes updates, so the page is sent one once it has.
+const SCREEN_REDRAW_MS = 300;
+
+async function answerPrompt({ actions, agentFeed }, body) {
+  const result = await actions.answerPrompt(body);
+  setTimeout(() => agentFeed?.changed(), SCREEN_REDRAW_MS).unref();
+  return result;
+}
+
 const POST_ROUTES = {
   '/api/prs/copilot-review': ({ prService }, body) => prService.copilotReview(body),
   '/api/approvals/decide': ({ approvals }, body) => approvals.decide(body),
   '/api/terminal/focus': ({ actions }, body) => actions.focusSession(body),
   '/api/terminal/reply': ({ actions }, body) => actions.replyToSession(body),
   '/api/terminal/interrupt': ({ actions }, body) => actions.interruptSession(body),
+  '/api/terminal/answer': answerPrompt,
   '/api/terminal/input': ({ liveTerminals }, body) => liveTerminals.input(body),
   '/api/terminal/resize': ({ liveTerminals }, body) => liveTerminals.resize(body),
   '/api/terminal/ack': ({ liveTerminals }, body) => liveTerminals.ack(body),

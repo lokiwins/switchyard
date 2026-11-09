@@ -24,6 +24,8 @@ const MAX_WINDOW_NAME = 60;
 const LOGIN_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
 // Escape stops Claude Code's current turn without exiting it.
 const INTERRUPT_KEY = 'Escape';
+// The keys that answer a dialog: an option's number, or → to its next tab.
+const DIALOG_KEYS = /^([1-9]|Right)$/;
 // Typed text must not contain keys of its own (Return, Esc, Ctrl-…).
 const CONTROL_CHARACTERS = /[\0-\x1f\x7f-\x9f\u2028\u2029]/;
 
@@ -139,6 +141,12 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       if (hasControlCharacters(text)) throw new TmuxError(400, 'Refusing to type control characters');
       await tmux(['send-keys', '-t', pane, '-l', '--', text]);
       await tmux(['send-keys', '-t', pane, 'Enter']);
+    },
+
+    /** Press an option's number, or → (Right), in a dialog on a pane's screen. */
+    async pressKey(pane, key) {
+      if (!DIALOG_KEYS.test(key)) throw new TmuxError(400, 'Only an option number or → can be pressed');
+      await tmux(['send-keys', '-t', pane, key]);
     },
 
     async interrupt(pane) {
