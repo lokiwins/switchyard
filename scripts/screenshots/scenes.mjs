@@ -43,6 +43,28 @@ export const SCENES = [
     },
   },
   {
+    name: 'new-task-starting',
+    title: 'New task: a row for the task at once, until its Claude session shows up',
+    path: '/',
+    prepare: async (page) => {
+      await agentsLoaded(page);
+      // Answer as the server does once the worktree is made, without starting Claude in the fixtures' tmux.
+      await page.route('**/api/tasks/new', (route) => route.fulfill({
+        json: {
+          success: true,
+          data: {
+            path: '/home/dev/code/storefront-order-history', branch: 'order-history', session: 'switchyard', window: 'storefront-order-history',
+          },
+        },
+      }));
+      await page.locator('details.menu > summary', { hasText: /^New task/ }).click();
+      await page.locator('select[name="repo"]').selectOption({ label: 'storefront' });
+      await page.getByPlaceholder('What should Claude do?').fill('Show order history on the account page');
+      await page.getByRole('button', { name: 'Start', exact: true }).click();
+      await page.locator('li.list-row.is-pending .pill', { hasText: 'Starting…' }).waitFor();
+    },
+  },
+  {
     name: 'review-pane',
     title: 'Review a permission prompt in full before answering it',
     path: '/',
