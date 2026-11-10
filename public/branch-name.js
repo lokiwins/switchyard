@@ -16,6 +16,9 @@ const MAX_LENGTH = 40;
 // For a task with no letters or digits to name it by.
 const FALLBACK = 'task';
 
+/** The Branch field's pattern. Browsers compile it with the v flag, where "/" and "-" in a class must be escaped. */
+export const BRANCH_INPUT_PATTERN = '[A-Za-z0-9._\\/\\-]+';
+
 export function branchFromTask(task) {
   const words = String(task ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().match(/[a-z0-9]+/g) ?? [];
   const meaningful = words.filter((word) => !FILLER.has(word));

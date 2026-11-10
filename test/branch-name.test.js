@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { branchFromTask } from '../public/branch-name.js';
+import { BRANCH_INPUT_PATTERN, branchFromTask } from '../public/branch-name.js';
 
 test('branchFromTask keeps the first few words that carry meaning', () => {
   assert.equal(branchFromTask('Fix the login redirect on the settings page'), 'fix-login-redirect-settings-page');
@@ -21,4 +21,13 @@ test('branchFromTask falls back to the filler words, then to "task"', () => {
   assert.equal(branchFromTask('Can you do this?'), 'do');
   assert.equal(branchFromTask('it is'), 'it-is');
   assert.equal(branchFromTask('🙂 ✨'), 'task');
+});
+
+test('the Branch field pattern compiles as browsers compile it, and takes branch names only', () => {
+  // A pattern attribute is matched whole, with the v flag.
+  const pattern = new RegExp(`^(?:${BRANCH_INPUT_PATTERN})$`, 'v');
+  assert.equal(pattern.test('fix/login-bug'), true);
+  assert.equal(pattern.test('release_1.2'), true);
+  assert.equal(pattern.test('has space'), false);
+  assert.equal(pattern.test('semi;colon'), false);
 });

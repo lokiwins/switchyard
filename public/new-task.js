@@ -1,6 +1,7 @@
 import { h, toast } from './dom.js';
 import { announceChange, closeDropdown, dropdown, post } from './actions.js';
-import { branchFromTask } from './branch-name.js';
+import { BRANCH_INPUT_PATTERN, branchFromTask } from './branch-name.js';
+import { GIVE_UP_MS, SLOW_MS, pendingTask, startedTask } from './pending-tasks.js';
 
 /*
  * "New task ▾": Claude Code on a task, in a worktree on its own branch beside
@@ -11,6 +12,24 @@ import { branchFromTask } from './branch-name.js';
 const REPO_PREF = 'switchyard.newTaskRepo';
 // Claude takes a few seconds to register a new session; look again over that time, so it shows as soon as it's there.
 const LOOK_AGAIN_MS = [1500, 3000, 5000, 8000];
+
+// Tasks started here whose session hasn't shown up yet; the Agents page shows them as rows meanwhile.
+let pending = [];
+let nextPendingId = 1;
+
+export const pendingTasks = () => pending;
+
+/** Keep only these; called by the Agents page as sessions show up. */
+export function replacePending(tasks) {
+  pending = tasks;
+}
+
+const announcePending = () => document.dispatchEvent(new CustomEvent('switchyard:pending'));
+
+function updatePending(change) {
+  pending = change(pending);
+  announcePending();
+}
 
 const lastSegment = (branch) => branch.split('/').pop();
 
@@ -51,17 +70,24 @@ async function startTask(event, repos) {
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
   const { repo, branch, prompt } = form.elements;
+  const id = `task-${nextPendingId++}`;
+  const repoName = repos.find((r) => r.mainPath === repo.value)?.name;
   button.disabled = true;
+  // Show it on the page right away; the form stays filled in, behind the menu, in case it fails.
+  updatePending((tasks) => [...tasks, pendingTask({ id, repoName, branch: branch.value, prompt: prompt.value.trim(), now: Date.now() })]);
+  closeDropdown(form);
   try {
     const result = await post('/api/tasks/new', { repo: repo.value, branch: branch.value, prompt: prompt.value });
     writeRepoPref(repo.value);
     form.reset();
     preview(form, repos);
-    closeDropdown(form);
-    toast(`Started ${result.branch} in tmux window ${result.session}:${result.window}`);
+    updatePending((tasks) => tasks.map((t) => (t.id === id ? startedTask(t, result, Date.now()) : t)));
+    // Redraw when the row should say it's slow, and when it's time to stop waiting.
+    [SLOW_MS, GIVE_UP_MS].forEach((ms) => setTimeout(announcePending, ms));
     announceChange();
     LOOK_AGAIN_MS.forEach((ms) => setTimeout(() => announceChange({ force: true }), ms));
   } catch (error) {
+    updatePending((tasks) => tasks.filter((t) => t.id !== id));
     toast(error.message);
   } finally {
     button.disabled = false;
@@ -85,7 +111,7 @@ export function newTaskMenu(state) {
     })),
     field('Branch (optional)', h('input', {
       name: 'branch', type: 'text', maxlength: '100', autocomplete: 'off', placeholder: 'Named after the task',
-      pattern: '[A-Za-z0-9._/\\-]+', title: 'Letters, digits, ".", "_", "-" and "/"',
+      pattern: BRANCH_INPUT_PATTERN, title: 'Letters, digits, ".", "_", "-" and "/"',
     })),
     h('div', { class: 'task-actions' },
       h('p', { class: 'reply-hint' }),
