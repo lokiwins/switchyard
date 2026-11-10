@@ -13,7 +13,7 @@ Requires Node 22+, `git`, and an authenticated `gh` CLI. There are no npm depend
 
 ## What it shows
 
-Three pages share a header nav. Each nav link carries a badge counting what needs you there: **Agents** shows sessions waiting on you plus recent interruptions (amber), and **Pull requests** shows PRs needing fixes (red) or review requests (purple).
+Four pages share a header nav. Each nav link carries a badge counting what needs you there: **Agents** shows sessions waiting on you plus recent interruptions (amber), and **Pull requests** shows PRs needing fixes (red) or review requests (purple).
 
 ### Agents page (`/`, the landing page)
 
@@ -43,6 +43,12 @@ Three pages share a header nav. Each nav link carries a badge counting what need
 - **Local:** the worktree where the branch is checked out, any agents working in it, and a `cd` command. If it isn't checked out, a `gh pr checkout` command instead.
 - **Copilot review button** on your own PRs: *Request* / *Re-request Copilot review* (the tooltip shows when Copilot last reviewed). It calls `POST repos/{repo}/pulls/{n}/requested_reviewers` with `copilot-pull-request-reviewer[bot]` through `gh api`. While a request is outstanding, the button is disabled.
 - **Requested from your teams:** a lighter, collapsible list of PRs waiting on a team you're in.
+
+### Tasks page (`/tasks`)
+
+- **A card per task management tool.** ClickUp works now; Linear, Jira and GitHub Issues are shown as coming later.
+- **Connect ClickUp** with a personal API token: in ClickUp, open **Settings › Apps** and generate one (it starts with `pk_`), then paste it on the ClickUp card. switchyard checks it with ClickUp before keeping it, in `~/.config/switchyard/task-tools.json` (or under `$XDG_CONFIG_HOME`), readable only by you. **Disconnect** deletes it. If the token can see several workspaces, pick one on the card.
+- **Assigned to you:** your open ClickUp tasks in that workspace, subtasks included, most recently updated first. Each shows its status in ClickUp's own colour, its id and where it lives (folder › list), its priority, and when it's due, with overdue tasks in red. The name opens the task in ClickUp. Done and closed tasks are left out, and a filter box searches name, id, status and list. Tasks are fetched again at most once a minute, or when you press **Refresh**.
 
 ## Acting from the dashboard (macOS)
 
@@ -150,9 +156,11 @@ Lists replace the defaults rather than adding to them.
 
 The server binds to `127.0.0.1` and rejects requests whose `Host` header isn't `localhost`/`127.0.0.1`, which blocks DNS rebinding. Responses carry a strict CSP. The API exposes local paths and your prompts, so don't proxy it anywhere.
 
-The action endpoints (`POST /api/prs/copilot-review`, `/api/approvals/decide`, `/api/tasks/new` and `/api/terminal/*`) also require an `Origin` matching the dashboard and an `application/json` body, so other websites open in your browser can't trigger it. They only act on things the server itself discovered. The browser names a PR, a session ID or a worktree path, never a command. The server builds every command from a fixed template, passes values to AppleScript as arguments rather than splicing them into the script, and refuses multi-line commands. New task only works in repositories switchyard discovered, checks the branch name with `git check-ref-format`, and passes it, the folder and the task to git and tmux as separate arguments; the task is shell-quoted where it's typed after `claude`. A reply is typed as plain text, and control characters such as Return or Esc are refused so it can't act as keystrokes. It still reaches Claude Code exactly as if you'd typed it, including `/` commands and `!` shell commands, so the Origin check is what keeps other sites from sending one.
+The action endpoints (`POST /api/prs/copilot-review`, `/api/approvals/decide`, `/api/tasks/new`, `/api/task-tools/*` and `/api/terminal/*`) also require an `Origin` matching the dashboard and an `application/json` body, so other websites open in your browser can't trigger it. They only act on things the server itself discovered. The browser names a PR, a session ID or a worktree path, never a command. The server builds every command from a fixed template, passes values to AppleScript as arguments rather than splicing them into the script, and refuses multi-line commands. New task only works in repositories switchyard discovered, checks the branch name with `git check-ref-format`, and passes it, the folder and the task to git and tmux as separate arguments; the task is shell-quoted where it's typed after `claude`. A reply is typed as plain text, and control characters such as Return or Esc are refused so it can't act as keystrokes. It still reaches Claude Code exactly as if you'd typed it, including `/` commands and `!` shell commands, so the Origin check is what keeps other sites from sending one.
 
 The live terminal is a keyboard on the session, so it gets more checks. Opening one (`GET /api/terminal/live`, a server-sent event stream) is refused when the browser marks the request as coming from another site, and another site couldn't read the stream anyway. Opening it hands out a random token, and typing (`POST /api/terminal/input`), resizing and acknowledging drawn output need that token as well as the Origin check. It only opens panes switchyard found running a Claude session it knows. The server follows the pane through tmux control mode (`tmux -C`), the same interface iTerm2's tmux integration uses, so no extra process or pty is involved. The Agents page's CSP allows `<style>` elements only with a nonce made fresh for each page load, which the page gives to the one style element xterm.js creates. That's also why the terminal draws with WebGL: xterm.js's default renderer colours cells with `style` attributes, which no nonce can allow.
+
+The ClickUp token is kept in a file only you can read, outside the checkout, and is only ever sent to ClickUp, by the server. The page is told who you are and which workspace it shows, never the token. Connecting, disconnecting and choosing a workspace (`POST /api/task-tools/*`) need the same `Origin` and JSON body as the other actions, and a workspace must be one the token can see.
 
 Review reads the file an Edit or Write would change, only to show the diff: a regular text file of at most 1 MB at an absolute path, nothing else. The diff comes from `GET /api/approvals/detail`, which another site's page can't read, and only for a prompt that is waiting. The rendered Markdown is built element by element, never as HTML, so a file can't run script or load anything; links open only for `http`, `https` and `mailto`, and images show their alt text.
 

@@ -29,7 +29,7 @@ function pathsLoadedBy(page) {
 }
 
 test('every file a page loads is served, so no module is left out', () => {
-  for (const page of ['agents.html', 'worktrees.html', 'prs.html']) {
+  for (const page of ['agents.html', 'worktrees.html', 'prs.html', 'tasks.html']) {
     for (const path of pathsLoadedBy(page)) {
       assert.equal(STATIC_FILES[path], path.slice(1), `${page} loads ${path}, which isn't in src/static-files.js`);
     }
