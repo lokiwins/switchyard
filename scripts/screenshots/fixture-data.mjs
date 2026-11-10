@@ -17,7 +17,7 @@ export const REPOS = [
     files: { 'README.md': '# storefront\n', 'src/auth/redirect.js': 'export const AFTER_LOGIN = "/";\n' },
     worktrees: [
       { suffix: 'login-redirect', branch: 'fix-login-redirect', commitMinutesAgo: 40, dirty: true },
-      { suffix: 'dark-mode', branch: 'feat/dark-mode', commitMinutesAgo: 90 },
+      { suffix: 'dark-mode', branch: 'feat/CU-86b4fx3-dark-mode', commitMinutesAgo: 90 },
       { suffix: 'remove-banner', branch: 'chore/remove-banner', commitMinutesAgo: 60 * 30 },
     ],
   },
@@ -27,7 +27,7 @@ export const REPOS = [
     files: { 'README.md': '# billing-api\n', 'src/retry.js': 'export const MAX_RETRIES = 3;\n' },
     worktrees: [
       { suffix: 'retry-backoff', branch: 'feat/retry-backoff', commitMinutesAgo: 25 },
-      { suffix: 'invoice-pdf', branch: 'feat/invoice-pdf', commitMinutesAgo: 15 },
+      { suffix: 'invoice-pdf', branch: 'feat/CU-86b4fx1-invoice-pdf', commitMinutesAgo: 15 },
     ],
   },
 ];
@@ -236,7 +236,7 @@ export function pullRequests(now) {
   return [
     base('acme/storefront', 42, {
       title: 'Add a dark mode toggle',
-      headRefName: 'feat/dark-mode',
+      headRefName: 'feat/CU-86b4fx3-dark-mode',
       createdAt: iso(now, 120),
       updatedAt: iso(now, 20),
       mergeStateStatus: 'UNSTABLE',

@@ -18,10 +18,11 @@ import { createStateService } from './state.js';
 import { createTaskService } from './tasks.js';
 import { CLICKUP_API, createClickUp } from './clickup.js';
 import { createTaskTools } from './task-tools.js';
+import { linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
 import { canReadScreen, createTerminal } from './terminal.js';
-import { STATIC_FILES } from './static-files.js';
+import { STATIC_FILES, STYLE_NONCE_PAGES } from './static-files.js';
 import { createTmux } from './tmux.js';
 
 // Loopback only: the API exposes local paths and agent prompts.
@@ -32,8 +33,6 @@ const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
 };
-// Pages hosting the live terminal, which get a style nonce on each load (see csp.js).
-const STYLE_NONCE_PAGES = new Set(['agents.html']);
 // Rejecting other Host headers blocks DNS-rebinding pages from reading the API.
 const ALLOWED_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
 const MAX_BODY_BYTES = 4 * 1024;
@@ -210,12 +209,29 @@ async function navFor({ stateService, prService }, { state, prs } = {}) {
 /** The Agents page's data: sessions plus the prompts waiting to be answered and the badges. */
 async function agentsPayload(services, data) {
   services.approvals.reconcile(data);
+  // Each session's ClickUp task, by its branch, from the tasks already fetched: never a wait on ClickUp.
+  const tasks = services.taskTools.cachedTasks();
   return {
     ...data,
+    repos: tagWorktrees(data.repos, tasks),
+    endedSessions: data.endedSessions.map((session) => ({ ...session, task: taskForBranch(tasks, session.branch) })),
     approvals: services.approvals.pending(),
     nav: await navFor(services, { state: data }),
     capabilities: { ...services.capabilities, approvalsHook: await services.hookInstalled() },
   };
+}
+
+/** Your tasks, each with the worktrees working on it (their PRs and sessions), and what the page's buttons can do. */
+async function tasksPayload({ taskTools, stateService, capabilities }, { force }) {
+  const [result, sessions] = await Promise.all([
+    taskTools.tasks({ force }),
+    // Without the local picture the tasks still show, just unlinked.
+    stateService.getSessions().catch((error) => {
+      process.stderr.write(`[switchyard] linking tasks to worktrees: ${error.message}\n`);
+      return { repos: [] };
+    }),
+  ]);
+  return { ...result, tasks: linkTasks(result.tasks, sessions.repos), capabilities };
 }
 
 const SSE_HEADERS = { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' };
@@ -354,7 +370,7 @@ function createHandler(services) {
         return sendJson(res, 200, { success: true, data: { ...(await services.taskTools.sources()), nav: await navFor(services) } });
       }
       if (url.pathname === '/api/task-tools/tasks') {
-        return sendJson(res, 200, { success: true, data: await services.taskTools.tasks({ force }) });
+        return sendJson(res, 200, { success: true, data: await tasksPayload(services, { force }) });
       }
       if (url.pathname === '/api/prs') {
         const data = await prService.getPrs({ force });

@@ -3,6 +3,9 @@
  * so a page module that isn't listed here fails to load (test/static-files
  * checks every import is).
  */
+/** Pages hosting the live terminal, which get a style nonce on each load (see csp.js). */
+export const STYLE_NONCE_PAGES = new Set(['agents.html', 'tasks.html']);
+
 export const STATIC_FILES = {
   '/': 'agents.html',
   '/worktrees': 'worktrees.html',
@@ -10,6 +13,7 @@ export const STATIC_FILES = {
   '/tasks': 'tasks.html',
   '/tasks.js': 'tasks.js',
   '/task-views.js': 'task-views.js',
+  '/task-link-views.js': 'task-link-views.js',
   '/agents.js': 'agents.js',
   '/nav.js': 'nav.js',
   '/actions.js': 'actions.js',

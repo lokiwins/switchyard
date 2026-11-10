@@ -220,3 +220,15 @@ test('an old list is shown at once while a fresh one is fetched behind it', asyn
   await new Promise((r) => setImmediate(r));
   assert.equal((await service.tasks()).tasks[0].name, 'new');
 });
+
+test('cachedTasks: what the last fetch found, without asking ClickUp', async () => {
+  const { service, calls } = tools();
+  assert.deepEqual(service.cachedTasks(), []);
+  assert.equal(calls.tasks, 0);
+  await service.connect({ tool: 'clickup', token: TOKEN });
+  await service.tasks();
+  assert.deepEqual(service.cachedTasks(), [TASK]);
+  assert.equal(calls.tasks, 1);
+  await service.disconnect({ tool: 'clickup' });
+  assert.deepEqual(service.cachedTasks(), []);
+});

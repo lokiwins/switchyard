@@ -1,7 +1,7 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
 import { editorLink, resumeButton } from './actions.js';
 import { sessionDetail, sessionTitle } from './session-text.js';
-import { sessionRow, statusBadge, whereLabel } from './session-row.js';
+import { sessionRow, statusBadge, taskLink, whereLabel } from './session-row.js';
 
 const COLLAPSED_LIMIT = 5;
 
@@ -33,6 +33,7 @@ export function renderEndedRow(session, details = null, caps = null) {
     time: timeAgo(session.endedAt),
     timeHint: `Ended ${new Date(session.endedAt).toLocaleString()}`,
     actions: [
+      taskLink(session.task),
       session.prUrl && h('a', { href: session.prUrl, target: '_blank', rel: 'noopener', class: 'small' }, `#${session.prNumber}`),
       resumeButton(session, caps) ?? copyButton('resume', session.resumeCommand),
       editorLink(session.cwd, caps),

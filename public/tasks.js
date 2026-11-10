@@ -2,9 +2,11 @@ import { h, liveTime, refreshLiveTimes, toast } from './dom.js';
 import { post } from './actions.js';
 import { applyNav, startNavBadges } from './nav.js';
 import { matchesTask, renderTasks, renderToolCards } from './task-views.js';
+import { linkLine } from './task-link-views.js';
 
-// The server keeps tasks for a minute, so polling faster would only re-read its cache.
-const POLL_MS = 60_000;
+// ClickUp is asked at most once a minute (the server answers from its cache in
+// between); polling more often keeps the worktrees and sessions under each task current.
+const POLL_MS = 10_000;
 const CLOCK_MS = 5_000;
 
 // `taskLoads` numbers each task fetch, so an older one landing late (say, from before a workspace change) is dropped.
@@ -72,7 +74,7 @@ function renderTaskList() {
   $('task-count').textContent = `${count}${result.workspace ? ` in ${result.workspace.name}` : ''}`;
   const emptyText = result.error ? 'Could not load your tasks.'
     : result.tasks.length ? `No tasks match “${ui.query}”.` : 'Nothing open is assigned to you.';
-  $('tasks').replaceChildren(...renderTasks(shown, { emptyText }));
+  $('tasks').replaceChildren(...renderTasks(shown, { emptyText, renderLinks: (link) => linkLine(link, result.capabilities) }));
 }
 
 async function loadTasks({ force = false } = {}) {
@@ -118,6 +120,8 @@ $('search').addEventListener('input', (event) => {
   ui.query = event.target.value.trim();
   renderTaskList();
 });
+// After Jump, Open or a resume: show the session it started without waiting for the next poll.
+document.addEventListener('switchyard:changed', () => load());
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) load();
 });

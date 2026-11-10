@@ -532,12 +532,20 @@ td .actions { flex-wrap: nowrap; }
 .task-due { text-transform: none; font-variant-numeric: tabular-nums; }
 .task-priority.red, .task-due.red { color: var(--red); font-weight: 600; }
 .task-priority.amber, .task-due.amber { color: var(--amber); font-weight: 600; }
+/* The worktrees working on a task, on lines of their own under it, lined up with its title. */
+.task-links { grid-column: 2 / -1; display: grid; gap: 4px; }
+.task-link { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-xs); color: var(--gray-500); }
+.task-link-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-link-where .mono { color: var(--gray-700); }
+.task-link-pr.is-closed { color: var(--gray-500); text-decoration: line-through; }
+.task-link .actions { margin-left: auto; flex-shrink: 0; }
 
 @media (max-width: 900px) {
   .tool-cards { grid-template-columns: 1fr 1fr; }
   .tool-cards > :first-child { grid-column: 1 / -1; }
   .task-row { grid-template-columns: 96px minmax(0, 1fr) auto; }
   .task-row .task-priority { display: none; }
+  .task-links { grid-column: 1 / -1; }
   .list-row { grid-template-columns: 96px minmax(0, 1fr) auto; }
   .list-row .row-detail { grid-column: 2 / -1; grid-row: 2; }
   .list-row .row-time { display: none; }
