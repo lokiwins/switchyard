@@ -1,6 +1,7 @@
 import { h, toast } from './dom.js';
 import { post, tmuxPlace } from './actions.js';
 import { sessionTitle } from './session-text.js';
+import { keyInput } from './terminal-keys.js';
 
 /*
  * "Terminal": a session's tmux pane, live in a dialog. The server streams what
@@ -215,7 +216,16 @@ async function openTerminal(session) {
     status.textContent = "Can't draw: WebGL is unavailable";
     return;
   }
-  terminal.onData(createTypist(() => token));
+  const type = createTypist(() => token);
+  terminal.onData(type);
+  // Keys xterm.js would send as something Claude doesn't expect, e.g. Shift+Enter as Enter.
+  terminal.attachCustomKeyEventHandler((event) => {
+    const handled = keyInput(event);
+    if (!handled) return true;
+    if (handled.send) type(handled.send);
+    event.preventDefault();
+    return false;
+  });
   watchSize.observe(screen);
 
   const showSize = ({ cols, rows }) => {
