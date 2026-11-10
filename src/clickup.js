@@ -8,8 +8,8 @@ import { ActionError } from './errors.js';
 
 export const CLICKUP_API = 'https://api.clickup.com/api/v2';
 const REQUEST_TIMEOUT_MS = 10_000;
-// ClickUp sends 100 tasks a page; past this many pages the rest are left to ClickUp itself.
-const DEFAULT_MAX_PAGES = 5;
+// ClickUp sends 100 tasks a page, done ones included; past this many pages the rest are left to ClickUp itself.
+const DEFAULT_MAX_PAGES = 10;
 const PAGE_SIZE = 100;
 // A personal token: "pk_", your user id, "_", then letters and digits.
 const TOKEN = /^pk_\d+_[A-Za-z0-9]{20,64}$/;
@@ -110,19 +110,25 @@ export function createClickUp({ token, baseUrl = CLICKUP_API, fetch = globalThis
      */
     async assignedTasks(workspaceId, userId) {
       assertId(workspaceId, 'workspace');
-      const tasks = [];
-      let truncated = false;
-      for (let page = 0; page < maxPages; page += 1) {
-        const body = await get(`/team/${workspaceId}/task`, [
-          ['assignees[]', userId], ['include_closed', false], ['subtasks', true], ['order_by', 'updated'], ['page', page],
-        ]);
-        const pageTasks = body.tasks ?? [];
-        tasks.push(...pageTasks);
-        // ClickUp says whether this was the last page; without that, a short page is.
-        const more = body.last_page === undefined ? pageTasks.length === PAGE_SIZE : body.last_page === false;
-        if (!more || pageTasks.length === 0) break;
-        truncated = page === maxPages - 1;
+      const page = (n) => get(`/team/${workspaceId}/task`, [
+        ['assignees[]', userId], ['include_closed', false], ['subtasks', true], ['order_by', 'updated'], ['page', n],
+      ]);
+      // ClickUp says whether a page was the last; without that, a short page is.
+      const hasMore = (body) => {
+        const count = (body.tasks ?? []).length;
+        return count > 0 && (body.last_page === undefined ? count === PAGE_SIZE : body.last_page === false);
+      };
+      // Each page takes ClickUp a second or more, so after the first the rest are asked for together.
+      const pages = [await page(0)];
+      if (hasMore(pages[0]) && maxPages > 1) {
+        const rest = await Promise.all(Array.from({ length: maxPages - 1 }, (_, i) => page(i + 1)));
+        for (const body of rest) {
+          if (!hasMore(pages.at(-1))) break;
+          pages.push(body);
+        }
       }
+      const truncated = pages.length === maxPages && hasMore(pages.at(-1));
+      const tasks = pages.flatMap((body) => body.tasks ?? []);
       const open = tasks
         .filter((task) => task && !FINISHED_STATUS_TYPES.has(task.status?.type))
         .map(normalizeTask)

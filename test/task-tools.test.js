@@ -194,3 +194,29 @@ test('a fetch still running when you disconnect doesn\'t bring the old tasks bac
   pending.shift()();
   await next;
 });
+
+test('an old list is shown at once while a fresh one is fetched behind it', async () => {
+  let now = 1_000;
+  let release = null;
+  let calls = 0;
+  const clickupFor = () => ({
+    user: async () => ({ id: 7, username: 'dev' }),
+    workspaces: async () => [{ id: '901', name: 'Acme' }],
+    assignedTasks: () => {
+      calls += 1;
+      if (calls === 1) return Promise.resolve([{ ...TASK, name: 'old' }]);
+      return new Promise((resolve) => { release = () => resolve([{ ...TASK, name: 'new' }]); });
+    },
+  });
+  const service = createTaskTools({ store: memoryStore(), clickupFor, ttlMs: 60_000, now: () => now });
+  await service.connect({ tool: 'clickup', token: TOKEN });
+  await service.tasks();
+  now += 61_000;
+  const stale = await service.tasks();
+  assert.equal(stale.tasks[0].name, 'old', 'answered without waiting for ClickUp');
+  await service.tasks();
+  assert.equal(calls, 2, 'one background fetch, however often it is asked meanwhile');
+  release();
+  await new Promise((r) => setImmediate(r));
+  assert.equal((await service.tasks()).tasks[0].name, 'new');
+});

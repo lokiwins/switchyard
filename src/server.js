@@ -437,6 +437,8 @@ async function main() {
     stateService.getState().catch((error) => process.stderr.write(`Initial scan failed: ${error.message}\n`));
     prService.getPrs().catch((error) => process.stderr.write(`Initial PR load failed: ${error.message}\n`));
     prService.start();
+    // ClickUp takes seconds to list tasks, so the Tasks page's first visit finds them ready.
+    taskTools.tasks().catch((error) => process.stderr.write(`Initial ClickUp load failed: ${error.message}\n`));
   });
 }
 

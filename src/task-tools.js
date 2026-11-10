@@ -76,6 +76,34 @@ export function createTaskTools({
   // Saves run one at a time, each reading what the one before it wrote.
   let saving = Promise.resolve();
 
+  // The fetch under way, which every ask until it lands shares.
+  let fetching = null;
+
+  /**
+   * Your open ClickUp tasks in the chosen workspace. A failure (a revoked
+   * token, ClickUp down) comes back as `error`, for the page to show.
+   */
+  function fetchTasks(clickup) {
+    const startedAt = generation;
+    if (fetching?.generation === startedAt && fetching.workspaceId === clickup.workspaceId) return fetching.promise;
+    const workspace = clickup.workspaces.find((w) => w.id === clickup.workspaceId) ?? null;
+    const promise = (async () => {
+      try {
+        const tasks = await clickupFor(clickup.token).assignedTasks(clickup.workspaceId, clickup.user.id);
+        const result = { connected: true, workspace, tasks, truncated: tasks.truncated === true, fetchedAt: now() };
+        if (generation === startedAt) cache = { workspaceId: clickup.workspaceId, fetchedAt: result.fetchedAt, result };
+        return result;
+      } catch (error) {
+        if (!(error instanceof ActionError)) throw error;
+        return { connected: true, workspace, tasks: [], error: error.message };
+      } finally {
+        if (fetching?.promise === promise) fetching = null;
+      }
+    })();
+    fetching = { generation: startedAt, workspaceId: clickup.workspaceId, promise };
+    return promise;
+  }
+
   async function saved() {
     return (await store.read()).clickup ?? null;
   }
@@ -128,26 +156,19 @@ export function createTaskTools({
     },
 
     /**
-     * Your open ClickUp tasks in the chosen workspace. A failure (a revoked
-     * token, ClickUp down) comes back as `error`, for the page to show.
+     * Your open ClickUp tasks, from the cache when there is one: an old list
+     * is answered at once while a fresh one is fetched. `force` (Refresh)
+     * waits for ClickUp.
      */
     async tasks({ force = false } = {}) {
       await saving;
-      const startedAt = generation;
       const clickup = await saved();
       if (!clickup) return { connected: false, tasks: [] };
-      const workspace = clickup.workspaces.find((w) => w.id === clickup.workspaceId) ?? null;
-      const fresh = cache && cache.workspaceId === clickup.workspaceId && now() - cache.fetchedAt < ttlMs;
-      if (!force && fresh) return cache.result;
-      try {
-        const tasks = await clickupFor(clickup.token).assignedTasks(clickup.workspaceId, clickup.user.id);
-        const result = { connected: true, workspace, tasks, truncated: tasks.truncated === true, fetchedAt: now() };
-        if (generation === startedAt) cache = { workspaceId: clickup.workspaceId, fetchedAt: result.fetchedAt, result };
-        return result;
-      } catch (error) {
-        if (!(error instanceof ActionError)) throw error;
-        return { connected: true, workspace, tasks: [], error: error.message };
-      }
+      const cached = cache && cache.workspaceId === clickup.workspaceId ? cache : null;
+      if (force || !cached) return fetchTasks(clickup);
+      // An old list is answered at once, and a fresh one fetched behind it for the next ask.
+      if (now() - cached.fetchedAt >= ttlMs) fetchTasks(clickup).catch(() => {});
+      return cached.result;
     },
   };
 }

@@ -154,3 +154,27 @@ test('an answer that isn\'t the JSON ClickUp sends is a 502, not a crash', async
   const empty = fakeFetch({ '/user': {} }).fetch;
   await rejectsWith(createClickUp({ token: TOKEN, baseUrl: BASE, fetch: empty }).user(), 502);
 });
+
+test('after the first page, the rest are asked for together, and pages past the last are ignored', async () => {
+  let inFlight = 0;
+  let most = 0;
+  const page = async (url) => {
+    inFlight += 1;
+    most = Math.max(most, inFlight);
+    await new Promise((r) => setTimeout(r, 5));
+    inFlight -= 1;
+    const n = Number(url.searchParams.get('page'));
+    return { tasks: n <= 2 ? [rawTask({ id: `t${n}`, date_updated: String(10 - n) })] : [], last_page: n >= 2 };
+  };
+  const requests = [];
+  const fetch = async (url, init) => {
+    requests.push(url.searchParams.get('page'));
+    const body = await page(url);
+    return new Response(JSON.stringify(body), { status: 200 });
+  };
+  const tasks = await createClickUp({ token: TOKEN, baseUrl: BASE, fetch, maxPages: 6 }).assignedTasks('901', 7);
+  assert.deepEqual(tasks.map((t) => t.id), ['t0', 't1', 't2']);
+  assert.equal(tasks.truncated, false);
+  assert.equal(requests[0], '0', 'the first page alone, to learn whether there are more');
+  assert.ok(most > 1, 'later pages in parallel');
+});
