@@ -20,6 +20,9 @@ async function agentsLoaded(page) {
   await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
 }
 
+/** The row of the session with this title. */
+const rowOf = (page, title) => page.locator('li.list-row', { hasText: title });
+
 /** @type {{ name: string, title: string, path: string, fullPage?: boolean, prepare?: (page: import('playwright').Page) => Promise<void> }[]} */
 export const SCENES = [
   {
@@ -48,6 +51,26 @@ export const SCENES = [
       await page.getByRole('button', { name: 'Review', exact: true }).first().click();
       await page.locator('dialog.review-pane[open]').waitFor();
       await settle(page);
+    },
+  },
+  {
+    name: 'answer',
+    title: 'Answer a question Claude asks in tmux, from the page',
+    path: '/',
+    prepare: async (page) => {
+      await agentsLoaded(page);
+      await rowOf(page, 'Download invoices as PDF').locator('details.menu > summary', { hasText: /^Answer/ }).click();
+      await page.locator('.answer-panel').filter({ visible: true }).waitFor();
+    },
+  },
+  {
+    name: 'plan',
+    title: 'Read a plan in full, and approve it or say what to change',
+    path: '/',
+    prepare: async (page) => {
+      await agentsLoaded(page);
+      await rowOf(page, 'Make the invoice total test deterministic').getByRole('button', { name: 'Plan', exact: true }).click();
+      await page.locator('dialog.plan-pane[open]').waitFor();
     },
   },
   {

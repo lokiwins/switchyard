@@ -10,11 +10,14 @@ import { randomUUID } from 'node:crypto';
 import { chmodSync, mkdirSync, realpathSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { REPOS, SESSIONS, VIEWER, pullRequests } from './fixture-data.mjs';
+import { PLAN, PLAN_FILE, REPOS, SESSIONS, VIEWER, pullRequests } from './fixture-data.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOOK_PATH = '/hooks/permission-request';
 const minutes = (n) => n * 60_000;
+// The tmux session the dialog sessions run in, named as New task names its own.
+const TMUX_SESSION = 'switchyard';
+const PANE_SIZE = ['-x', '110', '-y', '32'];
 
 function writeFiles(root, files) {
   for (const [path, text] of Object.entries(files)) {
@@ -72,9 +75,35 @@ function folderOf(code, worktree) {
   return { cwd: join(code, worktree), branch: wt?.branch ?? 'main' };
 }
 
-/** Writes transcripts and registry entries; returns running processes and hook payloads. */
-function buildSessions(code, claudeDir, now) {
-  const processes = [];
+/**
+ * A stand-in for a session that runs in a window of the fixtures' own tmux
+ * server, showing `screen`. Its pid is the pane's, so switchyard finds the
+ * session's pane by its tty, as it does a real one's. Returns the pid.
+ */
+function startInTmux({ env, root, name, cwd, screen }) {
+  const file = join(root, `${name}.screen`);
+  writeFileSync(file, screen.join('\n'));
+  const command = `cat '${file}'; exec sleep 86400`;
+  const tmux = (args) => execFileSync('tmux', args, { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  const format = ['-P', '-F', '#{pane_pid}'];
+  let started;
+  try {
+    started = tmux(['new-window', '-d', '-t', `=${TMUX_SESSION}:`, '-n', name, '-c', cwd, ...format, command]);
+  } catch {
+    started = tmux(['new-session', '-d', '-s', TMUX_SESSION, '-n', name, '-c', cwd, ...PANE_SIZE, ...format, command]);
+  }
+  return Number(started);
+}
+
+function startDetached() {
+  const child = spawn('sleep', ['86400'], { detached: true, stdio: 'ignore' });
+  child.unref();
+  return child.pid;
+}
+
+/** Writes transcripts and registry entries; returns running pids and hook payloads. */
+function buildSessions({ code, claudeDir, now, env, root }) {
+  const pids = [];
   const approvals = [];
   for (const session of SESSIONS) {
     const sessionId = randomUUID();
@@ -87,11 +116,12 @@ function buildSessions(code, claudeDir, now) {
     utimesSync(file, lastAt, lastAt);
     if (!session.status) continue;
 
-    const child = spawn('sleep', ['86400'], { detached: true, stdio: 'ignore' });
-    child.unref();
-    processes.push(child);
-    writeFileSync(join(claudeDir, 'sessions', `${child.pid}.json`), JSON.stringify({
-      pid: child.pid, sessionId, cwd, kind: 'interactive', status: session.status, nameSource: 'derived',
+    const pid = session.screen
+      ? startInTmux({ env, root, name: session.worktree, cwd, screen: session.screen })
+      : startDetached();
+    pids.push(pid);
+    writeFileSync(join(claudeDir, 'sessions', `${pid}.json`), JSON.stringify({
+      pid, sessionId, cwd, kind: 'interactive', status: session.status, nameSource: 'derived',
       startedAt: now - minutes(session.minutesAgo + 20), statusUpdatedAt: lastAt.getTime(),
     }));
     if (session.approval) {
@@ -102,7 +132,7 @@ function buildSessions(code, claudeDir, now) {
       });
     }
   }
-  return { processes, approvals };
+  return { pids, approvals };
 }
 
 /** A `gh` on PATH that answers from the fixture PRs. */
@@ -132,6 +162,8 @@ export function buildFixtures({ root: tempRoot, home: homeDir, port, now }) {
   const code = join(home, 'code');
   const claudeDir = join(home, '.claude');
   mkdirSync(join(claudeDir, 'sessions'), { recursive: true });
+  mkdirSync(join(claudeDir, 'plans'), { recursive: true });
+  writeFileSync(join(claudeDir, 'plans', PLAN_FILE), PLAN);
   mkdirSync(code, { recursive: true });
   // The approvals hook, as `npm run hook -- install` writes it, so the page offers Review.
   writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify({
@@ -139,10 +171,11 @@ export function buildFixtures({ root: tempRoot, home: homeDir, port, now }) {
   }));
 
   // Only what git and the server need: none of your global git config, tmux server or gh login.
+  // tmux gets a server of its own under root, and UTF-8, or it draws a dialog's ❯ and ─ as _.
   const { TMUX: _tmux, TMUX_PANE: _pane, GH_TOKEN: _gh, GITHUB_TOKEN: _github, ...inherited } = process.env;
-  const baseEnv = { ...inherited, HOME: home, GIT_CONFIG_NOSYSTEM: '1', TZ: 'UTC', TMUX_TMPDIR: root };
+  const baseEnv = { ...inherited, HOME: home, GIT_CONFIG_NOSYSTEM: '1', TZ: 'UTC', TMUX_TMPDIR: root, LC_ALL: 'C.UTF-8' };
   const tips = buildRepos(code, makeGit(baseEnv), now);
-  const { processes, approvals } = buildSessions(code, claudeDir, now);
+  const { pids, approvals } = buildSessions({ code, claudeDir, now, env: baseEnv, root });
   const gh = installFakeGh(root, tips, now);
 
   const env = {
@@ -152,12 +185,20 @@ export function buildFixtures({ root: tempRoot, home: homeDir, port, now }) {
     SWITCHYARD_ROOTS: code,
     SWITCHYARD_FAKE_GH: gh.fixture,
   };
-  const stop = () => processes.forEach((child) => {
+  const stop = () => {
+    // The tmux server takes the sessions in its panes with it.
     try {
-      child.kill();
+      execFileSync('tmux', ['kill-server'], { env: baseEnv, stdio: 'ignore' });
     } catch {
-      // Already gone.
+      // Not running.
     }
-  });
+    pids.forEach((pid) => {
+      try {
+        process.kill(pid);
+      } catch {
+        // Already gone.
+      }
+    });
+  };
   return { env, approvals, stop };
 }

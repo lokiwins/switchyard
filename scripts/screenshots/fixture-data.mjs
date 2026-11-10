@@ -27,16 +27,79 @@ export const REPOS = [
     files: { 'README.md': '# billing-api\n', 'src/retry.js': 'export const MAX_RETRIES = 3;\n' },
     worktrees: [
       { suffix: 'retry-backoff', branch: 'feat/retry-backoff', commitMinutesAgo: 25 },
+      { suffix: 'invoice-pdf', branch: 'feat/invoice-pdf', commitMinutesAgo: 15 },
     ],
   },
 ];
 
 const THEME_FILE = 'src/theme.css';
 
+// Dialogs as Claude Code draws them in a tmux pane (see src/agents/screen-prompt.js).
+const RULE = '─'.repeat(100);
+const DASHES = '╌'.repeat(100);
+
+const QUESTION_SCREEN = [
+  '⏺ Before I lay out the PDF, one thing to settle:',
+  '',
+  RULE,
+  ' ☐ Paper size',
+  '',
+  'Which paper size should invoice PDFs use?',
+  '',
+  '❯ 1. A4',
+  '     The standard size almost everywhere outside North America.',
+  '  2. US Letter',
+  '     The standard size in the US and Canada.',
+  "  3. Match the customer's country",
+  "     A4 or Letter, picked from the billing address.",
+  '  4. Type something.',
+  RULE,
+  '  5. Chat about this',
+  '',
+  'Enter to select · ↑/↓ to navigate · Esc to cancel',
+];
+
+export const PLAN_FILE = 'deterministic-invoice-total.md';
+
+export const PLAN = `# Make the invoice total test deterministic
+
+The test fails about one run in ten because line items are summed in the order the
+database returns them, and floating-point addition isn't associative.
+
+## Steps
+
+1. Store amounts as integer cents in \`src/invoice.js\` instead of floats.
+2. Sum line items in cents and format the total only for display.
+3. Seed the test's line items in a fixed order and assert on cents.
+4. Run the invoice tests 200 times in a loop to check the flake is gone.
+`;
+
+const PLAN_SCREEN = [
+  " Here is Claude's plan:",
+  DASHES,
+  ' Make the invoice total test deterministic',
+  '',
+  ' 1. Store amounts as integer cents in src/invoice.js instead of floats.',
+  ' 2. Sum line items in cents and format the total only for display.',
+  DASHES,
+  '',
+  RULE,
+  ' Claude has written up a plan and is ready to execute. Would you like to proceed?',
+  '',
+  ' ❯ 1. Yes, and use auto mode',
+  '   2. Yes, manually approve edits',
+  '   3. Tell Claude what to change',
+  '      shift+tab to approve with this feedback',
+  '',
+  ' ctrl+g to edit in VS Code ·',
+  ` ~/.claude/plans/${PLAN_FILE}`,
+];
+
 /**
  * Claude Code sessions. `status` makes one running (a live process is started
  * for it); without it the session has ended. `worktree` is "<repo>" or
- * "<repo>-<suffix>".
+ * "<repo>-<suffix>". `screen` runs it in a tmux pane showing those lines,
+ * so the page can read and answer the dialog on it.
  */
 export const SESSIONS = [
   {
@@ -74,6 +137,38 @@ export const SESSIONS = [
     turns: [
       { prompt: 'Retry failed charges with exponential backoff, at most 3 times.' },
       { reply: 'Done. Failed charges now retry after 1s, 2s and 4s, and the tests cover each step. Want me to open a PR?' },
+    ],
+  },
+  {
+    worktree: 'billing-api-invoice-pdf',
+    status: 'waiting',
+    title: 'Download invoices as PDF',
+    minutesAgo: 2,
+    screen: QUESTION_SCREEN,
+    turns: [
+      { prompt: 'Let customers download each invoice as a PDF from the invoice page.' },
+      { reply: 'I\'ll render invoices with the existing template. Asking which paper size to use.' },
+    ],
+  },
+  {
+    worktree: 'billing-api',
+    status: 'waiting',
+    title: 'Make the invoice total test deterministic',
+    minutesAgo: 4,
+    screen: PLAN_SCREEN,
+    turns: [
+      { prompt: 'The invoice total test is still flaky. Plan a fix before changing anything.' },
+      { reply: 'Found it: totals are summed as floats in database order. Here is a plan.' },
+    ],
+  },
+  {
+    worktree: 'storefront',
+    status: 'waiting',
+    title: 'Bump the image library',
+    minutesAgo: 6,
+    turns: [
+      { prompt: 'Bump the image library to the latest minor version.' },
+      { reply: 'The upgrade touches the lockfile. Asking before I run the install.' },
     ],
   },
   {
