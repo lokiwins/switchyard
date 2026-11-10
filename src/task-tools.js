@@ -129,6 +129,9 @@ export function createTaskTools({
   return {
     sources,
 
+    /** The tasks the last fetch found, old or not, without asking ClickUp: for tagging worktrees. */
+    cachedTasks: () => cache?.result.tasks ?? [],
+
     /** Checks the token with ClickUp first, so a wrong one is never kept. */
     async connect(body) {
       const token = assertToken(assertTool(body).token);

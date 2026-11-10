@@ -82,3 +82,16 @@ export function sessionSearchText(session) {
   const t = session.transcript ?? {};
   return [t.agentName, t.title, session.name, t.lastReply, t.activity, t.lastPrompt, session.screenPrompt?.question];
 }
+
+const STATUS_LABELS = { busy: 'Working', idle: 'Waiting' };
+
+/** A live session's state in a word or two: Needs you, Working, Waiting or Parked. */
+export function sessionLabel(session) {
+  if (session.needsYou) return 'Needs you';
+  return session.parked ? 'Parked' : STATUS_LABELS[session.status] ?? session.status;
+}
+
+/** The status dot for a live session. */
+export function sessionDot(session) {
+  return session.parked ? 'parked' : session.status;
+}

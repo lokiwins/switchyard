@@ -48,3 +48,11 @@ export function whereLabel({ repoName, branch, path }) {
   if (!repoName) return h('span', { class: 'mono' }, path);
   return [repoName, branch && [' · ', h('span', { class: 'mono' }, branch)]];
 }
+
+/** A link back to the ClickUp task a session's branch names; null without one. */
+export function taskLink(task) {
+  if (!task?.url) return null;
+  return h('a', {
+    href: task.url, target: '_blank', rel: 'noopener noreferrer', class: 'small task-ref', title: `ClickUp task: ${task.name}`,
+  }, task.customId ?? 'ClickUp');
+}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { test } from 'node:test';
-import { STATIC_FILES } from '../src/static-files.js';
+import { STATIC_FILES, STYLE_NONCE_PAGES } from '../src/static-files.js';
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public');
 const SCRIPT_SRC = /<script[^>]*\ssrc="([^"]+)"/g;
@@ -38,4 +38,11 @@ test('every file a page loads is served, so no module is left out', () => {
 
 test('every listed file exists in public/', () => {
   for (const file of Object.values(STATIC_FILES)) assert.ok(existsSync(join(PUBLIC_DIR, file)), `public/${file} is missing`);
+});
+
+test('every page that can open the live terminal gets a style nonce for xterm.js', () => {
+  for (const page of ['agents.html', 'worktrees.html', 'prs.html', 'tasks.html']) {
+    const hostsTerminal = pathsLoadedBy(page).includes('/live-terminal.js');
+    assert.equal(STYLE_NONCE_PAGES.has(page), hostsTerminal, `${page} ${hostsTerminal ? 'opens the terminal but gets no' : 'gets a needless'} style nonce`);
+  }
 });

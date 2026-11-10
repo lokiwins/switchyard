@@ -1,7 +1,6 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo, toast } from './dom.js';
-import { sessionDetail, sessionSearchText, sessionTitle } from './session-text.js';
+import { sessionDetail, sessionDot, sessionLabel, sessionSearchText, sessionTitle } from './session-text.js';
 import { announceChange, closeDropdown, dropdown, editorLink, openMenu, post, resumeButton } from './actions.js';
-import { sessionDot, sessionLabel } from './agent-views.js';
 import { endStateOf } from './ended-views.js';
 
 const RECENT_MS = 3 * 24 * 60 * 60 * 1000;

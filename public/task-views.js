@@ -25,11 +25,11 @@ export function dueLabel(dueAt, now = Date.now()) {
   return { text: `Due ${new Date(dueAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, tone: null };
 }
 
-/** Whether a task matches the filter box: its name, ids, status or list. */
+/** Whether a task matches the filter box: its name, ids, status, list, or a branch working on it. */
 export function matchesTask(task, query) {
   if (!query) return true;
   const q = query.toLowerCase();
-  return [task.name, task.id, task.customId, task.status?.name, task.where]
+  return [task.name, task.id, task.customId, task.status?.name, task.where, ...(task.links ?? []).map((link) => link.branch)]
     .some((field) => typeof field === 'string' && field.toLowerCase().includes(q));
 }
 
@@ -96,10 +96,19 @@ function statusPill(status) {
   return pill;
 }
 
-function taskRow(task, now) {
+// Questions waiting on you first, then working, then waiting; parked ones last.
+const jumpRank = (s) => (s.needsYou ? 3 : s.parked ? 0 : s.status === 'busy' ? 2 : 1);
+
+/** The session a worktree's Jump and Terminal go to: the one that most needs you, then the latest; null when none runs. */
+export function sessionToJump(link) {
+  return [...link.live].sort((a, b) => jumpRank(b) - jumpRank(a) || (b.statusUpdatedAt ?? 0) - (a.statusUpdatedAt ?? 0))[0] ?? null;
+}
+
+function taskRow(task, now, renderLinks) {
   const due = dueLabel(task.dueAt, now);
   const tone = PRIORITY_TONES[task.priority];
-  return h('li', { class: 'list-row task-row' },
+  const links = task.links ?? [];
+  return h('li', { class: `list-row task-row${links.length ? ' has-links' : ''}` },
     statusPill(task.status),
     h('div', { class: 'row-who' },
       task.url
@@ -108,11 +117,12 @@ function taskRow(task, now) {
       h('span', { class: 'row-where' }, h('span', { class: 'mono' }, task.customId ?? task.id), task.where && h('span', { class: 'sep' }, task.where))),
     h('span', { class: `task-priority${tone ? ` ${tone}` : ''}` }, task.priority ? `⚑ ${task.priority}` : ''),
     h('span', { class: `task-due${due?.tone ? ` ${due.tone}` : ''}` }, due?.text ?? ''),
-    liveTime(task.updatedAt, '', { class: 'row-time' }));
+    liveTime(task.updatedAt, '', { class: 'row-time' }),
+    links.length > 0 && renderLinks && h('div', { class: 'task-links', 'aria-label': 'Worktrees working on this task' }, links.map(renderLinks)));
 }
 
-/** The tasks assigned to you, or a line saying why there are none. */
-export function renderTasks(tasks, { emptyText, now = Date.now() }) {
+/** The tasks assigned to you, or a line saying why there are none; `renderLinks` draws a worktree working on one. */
+export function renderTasks(tasks, { emptyText, now = Date.now(), renderLinks = null }) {
   if (tasks.length === 0) return [h('div', { class: 'empty' }, emptyText)];
-  return [h('ul', { class: 'list' }, tasks.map((task) => taskRow(task, now)))];
+  return [h('ul', { class: 'list' }, tasks.map((task) => taskRow(task, now, renderLinks)))];
 }

@@ -1,21 +1,10 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
 import { jumpButton, tmuxPlace } from './actions.js';
-import { sessionRow, statusBadge, whereLabel } from './session-row.js';
-import { answerElsewhere, sessionDetail, sessionTitle } from './session-text.js';
+import { sessionRow, statusBadge, taskLink, whereLabel } from './session-row.js';
+import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle } from './session-text.js';
 import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
 import { terminalButton } from './live-terminal.js';
 import { answerMenu, planButton } from './screen-answer.js';
-
-const STATUS_LABELS = { busy: 'Working', idle: 'Waiting' };
-
-export function sessionLabel(session) {
-  if (session.needsYou) return 'Needs you';
-  return session.parked ? 'Parked' : STATUS_LABELS[session.status] ?? session.status;
-}
-
-export function sessionDot(session) {
-  return session.parked ? 'parked' : session.status;
-}
 
 function sessionTone(session) {
   if (session.status === 'busy') return 'green';
@@ -58,6 +47,7 @@ export function renderLiveRow(state, session, details = null) {
       answerMenu(session, approvals),
       replyMenu(session),
       stopButton(session),
+      taskLink(where?.worktree.task),
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),
       terminalButton(session),
       jumpButton(session),
