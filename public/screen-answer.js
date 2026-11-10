@@ -1,7 +1,7 @@
 import { h, toast } from './dom.js';
 import { announceChange, closeDropdown, dropdown, post, tmuxPlace } from './actions.js';
 import { renderMarkdown } from './markdown.js';
-import { sessionTitle } from './session-text.js';
+import { canPressKeys, sessionTitle } from './session-text.js';
 
 /*
  * Answering the dialog a session shows in tmux or iTerm (a question, plan
@@ -21,12 +21,11 @@ const AMEND_PLACEHOLDERS = { Yes: 'Yes, and tell Claude what to do next', No: 'N
 
 const promptOf = (session) => session.screenPrompt;
 
-/**
- * Answer with the dialog's own controls, unless the approvals hook already gives the prompt Allow and Deny.
- * The server reads a screen only where it can also press keys (a tmux pane or an iTerm tab).
- */
-export const canAnswer = (session, approvals) => session.needsYou
-  && approvals.length === 0 && (promptOf(session)?.options.length ?? 0) > 0;
+/** A dialog the page can show: one read off the screen, unless the approvals hook already gives it Allow and Deny. */
+const canShow = (session, approvals) => session.needsYou && approvals.length === 0 && (promptOf(session)?.options.length ?? 0) > 0;
+
+/** A dialog the page can also answer, pressing keys where the session runs (a tmux pane or an iTerm tab, not Terminal). */
+export const canAnswer = (session, approvals) => canShow(session, approvals) && canPressKeys(session.host);
 
 /** Where an answer's keys are pressed, for hints. */
 const answerTarget = (host) => (host.kind === 'tmux' ? `its tmux window ${tmuxPlace(host)}` : `its ${host.label} tab`);
@@ -158,18 +157,19 @@ export function answerMenu(session, approvals) {
   h('p', { class: 'reply-hint' }, `Pressed in ${answerTarget(session.host)}, if its screen still shows this question.`));
 }
 
-/** "Plan": a plan approval's plan, rendered in the glass pane, with the dialog's options to answer it. */
+/** "Plan": a plan approval's plan, rendered in the glass pane, with the dialog's options to answer it where the page can. */
 export function planButton(session, approvals) {
-  if (!canAnswer(session, approvals) || !promptOf(session).plan) return null;
+  if (!canShow(session, approvals) || !promptOf(session).plan) return null;
+  const answerable = canAnswer(session, approvals);
   return h('button', {
     type: 'button',
     class: 'btn btn-sm btn-secondary',
-    title: `Read the plan before answering (${promptOf(session).planFile})`,
-    onclick: () => openPlan(session),
+    title: `Read the plan${answerable ? ' before answering' : ''} (${promptOf(session).planFile})`,
+    onclick: () => openPlan(session, answerable),
   }, 'Plan');
 }
 
-function openPlan(session) {
+function openPlan(session, answerable) {
   const prompt = promptOf(session);
   const close = () => {
     dialog.close();
@@ -184,9 +184,11 @@ function openPlan(session) {
       h('span', { class: 'pane-pill' }, prompt.planFile),
       h('button', { type: 'button', class: 'pane-btn', title: 'Close (the plan keeps waiting)', onclick: close }, 'Close')),
     h('div', { class: 'review-body' }, renderMarkdown(prompt.plan)),
-    h('footer', { class: 'pane-footer plan-answers' }, answerControls(session, {
-      className: 'pane-btn', formClass: 'plan-text-answer', inputClass: 'pane-input', buttonClass: 'pane-btn', done: close,
-    })));
+    h('footer', { class: 'pane-footer plan-answers' }, answerable
+      ? answerControls(session, {
+        className: 'pane-btn', formClass: 'plan-text-answer', inputClass: 'pane-input', buttonClass: 'pane-btn', done: close,
+      })
+      : h('p', { class: 'pane-note' }, `Answer it in its ${session.host.label} tab: switchyard can't press keys there.`)));
   document.body.append(dialog);
   dialog.showModal();
 }

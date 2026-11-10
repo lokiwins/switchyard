@@ -12,14 +12,16 @@ export function statusBadge({ tone = '', dot = null, label, hint }) {
  * the same way: status, who/where, what it's doing or said, time, actions.
  */
 export function sessionRow({
-  badge, title, titleHint, where, detail, time, timeHint, actions, className, detailOpen = false, onDetailToggle = null,
+  badge, title, titleHint, where, detail, note = null, time, timeHint, actions, className, detailOpen = false, onDetailToggle = null,
 }) {
+  const detailLine = renderDetail(detail, { open: detailOpen, onToggle: onDetailToggle });
   return h('li', { class: ['list-row', className].filter(Boolean).join(' ') },
     badge,
     h('div', { class: 'row-who' },
       h('span', { class: 'row-title', title: titleHint ?? title }, title),
       where && h('span', { class: 'row-where' }, where)),
-    renderDetail(detail, { open: detailOpen, onToggle: onDetailToggle }),
+    // A note goes on its own line under the detail, as the folder does under the title.
+    note ? h('div', { class: 'row-detail-cell' }, detailLine, h('span', { class: 'row-note', title: note }, note)) : detailLine,
     h('span', { class: 'row-time', title: timeHint }, time),
     h('div', { class: 'actions' }, actions));
 }

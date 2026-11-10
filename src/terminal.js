@@ -136,6 +136,19 @@ end run`,
   end tell
   return "opened"
 end run`,
+    // The text a tab shows. Terminal has no way to send a tab keys without bringing it to the
+    // front, so its dialogs can be shown on the page but not answered from it.
+    screen: `on run argv
+  tell application "Terminal"
+    repeat with w in windows
+      repeat with t in tabs of w
+        -- "contents of t" alone is the tab t refers to, not its text: AppleScript's own "contents".
+        if tty of t is (item 1 of argv) then return "screen:" & (contents of (contents of t))
+      end repeat
+    end repeat
+  end tell
+  return "missing"
+end run`,
   },
 };
 
@@ -144,8 +157,11 @@ export const TERMINAL_APPS = Object.keys(SCRIPTS);
 /** Whether switchyard can type into one of this app's tabs (Terminal can't target a tab without focusing it). */
 export const canTypeInto = (app) => Boolean(SCRIPTS[app]?.type);
 
-/** Whether switchyard can read one of this app's tabs, and press keys in it to answer a dialog. */
+/** Whether switchyard can read what one of this app's tabs shows, e.g. a dialog waiting for an answer. */
 export const canReadScreen = (app) => Boolean(SCRIPTS[app]?.screen);
+
+/** Whether switchyard can also press keys in one of this app's tabs, to answer a dialog. */
+export const canAnswerIn = (app) => Boolean(SCRIPTS[app]?.press);
 
 // The keys that work a dialog, as the characters a terminal sends for them.
 const DIALOG_KEYS = {
