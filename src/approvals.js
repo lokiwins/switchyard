@@ -13,8 +13,10 @@ const MAX_MESSAGE = 500;
 // How long after a request a session snapshot must be taken before it can show the prompt was
 // answered elsewhere: the registry's status changes a moment after Claude calls the hook.
 const SETTLE_GRACE_MS = 3_000;
-// Allowing a question would skip your answer, so those always stay in the terminal.
-const PASS_THROUGH_TOOLS = new Set(['AskUserQuestion']);
+// Tools that need your own input, which "allow" alone can't give: a question's answer, or how a
+// plan should go ahead (auto mode, approving edits, or changes to make). They always stay in the
+// terminal, where the page can still answer them from the screen.
+const PASS_THROUGH_TOOLS = new Set(['AskUserQuestion', 'ExitPlanMode']);
 const STOP_MESSAGE = 'The user declined this from switchyard and will say what to do next.';
 
 /**

@@ -108,7 +108,7 @@ npm run hook -- install   # or: remove, status
 
 From the pane you can Allow, or Deny with an optional reason. A bare Deny stops Claude to wait for you; a reason lets it adjust and try again. Esc or Close leaves the prompt waiting.
 
-Running sessions pick it up without a restart. The hook waits up to an hour for an answer from the page; the terminal prompt works throughout. When switchyard isn't running, the hook can't connect and Claude Code simply shows its usual prompt. Questions Claude asks you (`AskUserQuestion`) stay in the terminal.
+Running sessions pick it up without a restart. The hook waits up to an hour for an answer from the page; the terminal prompt works throughout. When switchyard isn't running, the hook can't connect and Claude Code simply shows its usual prompt. Questions Claude asks you (`AskUserQuestion`) and plans waiting for approval (`ExitPlanMode`) stay in the terminal, because allowing them would skip your answer or your choice of how the plan goes ahead; in tmux or iTerm you can still answer them from the page with **Answer ▾** and **Plan**.
 
 The first time you use these, macOS asks whether to let switchyard's terminal control iTerm or Terminal (System Settings → Privacy & Security → Automation).
 

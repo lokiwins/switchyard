@@ -94,6 +94,14 @@ test('questions Claude asks you are left to the terminal, since allowing one wou
   assert.deepEqual(broker.pending(), []);
 });
 
+test('plan approvals are left to the terminal too, where the page answers them from the screen', async () => {
+  const { broker } = setup();
+  const plan = { plan: '# Add a line\n\n1. Append it', planFilePath: '/home/dev/.claude/plans/add-a-line.md' };
+  const { decision } = broker.ask(hookInput({ tool_name: 'ExitPlanMode', tool_input: plan }));
+  assert.equal(await decision, null);
+  assert.deepEqual(broker.pending(), []);
+});
+
 test('a request answered in the terminal is dropped once the session has moved on', async () => {
   const { broker, advance, at } = setup();
   const { decision } = broker.ask(hookInput());
