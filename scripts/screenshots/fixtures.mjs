@@ -10,7 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { chmodSync, mkdirSync, realpathSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PLAN, PLAN_FILE, REPOS, SESSIONS, VIEWER, pullRequests } from './fixture-data.mjs';
+import { CLICKUP, PLAN, PLAN_FILE, REPOS, SESSIONS, VIEWER, pullRequests } from './fixture-data.mjs';
+import { startFakeClickUp } from './fake-clickup.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOOK_PATH = '/hooks/permission-request';
@@ -172,11 +173,18 @@ export function buildFixtures({ root: tempRoot, home: homeDir, port, now }) {
 
   // Only what git and the server need: none of your global git config, tmux server or gh login.
   // tmux gets a server of its own under root, and UTF-8, or it draws a dialog's ❯ and ─ as _.
-  const { TMUX: _tmux, TMUX_PANE: _pane, GH_TOKEN: _gh, GITHUB_TOKEN: _github, ...inherited } = process.env;
+  const {
+    TMUX: _tmux, TMUX_PANE: _pane, GH_TOKEN: _gh, GITHUB_TOKEN: _github, XDG_CONFIG_HOME: _config, ...inherited
+  } = process.env;
   const baseEnv = { ...inherited, HOME: home, GIT_CONFIG_NOSYSTEM: '1', TZ: 'UTC', TMUX_TMPDIR: root, LC_ALL: 'C.UTF-8' };
   const tips = buildRepos(code, makeGit(baseEnv), now);
   const { pids, approvals } = buildSessions({ code, claudeDir, now, env: baseEnv, root });
   const gh = installFakeGh(root, tips, now);
+  // ClickUp connected, as the Tasks page leaves it: the token file, and a stand-in ClickUp to answer.
+  writeFiles(join(home, '.config', 'switchyard'), {
+    'task-tools.json': JSON.stringify({ clickup: { ...CLICKUP, workspaceId: CLICKUP.workspaces[0].id } }),
+  });
+  const clickup = startFakeClickUp({ port: port + 1, now });
 
   const env = {
     ...baseEnv,
@@ -184,8 +192,10 @@ export function buildFixtures({ root: tempRoot, home: homeDir, port, now }) {
     PORT: String(port),
     SWITCHYARD_ROOTS: code,
     SWITCHYARD_FAKE_GH: gh.fixture,
+    SWITCHYARD_CLICKUP_API: clickup.url,
   };
   const stop = () => {
+    clickup.stop();
     // The tmux server takes the sessions in its panes with it.
     try {
       execFileSync('tmux', ['kill-server'], { env: baseEnv, stdio: 'ignore' });

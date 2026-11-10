@@ -286,3 +286,34 @@ export function pullRequests(now) {
     }),
   ];
 }
+
+/** ClickUp, as the stand-in in fake-clickup.mjs answers: you, your workspace, and tasks assigned to you. */
+export const CLICKUP = {
+  token: 'pk_1000001_FIXTUREFIXTUREFIXTUREFIXTURE00',
+  user: { id: 1000001, username: VIEWER },
+  workspaces: [{ id: '9001', name: 'Acme' }],
+};
+
+const clickupTask = (now, { id, name, status, color, type = 'custom', priority, dueDays, updatedMinutes, list, folder }) => ({
+  id,
+  custom_id: null,
+  name,
+  status: { status, color, type },
+  priority: priority ? { priority } : null,
+  due_date: dueDays === undefined ? null : String(now + dueDays * 24 * 60 * 60_000),
+  date_updated: String(now - updatedMinutes * 60_000),
+  url: `https://app.clickup.com/t/${id}`,
+  list: { id: '1', name: list },
+  folder: folder ? { id: '2', name: folder, hidden: false } : { id: '3', name: 'hidden', hidden: true },
+});
+
+/** Open tasks assigned to you, in ClickUp's own shape, most recently updated first. */
+export function clickupTasks(now) {
+  return [
+    { id: '86b4fx1', name: 'Download invoices as PDF', status: 'in progress', color: '#4194f6', priority: 'high', dueDays: 1, updatedMinutes: 2, list: 'Sprint 12', folder: 'Billing' },
+    { id: '86b4fx2', name: 'Make the invoice total test deterministic', status: 'in review', color: '#a875ff', priority: 'urgent', dueDays: -2, updatedMinutes: 4, list: 'Sprint 12', folder: 'Billing' },
+    { id: '86b4fx3', name: 'Add a dark mode toggle', status: 'in progress', color: '#4194f6', priority: 'normal', dueDays: 6, updatedMinutes: 20, list: 'Sprint 12', folder: 'Storefront' },
+    { id: '86b4fx4', name: 'Show order history on the account page', status: 'to do', color: '#87909e', priority: 'normal', dueDays: 12, updatedMinutes: 60 * 5, list: 'Backlog', folder: 'Storefront' },
+    { id: '86b4fx5', name: 'Email a receipt after each charge', status: 'to do', color: '#87909e', priority: 'low', updatedMinutes: 60 * 26, list: 'Ideas' },
+  ].map((task) => clickupTask(now, task));
+}

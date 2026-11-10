@@ -103,4 +103,14 @@ export const SCENES = [
       await page.getByText('Cache product images at the edge').first().waitFor();
     },
   },
+  {
+    name: 'tasks',
+    title: 'Tasks: what ClickUp has assigned to you',
+    path: '/tasks',
+    fullPage: true,
+    prepare: async (page) => {
+      await page.getByText('Connected as dev').waitFor();
+      await page.getByText('Email a receipt after each charge').waitFor();
+    },
+  },
 ];

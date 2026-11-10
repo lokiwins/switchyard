@@ -16,6 +16,8 @@ import { buildLocalIndex, createPrService } from './prs.js';
 import { resolveTerminalApp } from './settings.js';
 import { createStateService } from './state.js';
 import { createTaskService } from './tasks.js';
+import { CLICKUP_API, createClickUp } from './clickup.js';
+import { createTaskTools } from './task-tools.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
 import { canReadScreen, createTerminal } from './terminal.js';
@@ -131,6 +133,9 @@ const POST_ROUTES = {
   '/api/worktrees/cleanup': ({ cleanup }, body) => cleanup.cleanUpWorktree(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
+  '/api/task-tools/connect': ({ taskTools }, body) => taskTools.connect(body),
+  '/api/task-tools/disconnect': ({ taskTools }, body) => taskTools.disconnect(body),
+  '/api/task-tools/workspace': ({ taskTools }, body) => taskTools.chooseWorkspace(body),
 };
 
 /**
@@ -345,6 +350,12 @@ function createHandler(services) {
       if (url.pathname === '/api/prs/stream') return await streamPrs(req, res, services);
       if (url.pathname === '/api/terminal/live') return await streamTerminal(req, res, url, services);
       if (url.pathname === '/api/approvals/detail') return await sendApprovalDetail(res, url, services);
+      if (url.pathname === '/api/task-tools') {
+        return sendJson(res, 200, { success: true, data: { ...(await services.taskTools.sources()), nav: await navFor(services) } });
+      }
+      if (url.pathname === '/api/task-tools/tasks') {
+        return sendJson(res, 200, { success: true, data: await services.taskTools.tasks({ force }) });
+      }
       if (url.pathname === '/api/prs') {
         const data = await prService.getPrs({ force });
         return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services, { prs: data }), capabilities: services.capabilities } });
@@ -408,7 +419,12 @@ async function main() {
   const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme, tmux: tmuxInstalled };
   const approvals = createApprovalBroker({ onChange: () => agentFeed.changed() });
   const hookInstalled = createHookCheck(config);
-  const services = { stateService, prService, actions, tasks, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port };
+  // SWITCHYARD_CLICKUP_API points at a stand-in ClickUp, for the screenshots' made-up tasks.
+  const clickupApi = process.env.SWITCHYARD_CLICKUP_API ?? CLICKUP_API;
+  const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }) });
+  const services = {
+    stateService, prService, actions, tasks, taskTools, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
+  };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({
     load: () => stateService.refreshSessions().then((data) => agentsPayload(services, data)),
@@ -421,6 +437,8 @@ async function main() {
     stateService.getState().catch((error) => process.stderr.write(`Initial scan failed: ${error.message}\n`));
     prService.getPrs().catch((error) => process.stderr.write(`Initial PR load failed: ${error.message}\n`));
     prService.start();
+    // ClickUp takes seconds to list tasks, so the Tasks page's first visit finds them ready.
+    taskTools.tasks().catch((error) => process.stderr.write(`Initial ClickUp load failed: ${error.message}\n`));
   });
 }
 
