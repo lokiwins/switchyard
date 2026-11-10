@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { sessionDetail, sessionTitle } from '../public/session-text.js';
+import { answerElsewhere, sessionDetail, sessionTitle } from '../public/session-text.js';
 
 const live = (fields, transcript = {}) => ({ sessionId: 'abcdef12-0000', cwd: '/w/my-repo', status: 'idle', ...fields, transcript });
 
@@ -61,4 +61,19 @@ test('a waiting session whose dialog was read off its screen shows the question 
     kind: 'needs-you', label: 'Asks', text: 'Which color do you prefer? 1. Red · 2. Blue', full: screenPrompt.text,
   });
   assert.equal(sessionDetail(live({ needsYou: true, screenPrompt: { ...screenPrompt, question: null } })).text, '1. Red · 2. Blue');
+});
+
+test("a session waiting where switchyard can't answer says where to answer it, and how to answer from here", () => {
+  const waiting = (host) => ({ needsYou: true, host });
+  assert.equal(answerElsewhere(waiting({ kind: 'editor', label: 'VS Code' }), []),
+    'Answer it in VS Code. To answer from here, run Claude in tmux or start it with New task.');
+  assert.match(answerElsewhere(waiting({ kind: 'terminal', label: 'Terminal', app: 'Terminal' }), []), /^Answer it in Terminal\./);
+  assert.match(answerElsewhere(waiting(null), []), /^Answer it in its terminal\./);
+});
+
+test('no hint where the page can already answer: tmux, iTerm, or a prompt the hook sent', () => {
+  assert.equal(answerElsewhere({ needsYou: true, host: { kind: 'tmux' } }, []), null);
+  assert.equal(answerElsewhere({ needsYou: true, host: { kind: 'terminal', label: 'iTerm', app: 'iTerm' } }, []), null);
+  assert.equal(answerElsewhere({ needsYou: true, host: { kind: 'editor', label: 'VS Code' } }, [{ id: 'a' }]), null);
+  assert.equal(answerElsewhere({ needsYou: false, host: { kind: 'editor', label: 'VS Code' } }, []), null);
 });

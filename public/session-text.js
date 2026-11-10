@@ -19,6 +19,20 @@ function promptTitle(prompt) {
 
 const claudeTitle = (t) => t.agentName ?? t.title ?? null;
 
+/** Whether switchyard can press keys where a session runs: a tmux pane, or an iTerm tab (see canAnswerIn in src/terminal.js). */
+export const canPressKeys = (host) => host?.kind === 'tmux' || (host?.kind === 'terminal' && host.app === 'iTerm');
+
+/**
+ * For a session waiting on you where the page can't answer (Terminal, an
+ * editor's terminal, another app): where to answer it, and how to be able to
+ * answer from here next time. Null where the page can answer, including when
+ * the approvals hook has already given it Allow and Deny.
+ */
+export function answerElsewhere(session, approvals) {
+  if (!session.needsYou || approvals.length > 0 || canPressKeys(session.host)) return null;
+  return `Answer it in ${session.host?.label ?? 'its terminal'}. To answer from here, run Claude in tmux or start it with New task.`;
+}
+
 /**
  * A name you chose wins, then Claude's own name or title. Until Claude has
  * titled it (after your first prompt), your prompt stands in. Claude Code's

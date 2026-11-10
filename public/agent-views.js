@@ -1,7 +1,7 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
 import { jumpButton, tmuxPlace } from './actions.js';
 import { sessionRow, statusBadge, whereLabel } from './session-row.js';
-import { sessionDetail, sessionTitle } from './session-text.js';
+import { answerElsewhere, sessionDetail, sessionTitle } from './session-text.js';
 import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
 import { terminalButton } from './live-terminal.js';
 import { answerMenu, planButton } from './screen-answer.js';
@@ -47,6 +47,7 @@ export function renderLiveRow(state, session, details = null) {
       path: shortPath(session.cwd),
     }),
     detail: approvals.length > 0 ? approvalDetail(approvals) : sessionDetail(session),
+    note: answerElsewhere(session, approvals),
     detailOpen: details?.isOpen(session.sessionId) ?? false,
     onDetailToggle: details ? () => details.toggle(session.sessionId) : null,
     time: timeAgo(session.statusUpdatedAt),

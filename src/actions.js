@@ -5,7 +5,7 @@ import { parseScreenPrompt } from './agents/screen-prompt.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuote } from './shell.js';
-import { canReadScreen, canTypeInto, createTerminal, ttyOf } from './terminal.js';
+import { canAnswerIn, canTypeInto, createTerminal, ttyOf } from './terminal.js';
 import { freeWindowName, runInWindow } from './task-session.js';
 import { createTmux } from './tmux.js';
 
@@ -277,7 +277,7 @@ export function createActionService({
         typeLine: (text) => tmux.sendLine(pane, text),
       };
     }
-    if (host?.kind === 'terminal' && canReadScreen(host.app)) {
+    if (host?.kind === 'terminal' && canAnswerIn(host.app)) {
       const tty = await currentTab(session);
       const driver = driverFor(host.app);
       const found = (ok) => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { canReadScreen, createTerminal } from '../src/terminal.js';
+import { canAnswerIn, canReadScreen, createTerminal } from '../src/terminal.js';
 
 function fakeOsascript(output = '') {
   const calls = [];
@@ -46,9 +46,17 @@ test('pressKey presses no other key', async () => {
   assert.equal(calls.length, 0);
 });
 
-test("only iTerm's screen can be read and answered; Terminal can't take keys without bringing its tab forward", async () => {
-  assert.equal(canReadScreen('iTerm'), true);
-  assert.equal(canReadScreen('Terminal'), false);
-  assert.equal(canReadScreen('Konsole'), false);
-  await rejectsWith(createTerminal({ app: 'Terminal', platform: 'darwin', exec: fakeOsascript().exec }).screen('/dev/ttys004'), 501);
+test("iTerm and Terminal screens can be read, but only iTerm takes keys: Terminal can't without bringing its tab forward", async () => {
+  assert.deepEqual(['iTerm', 'Terminal', 'Konsole'].map(canReadScreen), [true, true, false]);
+  assert.deepEqual(['iTerm', 'Terminal', 'Konsole'].map(canAnswerIn), [true, false, false]);
+  const terminal = createTerminal({ app: 'Terminal', platform: 'darwin', exec: fakeOsascript('pressed').exec });
+  await rejectsWith(terminal.pressKey('/dev/ttys004', '1'), 501);
+});
+
+test("screen reads a Terminal tab's text by its tty", async () => {
+  const { exec, calls } = fakeOsascript('screen:Do you want to proceed?');
+  assert.equal(await createTerminal({ app: 'Terminal', platform: 'darwin', exec }).screen('/dev/ttys004'), 'Do you want to proceed?');
+  // In a loop, "contents of t" is AppleScript's own contents (the tab itself); the tab's text needs it twice.
+  assert.match(calls[0][2], /application "Terminal"[\s\S]*contents of \(contents of t\)/);
+  assert.equal(calls[0].at(-1), '/dev/ttys004');
 });
