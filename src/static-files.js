@@ -27,6 +27,7 @@ export const STATIC_FILES = {
   '/session-controls.js': 'session-controls.js',
   '/new-task.js': 'new-task.js',
   '/branch-name.js': 'branch-name.js',
+  '/pending-tasks.js': 'pending-tasks.js',
   '/markdown.js': 'markdown.js',
   '/review-pane.js': 'review-pane.js',
   '/screen-answer.js': 'screen-answer.js',

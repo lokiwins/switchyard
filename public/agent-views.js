@@ -5,6 +5,7 @@ import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle 
 import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
 import { terminalButton } from './live-terminal.js';
 import { answerMenu, planButton } from './screen-answer.js';
+import { pendingText } from './pending-tasks.js';
 
 function sessionTone(session) {
   if (session.status === 'busy') return 'green';
@@ -53,6 +54,23 @@ export function renderLiveRow(state, session, details = null) {
       jumpButton(session),
       copyButton('cd', `cd ${shellQuote(session.cwd)}`),
     ],
+  });
+}
+
+/** A task started from New task whose session hasn't shown up yet. */
+export function renderPendingRow(task, now = Date.now()) {
+  const text = pendingText(task, now);
+  return sessionRow({
+    className: 'is-pending',
+    badge: statusBadge({ dot: 'busy', label: text.label }),
+    title: task.prompt,
+    titleHint: [task.path, task.place && `starting in tmux window ${task.place}`].filter(Boolean).join(' · ') || task.prompt,
+    where: whereLabel({ repoName: task.repoName, branch: task.branch, path: task.path ?? '' }),
+    detail: { kind: 'pending', text: text.detail },
+    note: text.note,
+    time: timeAgo(task.createdAt, now),
+    timeHint: `Started ${new Date(task.createdAt).toLocaleString()}`,
+    actions: [],
   });
 }
 

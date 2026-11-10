@@ -1,16 +1,20 @@
-import { h, readPref, timeAgo, writePref } from './dom.js';
+import { h, readPref, timeAgo, toast, writePref } from './dom.js';
 import { sessionSearchText } from './session-text.js';
-import { locateSession, renderLiveList } from './agent-views.js';
+import { locateSession, renderLiveList, renderPendingRow } from './agent-views.js';
 import { renderEnded } from './ended-views.js';
 import { applyNav, startNavBadges } from './nav.js';
 import { isTypingReply } from './session-controls.js';
-import { isEditingTask, newTaskMenu } from './new-task.js';
+import { isEditingTask, newTaskMenu, pendingTasks, replacePending } from './new-task.js';
+import { settlePending } from './pending-tasks.js';
 
 // Changes are pushed as they happen (see /api/agents/stream). Without the stream the page polls
 // this often; with it, it only checks in after this long without an update, in case one was missed.
 const POLL_MS = 4_000;
 const STREAM_POLL_MS = 15_000;
 const FILTER_PREF = 'switchyard.agentFilter';
+
+// Tasks just started from New task show under these filters, as they'll be working once they start.
+const PENDING_FILTERS = new Set(['all', 'working']);
 
 const isWaiting = (s) => s.status === 'idle' && !s.parked;
 
@@ -110,6 +114,21 @@ function hookHint(state, sessions) {
     h('code', {}, 'npm run hook -- install'), ' in the switchyard folder.');
 }
 
+/** Drop started tasks whose session is here now, and give up on ones that never came. */
+function settleTasks(state) {
+  const { pending, expired } = settlePending(pendingTasks(), state.liveSessions, Date.now());
+  replacePending(pending);
+  expired.forEach((t) => toast(`Claude hasn't shown up from tmux window ${t.place} yet. Look there.`));
+}
+
+function pendingRows() {
+  if (!PENDING_FILTERS.has(ui.filter)) return [];
+  const now = Date.now();
+  return pendingTasks()
+    .filter((t) => matches([t.prompt, t.repoName, t.branch, t.path], ui.query))
+    .map((t) => renderPendingRow(t, now));
+}
+
 function renderRunning(state, filter) {
   const panel = $('running').closest('.panel');
   panel.hidden = !filter.live;
@@ -117,7 +136,8 @@ function renderRunning(state, filter) {
   // Replacing the list would take away the reply box you're typing in; the next refresh catches up.
   if (isTypingReply()) return;
   const sessions = state.liveSessions.filter((s) => filter.live(s) && liveMatches(state, s));
-  $('running').replaceChildren(hookHint(state, sessions) ?? '', ...renderLiveList(state, sessions, {
+  const starting = pendingRows();
+  const list = sessions.length === 0 && starting.length > 0 ? [] : renderLiveList(state, sessions, {
     showParked: ui.showParked || ui.filter === 'parked',
     onToggleParked: () => {
       ui.showParked = !ui.showParked;
@@ -125,7 +145,12 @@ function renderRunning(state, filter) {
     },
     details,
     emptyText: ui.query || ui.filter !== 'all' ? 'No running sessions match.' : 'No agent sessions are running.',
-  }));
+  });
+  $('running').replaceChildren(
+    hookHint(state, sessions) ?? '',
+    starting.length > 0 ? h('ul', { class: 'list pending-list' }, starting) : '',
+    ...list,
+  );
 }
 
 function renderEndedPanel(state, filter) {
@@ -166,6 +191,7 @@ function render() {
   renderNewTask(state);
   $('updated').textContent = `Updated ${timeAgo(state.generatedAt)}`;
   renderErrors(state.errors);
+  settleTasks(state);
   renderTiles(state);
   const filter = FILTERS[ui.filter];
   renderRunning(state, filter);
@@ -217,6 +243,7 @@ $('search').addEventListener('input', (event) => {
   ui.query = event.target.value.trim();
   render();
 });
+document.addEventListener('switchyard:pending', () => render());
 document.addEventListener('switchyard:changed', (event) => load({ force: Boolean(event.detail?.force) }));
 // A hidden tab gives up its stream (browsers allow few connections per site) and catches up on return.
 document.addEventListener('visibilitychange', () => {
