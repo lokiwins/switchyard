@@ -505,7 +505,6 @@ td .actions { flex-wrap: nowrap; }
 }
 
 /* ---------- tasks page ---------- */
-.tool-cards { display: grid; grid-template-columns: minmax(320px, 2fr) repeat(3, minmax(150px, 1fr)); gap: var(--space-2); }
 .tool-card {
   display: flex; flex-direction: column; gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
@@ -559,8 +558,39 @@ details.hub-group[open] > summary::before { content: "▾"; }
 .hub-row .row-where a:hover { color: var(--accent); }
 .hub-row.is-done .row-title, .hub-row.is-dropped .row-title { color: var(--gray-500); }
 .hub-row.is-dropped .row-title { text-decoration: line-through; }
-.connections > summary { cursor: pointer; list-style: none; margin-bottom: 0; }
-.connections[open] > summary { margin-bottom: var(--space-3); }
+/* Ticket links on a task: a small badge per tracker. */
+.ticket-badge {
+  display: inline-flex; align-items: center; margin-left: 6px; padding: 0 6px; border-radius: var(--radius-sm);
+  font-size: 11px; line-height: 17px; color: var(--gray-700); background: var(--neutral-soft); box-shadow: inset 0 0 0 1px var(--hairline);
+  text-decoration: none; white-space: nowrap;
+}
+.ticket-badge:hover { color: var(--accent); text-decoration: none; }
+.ticket-badge.is-clickup { --tracker: #7b68ee; }
+.ticket-badge.is-github { --tracker: var(--gray-700); }
+.ticket-badge.is-jira { --tracker: #2684ff; }
+.ticket-badge.is-ado { --tracker: #0078d4; }
+.ticket-badge[class*="is-"] { box-shadow: inset 2px 0 0 var(--tracker), inset 0 0 0 1px var(--hairline); }
+/* A ClickUp ticket's status, in ClickUp's own colour. */
+.ticket-status {
+  flex: none; text-transform: uppercase; letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--status, var(--gray-500)) 80%, var(--gray-900));
+  background: color-mix(in srgb, var(--status, var(--gray-500)) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--status, var(--gray-500)) 35%, transparent);
+}
+/* Add from ClickUp ▾ */
+/* A set width: it's placed under its button when it opens, before the tickets load, so it mustn't grow after. */
+.picker-panel { --panel-min: 360px; --panel-max: 520px; width: min(520px, calc(100vw - 16px)); padding: var(--space-2); gap: 6px; }
+.picker-filter {
+  font: inherit; font-size: var(--text-sm); padding: 5px 10px; border: 0; border-radius: var(--radius-sm);
+  background: var(--surface-sunken); color: var(--gray-900); box-shadow: inset 0 0 0 1px var(--divider);
+}
+.picker-list { display: grid; max-height: min(420px, 60vh); overflow-y: auto; overscroll-behavior: contain; }
+.picker-item { align-items: center; }
+.picker-note { margin: 6px 4px; font-size: var(--text-xs); color: var(--gray-500); }
+/* ClickUp ▾ in the header. */
+.connections-btn { display: inline-flex; align-items: center; gap: 6px; }
+.connections-panel { --panel-min: 320px; --panel-max: 400px; padding: var(--space-2); gap: var(--space-2); }
+.connections-panel .tool-card, .connections-panel .tool-card.is-connected { box-shadow: none; padding: 0; }
 .task-links { grid-column: 2 / -1; display: grid; gap: 4px; }
 .task-link { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-xs); color: var(--gray-500); }
 .task-link-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -569,8 +599,6 @@ details.hub-group[open] > summary::before { content: "▾"; }
 .task-link .actions { margin-left: auto; flex-shrink: 0; }
 
 @media (max-width: 900px) {
-  .tool-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tool-cards > :first-child { grid-column: 1 / -1; }
   .task-links { grid-column: 1 / -1; }
   .hub-row { grid-template-columns: 112px minmax(0, 1fr) auto; }
   .hub-row .row-detail { grid-column: 2 / -1; grid-row: 2; }
@@ -622,7 +650,6 @@ details.hub-group[open] > summary::before { content: "▾"; }
 /* The smallest phones (320px): the four page links only fit a little tighter. */
 @media (max-width: 360px) {
   .nav a { padding: 4px; gap: 4px; font-size: var(--text-xs); }
-  .tool-cards { grid-template-columns: minmax(0, 1fr); }
   /* A PR's repo#number goes under its title, so the title has room. */
   .pr-line { flex-wrap: wrap; row-gap: 0; }
   .pr-line > .pr-ref { flex-basis: 100%; }

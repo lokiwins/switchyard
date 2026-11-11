@@ -54,7 +54,6 @@ test('on a phone wide content shrinks instead of widening the page', () => {
   const phone = media('max-width: 640px');
   assert.match(ruleIn(phone, '.pr') ?? '', /minmax\(0,\s*1fr\)/);
   assert.match(ruleIn(phone, '.segmented') ?? '', /flex-wrap:\s*wrap/);
-  assert.match(ruleIn(media('max-width: 900px'), '.tool-cards') ?? '', /minmax\(0,\s*1fr\)/);
 });
 
 test('on a phone a session row stacks, so its buttons do not crowd out its title', () => {

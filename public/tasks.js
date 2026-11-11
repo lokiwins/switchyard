@@ -1,5 +1,5 @@
 import { h, liveTime, refreshLiveTimes, toast } from './dom.js';
-import { post } from './actions.js';
+import { dropdown, post } from './actions.js';
 import { applyNav, startNavBadges } from './nav.js';
 import { isTypingReply } from './session-controls.js';
 import { renderToolCards } from './task-views.js';
@@ -137,10 +137,21 @@ const toolHandlers = {
   onWorkspace: (workspaceId) => changeTools('/api/task-tools/workspace', { tool: 'clickup', workspaceId }, { redrawOnFailure: true }),
 };
 
+/** ClickUp ▾ in the header: whether it's connected, and its card to connect, switch workspace or disconnect. */
 function renderTools() {
-  $('tools').replaceChildren(...renderToolCards(ui.tools, toolHandlers));
-  const clickup = ui.tools?.find((tool) => tool.id === 'clickup');
-  $('connections-summary').textContent = clickup?.connected ? `ClickUp: connected as ${clickup.user.username}` : 'ClickUp: not connected';
+  const tools = ui.tools ?? [];
+  const clickup = tools.find((tool) => tool.id === 'clickup');
+  const later = tools.filter((tool) => !tool.available).map((tool) => tool.name);
+  const connected = Boolean(clickup?.connected);
+  $('connections').replaceChildren(dropdown({
+    key: 'connections',
+    label: [h('span', { class: `dot${connected ? ' connected' : ''}`, 'aria-hidden': 'true' }), ' ClickUp ▾'],
+    title: connected ? `ClickUp: connected as ${clickup.user.username}` : 'ClickUp: not connected',
+    className: 'btn btn-secondary connections-btn',
+    panelClass: 'connections-panel',
+  },
+  renderToolCards(tools.filter((tool) => tool.available), toolHandlers),
+  later.length > 0 && h('p', { class: 'tool-help' }, `${later.join(', ')}: coming later.`)));
 }
 
 async function loadTools() {
@@ -168,7 +179,11 @@ async function load({ force = false } = {}) {
   }
 }
 
-$('new-task').replaceChildren(newTaskForm((fields) => change('/api/hub/tasks/create', fields, `Added: ${fields.title.trim()}`)));
+$('new-task').replaceChildren(newTaskForm(
+  (fields) => change('/api/hub/tasks/create', fields, `Added: ${fields.title.trim()}`),
+  // Add from ClickUp ▾: your assigned tickets (ClickUp is asked at most once a minute), less those a task links.
+  { load: () => getJson('/api/task-tools/tasks'), tasks: () => ui.data?.tasks ?? [] },
+));
 $('refresh').addEventListener('click', () => load({ force: true }));
 $('search').addEventListener('input', (event) => {
   ui.query = event.target.value.trim();

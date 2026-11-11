@@ -124,23 +124,35 @@ export function matchesHubTask(task, query) {
 
 // What a ticket link reads as on a row: its tracker and number where one is recognised.
 const TICKETS = [
-  { host: /^app\.clickup\.com$/, path: /^\/t\/(?:\d+\/)?([A-Za-z0-9][A-Za-z0-9_-]*)\/?$/, label: (id) => `ClickUp ${id}` },
-  { host: /^github\.com$/, path: /^\/[^/]+\/[^/]+\/(?:issues|pull)\/(\d+)/, label: (n) => `GitHub #${n}` },
-  { host: /\.atlassian\.net$/, path: /^\/browse\/([A-Z][A-Z0-9_]*-\d+)/, label: (key) => `Jira ${key}` },
-  { host: /^dev\.azure\.com$|\.visualstudio\.com$/, path: /\/_workitems\/edit\/(\d+)/, label: (n) => `ADO ${n}` },
+  { tracker: 'clickup', host: /^app\.clickup\.com$/, path: /^\/t\/(?:\d+\/)?([A-Za-z0-9][A-Za-z0-9_-]*)\/?$/, label: (id) => `ClickUp ${id}` },
+  { tracker: 'github', host: /^github\.com$/, path: /^\/[^/]+\/[^/]+\/(?:issues|pull)\/(\d+)/, label: (n) => `GitHub #${n}` },
+  { tracker: 'jira', host: /\.atlassian\.net$/, path: /^\/browse\/([A-Z][A-Z0-9_]*-\d+)/, label: (key) => `Jira ${key}` },
+  { tracker: 'ado', host: /^dev\.azure\.com$|\.visualstudio\.com$/, path: /\/_workitems\/edit\/(\d+)/, label: (n) => `ADO ${n}` },
 ];
 
-/** "ClickUp 86b1abc2d", "GitHub #42", "Jira SHOP-17", "ADO 310", or the site's name for any other link. */
-export function ticketLabel(link) {
+/** The recognised ticket a link is, with its id or number; null for any other link. */
+function recognise(link) {
   let url;
   try {
     url = new URL(link);
   } catch {
-    return 'link';
+    return null;
   }
   for (const ticket of TICKETS) {
     const match = ticket.host.test(url.hostname) ? ticket.path.exec(url.pathname) : null;
-    if (match) return ticket.label(match[1]);
+    if (match) return { ticket, key: match[1], url };
   }
-  return url.hostname.replace(/^www\./, '');
+  return { ticket: null, url };
+}
+
+/** Which tracker a link is in ('clickup', 'github', 'jira', 'ado'), for its badge; null for any other link. */
+export function trackerOf(link) {
+  return recognise(link)?.ticket?.tracker ?? null;
+}
+
+/** "ClickUp 86b1abc2d", "GitHub #42", "Jira SHOP-17", "ADO 310", or the site's name for any other link. */
+export function ticketLabel(link) {
+  const found = recognise(link);
+  if (!found) return 'link';
+  return found.ticket ? found.ticket.label(found.key) : found.url.hostname.replace(/^www\./, '');
 }

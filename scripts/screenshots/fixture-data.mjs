@@ -294,9 +294,11 @@ export const CLICKUP = {
   workspaces: [{ id: '9001', name: 'Acme' }],
 };
 
-const clickupTask = (now, { id, name, status, color, type = 'custom', priority, dueDays, updatedMinutes, list, folder }) => ({
+const clickupTask = (now, {
+  id, customId = null, name, status, color, type = 'custom', priority, dueDays, updatedMinutes, list, folder,
+}) => ({
   id,
-  custom_id: null,
+  custom_id: customId,
   name,
   status: { status, color, type },
   priority: priority ? { priority } : null,
@@ -315,6 +317,9 @@ export function clickupTasks(now) {
     { id: '86b4fx3', name: 'Add a dark mode toggle', status: 'in progress', color: '#4194f6', priority: 'normal', dueDays: 6, updatedMinutes: 20, list: 'Sprint 12', folder: 'Storefront' },
     { id: '86b4fx4', name: 'Show order history on the account page', status: 'to do', color: '#87909e', priority: 'normal', dueDays: 12, updatedMinutes: 60 * 5, list: 'Backlog', folder: 'Storefront' },
     { id: '86b4fx5', name: 'Email a receipt after each charge', status: 'to do', color: '#87909e', priority: 'low', updatedMinutes: 60 * 26, list: 'Ideas' },
+    // Not linked from any of your tasks yet: what Add from ClickUp offers.
+    { id: '86b4fx6', name: 'Speed up the product search', status: 'to do', color: '#87909e', priority: 'high', dueDays: 4, updatedMinutes: 60 * 30, list: 'Sprint 13', folder: 'Storefront' },
+    { id: '86b4fx7', customId: 'SHOP-31', name: 'Show stock levels on product cards', status: 'in progress', color: '#4194f6', priority: 'normal', updatedMinutes: 60 * 40, list: 'Sprint 13', folder: 'Storefront' },
   ].map((task) => clickupTask(now, task));
 }
 
