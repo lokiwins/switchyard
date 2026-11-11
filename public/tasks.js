@@ -1,6 +1,7 @@
 import { h, liveTime, refreshLiveTimes, toast } from './dom.js';
 import { post } from './actions.js';
 import { applyNav, startNavBadges } from './nav.js';
+import { isTypingReply } from './session-controls.js';
 import { renderToolCards } from './task-views.js';
 import { newTaskForm, renderGroups } from './hub-views.js';
 import { groupTasks, matchesHubTask } from './task-state.js';
@@ -10,10 +11,12 @@ import { groupTasks, matchesHubTask } from './task-state.js';
  * due, each with the work on it. Polling keeps the work (sessions, PRs) current.
  */
 const POLL_MS = 10_000;
+// While a task is starting, look this often, so Claude's trust question or a quit shows at once.
+const STARTING_POLL_MS = 1_500;
 const CLOCK_MS = 5_000;
 
 const ui = {
-  tools: null, data: null, query: '', loading: false, loads: 0, doneOpen: false,
+  tools: null, data: null, query: '', loading: false, loads: 0, doneOpen: false, creating: new Set(), soon: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -48,7 +51,25 @@ const actions = {
   close: (task, as) => change('/api/hub/tasks/close', { id: task.id, as }, as === 'done' ? `Done: ${task.title}` : `Dropped: ${task.title}`),
   reopen: (task) => change('/api/hub/tasks/reopen', { id: task.id }, `Reopened: ${task.title}`),
   remove: (task) => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`),
+  async start(task, repo) {
+    // Shown as starting at once; New task can take a few seconds (a fetch, a checkout).
+    ui.creating.add(task.id);
+    renderTasks();
+    try {
+      await change('/api/hub/tasks/start', { id: task.id, repo });
+    } finally {
+      ui.creating.delete(task.id);
+      renderTasks();
+    }
+  },
 };
+
+/** Look again soon while anything is starting; otherwise the regular poll will do. */
+function lookAgainIfStarting(groups) {
+  clearTimeout(ui.soon);
+  const starting = groups.some((group) => group.tasks.some((task) => task.state === 'starting' || task.start));
+  if (starting) ui.soon = setTimeout(() => loadTasks(), STARTING_POLL_MS);
+}
 
 function renderTasks() {
   const { data } = ui;
@@ -63,9 +84,16 @@ function renderTasks() {
       : 'No tasks yet. Add what you’re working on above, with links to its tickets; its worktree, PR and Claude session show under it.'));
     return;
   }
-  $('tasks').replaceChildren(...renderGroups(groupTasks(shown), {
+  const tasks = shown.map((task) => (ui.creating.has(task.id) ? { ...task, creating: true } : task));
+  const groups = groupTasks(tasks, Date.now(), data.taskStarts);
+  lookAgainIfStarting(groups);
+  // Replacing the rows would take away the reply box you're typing in; the next look catches up.
+  if (isTypingReply()) return;
+  $('tasks').replaceChildren(...renderGroups(groups, {
     caps: data.capabilities,
     actions,
+    repos: data.repos,
+    approvals: data.approvals,
     doneOpen: ui.doneOpen || Boolean(ui.query),
     onDoneToggle: (open) => { ui.doneOpen = open; },
   }));

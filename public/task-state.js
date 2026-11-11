@@ -12,6 +12,7 @@ const WEEK_DAYS = 6;
 /** How each state reads on the page, and its colour. */
 export const STATE_LABELS = {
   'needs-you': { label: 'Needs you', tone: 'amber' },
+  starting: { label: 'Starting…', tone: 'green' },
   working: { label: 'Working', tone: 'green' },
   'in-review': { label: 'In review', tone: 'purple' },
   paused: { label: 'Paused', tone: '' },
@@ -21,7 +22,7 @@ export const STATE_LABELS = {
 };
 
 // Work under way before work not started, within a group.
-const STATE_ORDER = ['needs-you', 'working', 'in-review', 'paused', 'not-started', 'done', 'dropped'];
+const STATE_ORDER = ['needs-you', 'starting', 'working', 'in-review', 'paused', 'not-started', 'done', 'dropped'];
 
 const GROUPS = [
   { key: 'needs-you', label: 'Needs you' },
@@ -36,13 +37,28 @@ const GROUPS = [
 /** A session waiting on you: asking something, or done and waiting for your next message (unless idle over a day). */
 const waitsOnYou = (s) => s.needsYou || (s.status === 'idle' && !s.parked);
 
-/** Where a task stands: done or dropped, needs you, working, in review, paused (work but nothing running), or not started. */
-export function taskState(task) {
+const trimSlash = (path) => String(path ?? '').replace(/\/+$/, '');
+
+/** The start under way in one of the task's worktrees, as the server watches it (see src/task-starts.js); null when none. */
+export function startOf(task, starts = []) {
+  const paths = new Set((task.work ?? []).map((w) => trimSlash(w.path)));
+  return starts.find((s) => paths.has(trimSlash(s.path))) ?? null;
+}
+
+/**
+ * Where a task stands: done or dropped, needs you, starting, working, in
+ * review, paused (work but nothing running), or not started. `starts` are the
+ * tasks the server is watching start: one asking to trust its folder needs
+ * you, and one that quit is paused.
+ */
+export function taskState(task, starts = []) {
   if (task.closedAs) return task.closedAs;
   const work = task.work ?? [];
   if (work.some((w) => w.pr?.state === 'MERGED')) return 'done';
   const live = work.flatMap((w) => w.live ?? []);
-  if (live.some(waitsOnYou)) return 'needs-you';
+  const start = startOf(task, starts);
+  if (live.some(waitsOnYou) || start?.state === 'asking-trust') return 'needs-you';
+  if (task.creating || start?.state === 'starting') return 'starting';
   if (live.some((s) => s.status === 'busy')) return 'working';
   if (work.some((w) => w.pr?.state === 'OPEN')) return 'in-review';
   return work.length > 0 ? 'paused' : 'not-started';
@@ -88,9 +104,9 @@ const byState = (a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.s
 const byNewest = (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0);
 const byClosed = (a, b) => (b.closedAt ?? 0) - (a.closedAt ?? 0);
 
-/** The page's groups, in order, each with its tasks (carrying `state`); groups with no tasks are left out. */
-export function groupTasks(tasks, now = Date.now()) {
-  const withState = tasks.map((task) => ({ ...task, state: taskState(task) }));
+/** The page's groups, in order, each with its tasks (carrying `state` and any `start`); groups with no tasks are left out. */
+export function groupTasks(tasks, now = Date.now(), starts = []) {
+  const withState = tasks.map((task) => ({ ...task, state: taskState(task, starts), start: startOf(task, starts) }));
   return GROUPS.map((group) => {
     const members = withState.filter((task) => groupOf(task, now) === group.key);
     const order = group.key === 'done' ? byClosed : (a, b) => byDue(a, b) || byState(a, b) || byNewest(a, b);

@@ -115,3 +115,26 @@ test('ticketLabel names a link by its tracker, or by its site', () => {
   assert.equal(ticketLabel('https://www.example.com/specs/checkout'), 'example.com');
   assert.equal(ticketLabel('not a url'), 'link');
 });
+
+const start = (path, state, extra = {}) => ({ path, place: 'switchyard:shop-x', state, trust: null, detail: null, ...extra });
+
+test('a task being started is starting: while New task runs, and until its session shows up', () => {
+  assert.equal(taskState(task({ creating: true })), 'starting');
+  const started = task({ work: [work({ path: '/code/shop-x' })] });
+  assert.equal(taskState(started, [start('/code/shop-x', 'starting')]), 'starting');
+  assert.equal(taskState(started, [start('/code/elsewhere', 'starting')]), 'paused', 'another task\'s start is not this one');
+});
+
+test('a task whose Claude asks to trust the folder needs you, and carries the question', () => {
+  const trust = { options: [{ label: 'No, exit', selected: true }, { label: 'Yes, I trust this folder', selected: false }] };
+  const [group] = groupTasks([task({ work: [work({ path: '/code/shop-x' })] })], NOW, [start('/code/shop-x', 'asking-trust', { trust })]);
+  assert.equal(group.key, 'needs-you');
+  assert.equal(group.tasks[0].state, 'needs-you');
+  assert.deepEqual(group.tasks[0].start, { path: '/code/shop-x', place: 'switchyard:shop-x', state: 'asking-trust', trust, detail: null });
+});
+
+test('a task whose Claude quit before starting is paused, with why', () => {
+  const [group] = groupTasks([task({ work: [work({ path: '/code/shop-x' })] })], NOW, [start('/code/shop-x', 'exited', { detail: 'claude: command not found' })]);
+  assert.equal(group.tasks[0].state, 'paused');
+  assert.equal(group.tasks[0].start.detail, 'claude: command not found');
+});

@@ -325,6 +325,8 @@ export function createStateService({
       refreshFullScanIfOld();
       return cache.get('sessions', SESSIONS_TTL_MS, () => build({ force, github: false, git: false }), { force });
     },
+    /** Find the repos and their worktrees again now, say after New task added one. */
+    rediscover: () => cache.reload('repos', () => discoverWithRemotes()),
     /** The sessions view rebuilt now, for a session that just changed; the repo list stays cached. */
     refreshSessions: () => cache.reload('sessions', () => build({ github: false, git: false })),
   };
