@@ -140,7 +140,8 @@ code, .mono { font-family: var(--mono); font-size: var(--text-xs); }
 main {
   max-width: 1360px; margin: 0 auto;
   padding: var(--space-4) var(--space-5) var(--space-8);
-  display: grid; gap: var(--space-4);
+  /* One column as wide as the window: an auto column would grow to fit a wide table or row, scrolling the page sideways. */
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4);
 }
 
 /* ---------- buttons ---------- */
@@ -179,7 +180,10 @@ main {
 .menu-panel {
   position: fixed; z-index: 20;
   display: flex; flex-direction: column;
-  min-width: 220px; max-width: 340px; padding: var(--space-1);
+  /* Never wider than the window, less the 8px margin placePanel keeps each side. */
+  min-width: min(var(--panel-min, 220px), calc(100vw - 16px));
+  max-width: min(var(--panel-max, 340px), calc(100vw - 16px));
+  padding: var(--space-1);
   border-radius: var(--radius-sm); background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--hairline), var(--shadow-md);
 }
@@ -198,7 +202,7 @@ main {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-500);
 }
 /* Reply ▾: a one-line message box in the dropdown panel. */
-.reply-panel { min-width: 340px; max-width: 420px; padding: var(--space-2); gap: 6px; }
+.reply-panel { --panel-min: 340px; --panel-max: 420px; padding: var(--space-2); gap: 6px; }
 .reply-form { display: flex; gap: 6px; }
 .reply-form input {
   flex: 1; min-width: 0; padding: 4px 8px;
@@ -543,7 +547,7 @@ td .actions { flex-wrap: nowrap; }
 .task-link .actions { margin-left: auto; flex-shrink: 0; }
 
 @media (max-width: 900px) {
-  .tool-cards { grid-template-columns: 1fr 1fr; }
+  .tool-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tool-cards > :first-child { grid-column: 1 / -1; }
   .task-row { grid-template-columns: 96px minmax(0, 1fr) auto; }
   .task-row .task-priority { display: none; }
@@ -559,10 +563,34 @@ td .actions { flex-wrap: nowrap; }
   .panel { padding: var(--space-3); }
   .brand .muted { display: none; }
   .filters input { width: 100%; }
-  .nav a { padding: 4px 8px; }
-  .pr { grid-template-columns: 1fr; }
+  /* Two rows: the name with the buttons, then the pages across the full width. */
+  .topbar { flex-wrap: wrap; row-gap: var(--space-1); }
+  .brand { display: contents; }
+  .topbar h1 { order: 1; }
+  .topbar-actions { order: 2; margin-left: auto; }
+  .topbar-actions #updated { display: none; }
+  .nav { order: 3; flex-basis: 100%; min-width: 0; justify-content: space-between; }
+  .nav a { padding: 4px 6px; white-space: nowrap; }
+  .pr { grid-template-columns: minmax(0, 1fr); }
+  /* A checked-out PR's folder can be long: it gets an ellipsis (the full path is its tooltip), not the page's width. */
+  .pr-signals > .sig { max-width: 100%; min-width: 0; }
+  .pr-signals .path-inline { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .segmented { display: flex; flex-wrap: wrap; }
+  /* A session row stacks: status and title, then what it's doing, then its buttons. */
+  .list-row { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--space-1); }
+  .list-row > .row-who { grid-column: 2; grid-row: 1; }
+  .list-row > .row-detail, .list-row > .row-detail-cell { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
+  .list-row > .actions { grid-column: 1 / -1; grid-row: 3; justify-content: flex-start; }
   .pr-side { grid-row: auto; grid-column: 1; }
   .team-row { grid-template-columns: 1fr; }
+}
+/* The smallest phones (320px): the four page links only fit a little tighter. */
+@media (max-width: 360px) {
+  .nav a { padding: 4px; gap: 4px; font-size: var(--text-xs); }
+  .tool-cards { grid-template-columns: minmax(0, 1fr); }
+  /* A PR's repo#number goes under its title, so the title has room. */
+  .pr-line { flex-wrap: wrap; row-gap: 0; }
+  .pr-line > .pr-ref { flex-basis: 100%; }
 }
 .no-shrink { flex-shrink: 0; white-space: nowrap; }
 
