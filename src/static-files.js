@@ -33,6 +33,8 @@ export const STATIC_FILES = {
   '/screen-answer.js': 'screen-answer.js',
   '/live-terminal.js': 'live-terminal.js',
   '/terminal-keys.js': 'terminal-keys.js',
+  '/pane-resize.js': 'pane-resize.js',
+  '/pane-width.js': 'pane-width.js',
   '/vendor/xterm/xterm.mjs': 'vendor/xterm/xterm.mjs',
   '/vendor/xterm/addon-fit.mjs': 'vendor/xterm/addon-fit.mjs',
   '/vendor/xterm/addon-webgl.mjs': 'vendor/xterm/addon-webgl.mjs',

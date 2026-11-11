@@ -579,6 +579,8 @@ td .actions { flex-wrap: nowrap; }
   .pr-signals > .sig { max-width: 100%; min-width: 0; }
   .pr-signals .path-inline { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .segmented { display: flex; flex-wrap: wrap; }
+  /* A pane fills a phone's screen already; there's nothing to drag. */
+  .pane-resize { display: none; }
   /* A session row stacks: status and title, then what it's doing, then its buttons. */
   .list-row { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--space-1); }
   .list-row > .row-who { grid-column: 2; grid-row: 1; }
@@ -636,6 +638,18 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .glass-pane[open] { animation: none; }
 }
+/* The pane's left edge: drag it (or focus it and use the arrow keys) to make the pane wider or narrower. */
+.pane-resize {
+  position: absolute; z-index: 2; top: 0; bottom: 0; left: 0; width: 10px;
+  cursor: col-resize; touch-action: none; outline: none;
+}
+.pane-resize::after {
+  content: ""; position: absolute; top: 16px; bottom: 16px; left: 3px; width: 2px; border-radius: 1px;
+  background: var(--pane-edge); opacity: 0; transition: opacity 120ms ease;
+}
+.pane-resize:hover::after, .pane-resize:focus-visible::after, .glass-pane.is-resizing .pane-resize::after { opacity: 1; background: #7dd3fc; box-shadow: 0 0 8px #38bdf8; }
+/* While dragging, the pointer stays a resize cursor and nothing gets selected. */
+.glass-pane.is-resizing { cursor: col-resize; user-select: none; }
 
 .pane-header {
   display: flex; align-items: center; gap: 12px; padding: 12px 16px;
