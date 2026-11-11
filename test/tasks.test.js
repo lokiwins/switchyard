@@ -35,6 +35,7 @@ function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths =
   const tasks = createTaskService({
     stateService: { getState: async () => state },
     tmux,
+    starts: { track: (task) => calls.push(['track', task]) },
     git,
     exists: (path) => paths.includes(path),
   });
@@ -84,6 +85,7 @@ test('startTask creates a branch from the default branch, a worktree, and a swit
     ['git', '-C', MAIN, 'worktree', 'add', '--no-track', '-b', 'fix/login', '/w/my-repo-login', 'origin/main'],
     ['new-window', { session: 'switchyard', name: 'my-repo-login', cwd: '/w/my-repo-login' }],
     ['type', '%7', "claude 'Fix the login bug'"],
+    ['track', { path: '/w/my-repo-login', place: 'switchyard:my-repo-login', pane: '%7' }],
   ]);
 });
 
@@ -177,4 +179,10 @@ test('a branch named after the task skips names already taken, here or on origin
 test('a branch named after the task gives up after a while and asks for a name', async () => {
   const refs = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`refs/heads/fix-login${i === 0 ? '' : `-${i + 1}`}`, true]));
   await rejectsWith(setup({ refs }).tasks.startTask({ repo: MAIN, prompt: 'Fix login' }), 409);
+});
+
+test('a task that fails to start is not watched', async () => {
+  const { tasks, calls } = setup({ failTmux: 'type' });
+  await rejectsWith(tasks.startTask({ repo: MAIN, branch: 'b', prompt: 'p' }), 502);
+  assert.equal(calls.some(([kind]) => kind === 'track'), false);
 });

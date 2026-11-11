@@ -158,6 +158,20 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       await tmux(['send-keys', '-t', pane, key]);
     },
 
+    /** Press Enter in a pane: confirms the choice a dialog has highlighted. */
+    async confirm(pane) {
+      await tmux(['send-keys', '-t', pane, 'Enter']);
+    },
+
+    /** The program a pane runs in front (its shell when nothing else is), or null when the pane is gone. */
+    async paneCommand(pane) {
+      try {
+        return (await exec('tmux', ['display-message', '-p', '-t', pane, '#{pane_current_command}'])).trim();
+      } catch {
+        return null;
+      }
+    },
+
     async interrupt(pane) {
       await tmux(['send-keys', '-t', pane, INTERRUPT_KEY]);
     },

@@ -196,3 +196,17 @@ test('screenText reads what a pane shows now, with its colours', async () => {
   assert.equal(await createTmux({ exec }).screenText('%3'), ' ❯ 1. Yes\n');
   assert.deepEqual(calls, [['tmux', 'capture-pane', '-p', '-e', '-t', '%3']]);
 });
+
+test('confirm presses Enter in the pane', async () => {
+  const { exec, calls } = fakeExec();
+  await createTmux({ exec }).confirm('%3');
+  assert.deepEqual(calls, [['tmux', 'send-keys', '-t', '%3', 'Enter']]);
+});
+
+test('paneCommand is what the pane runs in front, or null when the pane is gone', async () => {
+  const { exec, calls } = fakeExec({ 'display-message': 'claude\n' });
+  assert.equal(await createTmux({ exec }).paneCommand('%3'), 'claude');
+  assert.deepEqual(calls, [['tmux', 'display-message', '-p', '-t', '%3', '#{pane_current_command}']]);
+  const gone = fakeExec({ 'display-message': new Error("can't find pane: %3") });
+  assert.equal(await createTmux({ exec: gone.exec }).paneCommand('%3'), null);
+});
