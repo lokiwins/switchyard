@@ -21,6 +21,7 @@ import { CLICKUP_API, createClickUp } from './clickup.js';
 import { createTaskTools } from './task-tools.js';
 import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
+import { createTicketDetails } from './ticket-details.js';
 import { linkHubTasks, linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
@@ -142,6 +143,7 @@ const POST_ROUTES = {
   '/api/hub/tasks/reopen': ({ taskHub }, body) => taskHub.reopen(body),
   '/api/hub/tasks/delete': ({ taskHub }, body) => taskHub.remove(body),
   '/api/hub/tasks/start': ({ hubStarter }, body) => hubStarter.start(body),
+  '/api/hub/ticket/status': ({ ticketDetails }, body) => ticketDetails.setStatus(body),
   '/api/task-tools/connect': ({ taskTools }, body) => taskTools.connect(body),
   '/api/task-tools/disconnect': ({ taskTools }, body) => taskTools.disconnect(body),
   '/api/task-tools/workspace': ({ taskTools }, body) => taskTools.chooseWorkspace(body),
@@ -406,6 +408,14 @@ function createHandler(services) {
       if (url.pathname === '/api/task-tools') {
         return sendJson(res, 200, { success: true, data: { ...(await services.taskTools.sources()), nav: await navFor(services) } });
       }
+      if (url.pathname === '/api/hub/ticket') {
+        try {
+          return sendJson(res, 200, { success: true, data: await services.ticketDetails.get(url.searchParams.get('url')) });
+        } catch (error) {
+          if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
+          throw error;
+        }
+      }
       if (url.pathname === '/api/hub/tasks') {
         return sendJson(res, 200, { success: true, data: { ...(await hubPayload(services, { force })), nav: await navFor(services) } });
       }
@@ -480,9 +490,10 @@ async function main() {
   const clickupApi = process.env.SWITCHYARD_CLICKUP_API ?? CLICKUP_API;
   const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }) });
   const taskHub = createTaskHub();
+  const ticketDetails = createTicketDetails({ taskTools });
   const hubStarter = createHubStarter({ taskHub, newTask: tasks, rediscover: stateService.rediscover });
   const services = {
-    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
+    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, ticketDetails, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({

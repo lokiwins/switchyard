@@ -4,6 +4,7 @@ import { applyNav, startNavBadges } from './nav.js';
 import { isTypingReply } from './session-controls.js';
 import { renderToolCards } from './task-views.js';
 import { newTaskForm, renderGroups } from './hub-views.js';
+import { openTaskPane } from './task-pane.js';
 import { groupTasks, matchesHubTask } from './task-state.js';
 
 /*
@@ -51,6 +52,7 @@ const actions = {
   close: (task, as) => change('/api/hub/tasks/close', { id: task.id, as }, as === 'done' ? `Done: ${task.title}` : `Dropped: ${task.title}`),
   reopen: (task) => change('/api/hub/tasks/reopen', { id: task.id }, `Reopened: ${task.title}`),
   remove: (task) => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`),
+  open: (task) => openTaskPane(task, { save: (fields) => change('/api/hub/tasks/update', { id: task.id, ...fields }, `Saved: ${fields.title.trim()}`) }),
   async start(task, repo) {
     // Shown as starting at once; New task can take a few seconds (a fetch, a checkout).
     ui.creating.add(task.id);

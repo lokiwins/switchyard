@@ -10,7 +10,9 @@ import { randomUUID } from 'node:crypto';
 import { chmodSync, mkdirSync, realpathSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLICKUP, PLAN, PLAN_FILE, REPOS, SESSIONS, VIEWER, hubTasks, pullRequests } from './fixture-data.mjs';
+import {
+  CLICKUP, ISSUES, PLAN, PLAN_FILE, REPOS, SESSIONS, VIEWER, hubTasks, pullRequests,
+} from './fixture-data.mjs';
 import { startFakeClickUp } from './fake-clickup.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -142,7 +144,7 @@ function installFakeGh(root, tips, now) {
   mkdirSync(bin, { recursive: true });
   const prs = pullRequests(now).map((pr) => ({ ...pr, headRefOid: tips.get(`${pr.repository.nameWithOwner}#${pr.headRefName}`) ?? '0'.repeat(40) }));
   const fixture = join(root, 'gh-fixture.json');
-  writeFileSync(fixture, JSON.stringify({ viewer: VIEWER, prs }));
+  writeFileSync(fixture, JSON.stringify({ viewer: VIEWER, prs, issues: ISSUES }));
   const script = join(bin, 'gh');
   writeFileSync(script, `#!/bin/sh\nexec "${process.execPath}" "${join(HERE, 'fake-gh.mjs')}" "$@"\n`);
   chmodSync(script, 0o755);

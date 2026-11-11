@@ -309,6 +309,28 @@ const clickupTask = (now, {
   folder: folder ? { id: '2', name: folder, hidden: false } : { id: '3', name: 'hidden', hidden: true },
 });
 
+/** The statuses every fixture list has, as ClickUp's list endpoint gives them. */
+export const CLICKUP_STATUSES = [
+  { status: 'to do', color: '#87909e', type: 'open', orderindex: 0 },
+  { status: 'in progress', color: '#4194f6', type: 'custom', orderindex: 1 },
+  { status: 'in review', color: '#a875ff', type: 'custom', orderindex: 2 },
+  { status: 'complete', color: '#6bc950', type: 'closed', orderindex: 3 },
+];
+
+/** What a few tickets say, in ClickUp's Markdown. */
+export const CLICKUP_DESCRIPTIONS = {
+  '86b4fx1': '## Goal\nA **Download PDF** button on each invoice.\n\n- Rendered on the server\n- Same layout as the email\n\nAcceptance: the PDF matches the invoice page to the cent.',
+  '86b4fx5': 'Send a receipt by email after each successful charge, with the amount and the last four digits of the card.',
+};
+
+/** Issues the stand-in gh knows, for the details pane. */
+export const ISSUES = [
+  {
+    repo: 'acme/storefront', number: 51, title: 'CI takes 14 minutes on every push', state: 'OPEN', url: 'https://github.com/acme/storefront/issues/51',
+    body: 'Most of it is `npm ci` and the two slow suites.\n\n- Cache `node_modules`\n- Split the e2e suite',
+  },
+];
+
 /** Open tasks assigned to you, in ClickUp's own shape, most recently updated first. */
 export function clickupTasks(now) {
   return [

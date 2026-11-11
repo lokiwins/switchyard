@@ -16,6 +16,10 @@ const TOKEN = /^pk_\d+_[A-Za-z0-9]{20,64}$/;
 // Workspace and task ids go into the URL path, so they must be plain ids.
 const ID = /^[A-Za-z0-9]{1,32}$/;
 const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;
+// A custom task id, like ENG-123: also goes into the path.
+const CUSTOM_ID = /^[A-Za-z][A-Za-z0-9_]*-\d{1,12}$/;
+// Enough of a ticket's description to read in the details pane.
+const MAX_DESCRIPTION = 20_000;
 const FINISHED_STATUS_TYPES = new Set(['done', 'closed']);
 
 /** The token, trimmed, if it looks like a personal API token; a 400 otherwise, before it's sent anywhere. */
@@ -70,13 +74,17 @@ async function failureOf(response) {
 }
 
 export function createClickUp({ token, baseUrl = CLICKUP_API, fetch = globalThis.fetch, maxPages = DEFAULT_MAX_PAGES }) {
-  async function get(path, params = []) {
+  async function request(method, path, { params = [], body } = {}) {
     const url = new URL(`${baseUrl}${path}`);
     for (const [key, value] of params) url.searchParams.append(key, String(value));
+    const headers = { Authorization: token, Accept: 'application/json' };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
     let response;
     try {
       response = await fetch(url, {
-        headers: { Authorization: token, Accept: 'application/json' },
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
@@ -89,6 +97,8 @@ export function createClickUp({ token, baseUrl = CLICKUP_API, fetch = globalThis
       throw new ActionError(502, 'ClickUp sent an answer switchyard couldn\'t read');
     }
   }
+
+  const get = (path, params = []) => request('GET', path, { params });
 
   return {
     /** You, as the token says: { id, username }. */
@@ -134,6 +144,43 @@ export function createClickUp({ token, baseUrl = CLICKUP_API, fetch = globalThis
         .map(normalizeTask)
         .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
       return Object.assign(open, { truncated });
+    },
+
+    /**
+     * One ticket, for the details pane: its name, status, description (as
+     * Markdown when ClickUp has it) and list. `key` is its id, or a custom id
+     * like ENG-123, which ClickUp looks up in the workspace.
+     */
+    async task(key, workspaceId) {
+      const custom = typeof key === 'string' && CUSTOM_ID.test(key);
+      if (!custom) assertId(key, 'task');
+      const params = [['include_markdown_description', true]];
+      if (custom) params.push(['custom_task_ids', true], ['team_id', assertId(workspaceId, 'workspace')]);
+      const task = await get(`/task/${key}`, params);
+      const listed = normalizeTask(task);
+      return {
+        id: listed.id,
+        customId: listed.customId,
+        name: listed.name,
+        status: listed.status,
+        description: String(task.markdown_description || task.text_content || task.description || '').slice(0, MAX_DESCRIPTION),
+        url: listed.url,
+        listId: task.list?.id ? String(task.list.id) : null,
+        listName: task.list?.name ?? null,
+      };
+    },
+
+    /** The statuses a list's tickets can have, in the list's order. */
+    async listStatuses(listId) {
+      const { statuses = [] } = await get(`/list/${assertId(listId, 'list')}`);
+      return [...statuses]
+        .sort((a, b) => (a.orderindex ?? 0) - (b.orderindex ?? 0))
+        .map((status) => ({ name: String(status.status), color: HEX_COLOR.test(status.color ?? '') ? status.color : null }));
+    },
+
+    /** Move a ticket (by its task id) to `status`, one of its list's. */
+    async setStatus(taskId, status) {
+      await request('PUT', `/task/${assertId(taskId, 'task')}`, { body: { status } });
     },
   };
 }

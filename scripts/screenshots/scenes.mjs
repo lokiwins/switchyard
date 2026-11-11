@@ -147,6 +147,17 @@ export const SCENES = [
     },
   },
   {
+    name: 'task-details',
+    title: 'A task\'s details: edit it, read its ClickUp ticket and change its status',
+    path: '/tasks',
+    prepare: async (page) => {
+      await page.getByText('Email a receipt after each charge').waitFor();
+      await page.getByRole('button', { name: 'Download invoices as PDF', exact: true }).click();
+      await page.locator('dialog.task-pane[open] .pane-ticket .markdown').waitFor();
+      await settle(page);
+    },
+  },
+  {
     name: 'tasks-add-from-clickup',
     title: 'Add from ClickUp: make tasks from the tickets assigned to you',
     path: '/tasks',

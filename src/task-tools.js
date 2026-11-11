@@ -83,6 +83,23 @@ export function createTaskTools({
     return (await store.read()).clickup ?? null;
   }
 
+  /** One ClickUp ticket (by id or custom id) for the details pane, with the statuses it can move to. */
+  async function clickupTicket(key) {
+    const clickup = await connection();
+    const client = clickupFor(clickup.token);
+    const ticket = await client.task(key, clickup.workspaceId);
+    const statuses = ticket.listId ? await client.listStatuses(ticket.listId) : [];
+    return { tracker: 'clickup', ...ticket, statuses };
+  }
+
+  /** The saved ClickUp connection; a 409 saying to connect when there isn't one. */
+  async function connection() {
+    await saving;
+    const clickup = await saved();
+    if (!clickup) throw new ActionError(409, 'Connect ClickUp first, in the ClickUp ▾ menu at the top of the Tasks page');
+    return clickup;
+  }
+
   /** Replace the ClickUp connection (null removes it), given the one saved now. */
   function update(change) {
     const run = saving.then(async () => {
@@ -147,6 +164,21 @@ export function createTaskTools({
       // An old list is answered at once, and a fresh one fetched behind it for the next ask.
       if (now() - cached.fetchedAt >= ttlMs) fetchTasks(clickup).catch(() => {});
       return cached.result;
+    },
+
+    clickupTicket,
+
+    /** Move a ClickUp ticket to one of its list's statuses (any case); resolves to the ticket as it is now. */
+    async setClickupStatus({ key, status } = {}) {
+      if (typeof status !== 'string' || !status.trim()) throw new ActionError(400, 'Choose a status');
+      const ticket = await clickupTicket(key);
+      const chosen = ticket.statuses.find((s) => s.name.toLowerCase() === status.trim().toLowerCase());
+      if (!chosen) throw new ActionError(400, `"${status}" is not a status in ${ticket.listName ?? 'its list'}`);
+      const clickup = await connection();
+      await clickupFor(clickup.token).setStatus(ticket.id, chosen.name);
+      // The assigned-ticket list now shows the old status (or a ticket that's done); fetch it afresh next time.
+      cache = null;
+      return { ...ticket, status: chosen };
     },
   };
 }
