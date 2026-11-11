@@ -1,5 +1,5 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
-import { jumpButton, tmuxPlace } from './actions.js';
+import { actionButton, jumpButton, post, tmuxPlace } from './actions.js';
 import { sessionRow, statusBadge, taskLink, whereLabel } from './session-row.js';
 import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle } from './session-text.js';
 import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
@@ -58,19 +58,35 @@ export function renderLiveRow(state, session, details = null) {
 }
 
 /** A task started from New task whose session hasn't shown up yet. */
+const PENDING_TONE = { trust: 'amber', exited: 'red' };
+const PENDING_DOT = { trust: 'idle', exited: null };
+
+/** Answer Claude's trust question for a starting task, as you would in its tmux window. */
+function trustButtons(task) {
+  const answer = (trust) => async () => {
+    await post('/api/tasks/trust', { path: task.path, trust });
+    return trust ? 'Trusted the folder; Claude is starting' : 'Not trusted; Claude will exit';
+  };
+  return [
+    actionButton('Trust folder', `Let Claude read, edit and run files in ${task.path}`, answer(true), 'btn btn-sm'),
+    actionButton("Don't trust", 'Claude exits; the worktree is kept', answer(false), 'btn btn-sm btn-secondary'),
+  ];
+}
+
+/** A task started from New task whose session hasn't shown up yet. */
 export function renderPendingRow(task, now = Date.now()) {
   const text = pendingText(task, now);
   return sessionRow({
-    className: 'is-pending',
-    badge: statusBadge({ dot: 'busy', label: text.label }),
+    className: `is-pending is-${task.stage}`,
+    badge: statusBadge({ tone: PENDING_TONE[task.stage] ?? '', dot: task.stage in PENDING_DOT ? PENDING_DOT[task.stage] : 'busy', label: text.label }),
     title: task.prompt,
-    titleHint: [task.path, task.place && `starting in tmux window ${task.place}`].filter(Boolean).join(' · ') || task.prompt,
+    titleHint: [task.path, task.place && `in tmux window ${task.place}`].filter(Boolean).join(' · ') || task.prompt,
     where: whereLabel({ repoName: task.repoName, branch: task.branch, path: task.path ?? '' }),
-    detail: { kind: 'pending', text: text.detail },
+    detail: { kind: task.stage === 'trust' ? 'needs-you' : 'pending', text: text.detail },
     note: text.note,
     time: timeAgo(task.createdAt, now),
     timeHint: `Started ${new Date(task.createdAt).toLocaleString()}`,
-    actions: [],
+    actions: task.stage === 'trust' ? trustButtons(task) : [],
   });
 }
 

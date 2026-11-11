@@ -16,6 +16,7 @@ import { buildLocalIndex, createPrService } from './prs.js';
 import { resolveTerminalApp } from './settings.js';
 import { createStateService } from './state.js';
 import { createTaskService } from './tasks.js';
+import { createTaskStarts } from './task-starts.js';
 import { CLICKUP_API, createClickUp } from './clickup.js';
 import { createTaskTools } from './task-tools.js';
 import { linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
@@ -129,6 +130,7 @@ const POST_ROUTES = {
   '/api/terminal/resize': ({ liveTerminals }, body) => liveTerminals.resize(body),
   '/api/terminal/ack': ({ liveTerminals }, body) => liveTerminals.ack(body),
   '/api/tasks/new': ({ tasks }, body) => tasks.startTask(body),
+  '/api/tasks/trust': ({ taskStarts }, body) => taskStarts.trust(body),
   '/api/worktrees/cleanup': ({ cleanup }, body) => cleanup.cleanUpWorktree(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
@@ -216,6 +218,8 @@ async function agentsPayload(services, data) {
     repos: tagWorktrees(data.repos, tasks),
     endedSessions: data.endedSessions.map((session) => ({ ...session, task: taskForBranch(tasks, session.branch) })),
     approvals: services.approvals.pending(),
+    // Tasks from New task whose session hasn't shown up: asking to trust the folder, or quit.
+    taskStarts: services.taskStarts.list(data.liveSessions),
     nav: await navFor(services, { state: data }),
     capabilities: { ...services.capabilities, approvalsHook: await services.hookInstalled() },
   };
@@ -428,7 +432,8 @@ async function main() {
   // Checked once: install tmux, then restart switchyard to get New task and tmux resumes.
   const tmuxInstalled = await tmux.isInstalled();
   const actions = createActionService({ stateService: sessionsView, terminal, tmux, useTmux: tmuxInstalled });
-  const tasks = createTaskService({ stateService: sessionsView, tmux });
+  const taskStarts = createTaskStarts({ tmux, onChange: () => agentFeed.changed() });
+  const tasks = createTaskService({ stateService: sessionsView, tmux, starts: taskStarts });
   const liveTerminals = createLiveTerminals({ actions, tmux });
   // The full state: Clean up needs PR data, which the sessions view leaves out.
   const cleanup = createCleanupService({ stateService });
@@ -439,7 +444,7 @@ async function main() {
   const clickupApi = process.env.SWITCHYARD_CLICKUP_API ?? CLICKUP_API;
   const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }) });
   const services = {
-    stateService, prService, actions, tasks, taskTools, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
+    stateService, prService, actions, tasks, taskStarts, taskTools, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({

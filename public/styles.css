@@ -389,6 +389,9 @@ button.row-detail:hover { color: var(--gray-900); }
 .row-detail.is-prompt { color: var(--gray-500); }
 .row-detail.is-pending { color: var(--gray-500); font-style: italic; }
 .list-row.is-pending { background: color-mix(in srgb, var(--green) 5%, transparent); }
+.list-row.is-pending.is-trust { background: color-mix(in srgb, var(--amber) 7%, transparent); }
+.list-row.is-pending.is-exited { background: color-mix(in srgb, var(--red) 5%, transparent); }
+.list-row.is-exited .row-detail.is-pending { color: var(--red); font-style: normal; }
 .row-time { font-size: var(--text-xs); color: var(--gray-500); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .list-row.is-interrupted { background: color-mix(in srgb, var(--amber-soft) 70%, transparent); }
 .list-row.is-parked { opacity: 0.6; }

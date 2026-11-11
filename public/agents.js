@@ -5,7 +5,7 @@ import { renderEnded } from './ended-views.js';
 import { applyNav, startNavBadges } from './nav.js';
 import { isTypingReply } from './session-controls.js';
 import { isEditingTask, newTaskMenu, pendingTasks, replacePending } from './new-task.js';
-import { settlePending } from './pending-tasks.js';
+import { EXITED_SHOW_MS, settlePending } from './pending-tasks.js';
 
 // Changes are pushed as they happen (see /api/agents/stream). Without the stream the page polls
 // this often; with it, it only checks in after this long without an update, in case one was missed.
@@ -13,8 +13,9 @@ const POLL_MS = 4_000;
 const STREAM_POLL_MS = 15_000;
 const FILTER_PREF = 'switchyard.agentFilter';
 
-// Tasks just started from New task show under these filters, as they'll be working once they start.
-const PENDING_FILTERS = new Set(['all', 'working']);
+// Tasks just started from New task show under these filters: as working once they start, or as waiting on you
+// while Claude asks whether to trust the folder.
+const PENDING_FILTERS = { all: () => true, working: (t) => t.stage !== 'trust', waiting: (t) => t.stage === 'trust' };
 
 const isWaiting = (s) => s.status === 'idle' && !s.parked;
 
@@ -37,6 +38,7 @@ const ui = {
   openDetails: new Set(),
   loading: false,
   newTaskSignature: null,
+  exitTimers: new Set(),
   stream: null,
   receivedAt: 0,
 };
@@ -116,15 +118,25 @@ function hookHint(state, sessions) {
 
 /** Drop started tasks whose session is here now, and give up on ones that never came. */
 function settleTasks(state) {
-  const { pending, expired } = settlePending(pendingTasks(), state.liveSessions, Date.now());
+  const { pending, expired } = settlePending(pendingTasks(), state.liveSessions, Date.now(), state.taskStarts ?? []);
   replacePending(pending);
   expired.forEach((t) => toast(`Claude hasn't shown up from tmux window ${t.place} yet. Look there.`));
+  // A task whose Claude quit shows a while; redraw when it's time for it to go.
+  pending.filter((t) => t.stage === 'exited' && !ui.exitTimers.has(t.id)).forEach((t) => {
+    ui.exitTimers.add(t.id);
+    setTimeout(() => {
+      ui.exitTimers.delete(t.id);
+      render();
+    }, EXITED_SHOW_MS + 100);
+  });
 }
 
 function pendingRows() {
-  if (!PENDING_FILTERS.has(ui.filter)) return [];
+  const shows = PENDING_FILTERS[ui.filter];
+  if (!shows) return [];
   const now = Date.now();
   return pendingTasks()
+    .filter(shows)
     .filter((t) => matches([t.prompt, t.repoName, t.branch, t.path], ui.query))
     .map((t) => renderPendingRow(t, now));
 }

@@ -51,7 +51,9 @@ export function claudeCommand(prompt) {
  * the task. Repos must be ones switchyard discovered; git and tmux get every
  * value as its own argument.
  */
-export function createTaskService({ stateService, tmux, git = runGit, exists = existsSync }) {
+export function createTaskService({
+  stateService, tmux, starts = { track: () => {} }, git = runGit, exists = existsSync,
+}) {
   const gitIn = (dir, args, options) => git(['-C', dir, ...args], options);
 
   async function refExists(dir, ref) {
@@ -125,7 +127,7 @@ export function createTaskService({ stateService, tmux, git = runGit, exists = e
   /** Open the task's window and type claude into it; on failure, remove the worktree too, so a retry starts clean. */
   async function startClaude(mainPath, path, name, prompt) {
     try {
-      await runInWindow(tmux, { name, cwd: path, command: claudeCommand(prompt) });
+      return await runInWindow(tmux, { name, cwd: path, command: claudeCommand(prompt) });
     } catch (error) {
       await rollBack(mainPath, path);
       throw error;
@@ -145,7 +147,9 @@ export function createTaskService({ stateService, tmux, git = runGit, exists = e
     if (await tmux.hasWindow(TASK_SESSION, window)) throw new ActionError(409, `The ${TASK_SESSION} tmux session already has a window named ${window}`);
 
     await addWorktree(mainPath, path, branch);
-    await startClaude(mainPath, path, window, prompt);
+    const started = await startClaude(mainPath, path, window, prompt);
+    // Watched until its session shows up: Claude may first ask whether to trust the folder, or quit.
+    starts.track({ path, place: started.place, pane: started.pane });
     return { path, branch, session: TASK_SESSION, window };
   }
 
