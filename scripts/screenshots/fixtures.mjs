@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { chmodSync, mkdirSync, realpathSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLICKUP, PLAN, PLAN_FILE, REPOS, SESSIONS, VIEWER, pullRequests } from './fixture-data.mjs';
+import { CLICKUP, PLAN, PLAN_FILE, REPOS, SESSIONS, VIEWER, hubTasks, pullRequests } from './fixture-data.mjs';
 import { startFakeClickUp } from './fake-clickup.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -183,6 +183,7 @@ export function buildFixtures({ root: tempRoot, home: homeDir, port, now }) {
   // ClickUp connected, as the Tasks page leaves it: the token file, and a stand-in ClickUp to answer.
   writeFiles(join(home, '.config', 'switchyard'), {
     'task-tools.json': JSON.stringify({ clickup: { ...CLICKUP, workspaceId: CLICKUP.workspaces[0].id } }),
+    'tasks.json': JSON.stringify({ tasks: hubTasks(now) }),
   });
   const clickup = startFakeClickUp({ port: port + 1, now });
 

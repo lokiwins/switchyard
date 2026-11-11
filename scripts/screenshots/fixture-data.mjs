@@ -317,3 +317,36 @@ export function clickupTasks(now) {
     { id: '86b4fx5', name: 'Email a receipt after each charge', status: 'to do', color: '#87909e', priority: 'low', updatedMinutes: 60 * 26, list: 'Ideas' },
   ].map((task) => clickupTask(now, task));
 }
+
+const DAY = 24 * 60 * 60_000;
+// A day as the Tasks page stores it, in UTC (the screenshots' timezone).
+const dayOf = (time) => new Date(time).toISOString().slice(0, 10);
+
+/**
+ * Your own tasks on the Tasks page, as ~/.config/switchyard/tasks.json holds
+ * them, newest first. The ones linking a ClickUp ticket find their worktree by
+ * the CU-<id> in its branch.
+ */
+export function hubTasks(now) {
+  const clickup = (id) => `https://app.clickup.com/t/${id}`;
+  const task = ({ id, title, notes = '', dueDays, links = [], createdHours, closedHoursAgo }) => ({
+    id,
+    title,
+    notes,
+    dueOn: dueDays === undefined ? null : dayOf(now + dueDays * DAY),
+    links,
+    createdAt: now - createdHours * 60 * 60_000,
+    updatedAt: now - createdHours * 60 * 60_000,
+    closedAs: closedHoursAgo === undefined ? null : 'done',
+    closedAt: closedHoursAgo === undefined ? null : now - closedHoursAgo * 60 * 60_000,
+  });
+  return [
+    task({ id: 'sy-spike1', title: 'Spike: run CI in half the time', notes: 'Try caching node_modules and splitting the slow suites.', links: ['https://github.com/acme/storefront/issues/51'], createdHours: 2 }),
+    task({ id: 'sy-inv001', title: 'Download invoices as PDF', notes: 'Add a Download PDF button to each invoice, rendered server-side.', dueDays: 0, links: [clickup('86b4fx1')], createdHours: 30 }),
+    task({ id: 'sy-dark01', title: 'Add a dark mode toggle', notes: 'Follow the system setting by default; remember a choice.', dueDays: 3, links: [clickup('86b4fx3')], createdHours: 50 }),
+    task({ id: 'sy-test01', title: 'Make the invoice total test deterministic', dueDays: -2, links: [clickup('86b4fx2')], createdHours: 70 }),
+    task({ id: 'sy-hist01', title: 'Show order history on the account page', dueDays: 12, links: [clickup('86b4fx4')], createdHours: 90 }),
+    task({ id: 'sy-rcpt01', title: 'Email a receipt after each charge', links: [clickup('86b4fx5')], createdHours: 120 }),
+    task({ id: 'sy-bann01', title: 'Remove the holiday banner', createdHours: 200, closedHoursAgo: 20 }),
+  ];
+}

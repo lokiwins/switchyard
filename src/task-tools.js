@@ -1,9 +1,6 @@
-import { randomUUID } from 'node:crypto';
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { assertToken, createClickUp } from './clickup.js';
 import { ActionError } from './errors.js';
+import { createJsonFile, defaultStoreDir } from './json-store.js';
 
 /*
  * The task management tools the Tasks page connects to. Only ClickUp works
@@ -25,32 +22,10 @@ const TOOLS = [
 ];
 
 /** Where the token file lives: $XDG_CONFIG_HOME/switchyard, or ~/.config/switchyard. */
-export function defaultStoreDir(env = process.env) {
-  return join(env.XDG_CONFIG_HOME || join(env.HOME || homedir(), '.config'), 'switchyard');
-}
+export { defaultStoreDir };
 
 /** Reads and writes the token file; the folder and file are made readable by you alone. */
-export function createTokenStore(dir = defaultStoreDir()) {
-  const file = join(dir, STORE_FILE);
-  return {
-    async read() {
-      try {
-        const data = JSON.parse(await readFile(file, 'utf8'));
-        return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
-      } catch {
-        return {};
-      }
-    },
-    async write(data) {
-      await mkdir(dir, { recursive: true, mode: 0o700 });
-      await chmod(dir, 0o700);
-      // Written whole, then moved into place, so a crash never leaves half a file.
-      const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
-      await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
-      await rename(temp, file);
-    },
-  };
-}
+export const createTokenStore = (dir = defaultStoreDir()) => createJsonFile(dir, STORE_FILE);
 
 function assertTool(body) {
   if (!body || typeof body !== 'object') throw new ActionError(400, 'Invalid request');

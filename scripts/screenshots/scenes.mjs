@@ -136,12 +136,14 @@ export const SCENES = [
   },
   {
     name: 'tasks',
-    title: 'Tasks: what ClickUp has assigned to you',
+    title: 'Tasks: your own tasks, what needs you first, then by when each is due',
     path: '/tasks',
     fullPage: true,
     prepare: async (page) => {
-      await page.getByText('Connected as dev').waitFor();
       await page.getByText('Email a receipt after each charge').waitFor();
+      // The work under the tasks: worktrees, the PR and Terminal/Jump on the running sessions.
+      await page.getByRole('link', { name: '#42', exact: true }).waitFor();
+      await page.locator('.hub-group.is-needs-you').waitFor();
     },
   },
 ];

@@ -55,3 +55,37 @@ export function tagWorktrees(repos, tasks) {
     worktrees: repo.worktrees.map((worktree) => ({ ...worktree, task: taskForBranch(tasks, worktree.branch) })),
   }));
 }
+
+// A ClickUp task link: app.clickup.com/t/<id>, or /t/<workspace>/<custom id> for a custom id like ENG-123.
+const CLICKUP_TASK = /^\/t\/(?:\d+\/)?([A-Za-z0-9][A-Za-z0-9_-]*)\/?$/;
+
+/** The ticket ids in a task's links that a branch could name: for now, ClickUp's. */
+export function ticketKeys(links = []) {
+  return links.flatMap((link) => {
+    try {
+      const url = new URL(link);
+      const match = url.hostname === 'app.clickup.com' ? CLICKUP_TASK.exec(url.pathname) : null;
+      return match ? [match[1]] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/**
+ * Your own tasks (see task-hub.js), each with `work`: the worktrees whose
+ * branch names the task's id or a ClickUp ticket it links to, with their
+ * PRs and sessions.
+ */
+export function linkHubTasks(tasks, repos) {
+  const worktrees = repos.flatMap((repo) => repo.worktrees.map((worktree) => ({ repo, worktree })));
+  return tasks.map((task) => {
+    const keys = [task.id, ...ticketKeys(task.links)];
+    return {
+      ...task,
+      work: worktrees
+        .filter(({ worktree }) => keys.some((key) => worktree.branch && mentions(worktree.branch, key)))
+        .map(({ repo, worktree }) => linkOf(repo, worktree)),
+    };
+  });
+}
