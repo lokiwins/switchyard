@@ -2,7 +2,8 @@ import { h, readPref, writePref } from './dom.js';
 import { closeDropdown, dropdown } from './actions.js';
 import { linkLine } from './task-link-views.js';
 import { trustButtons } from './agent-views.js';
-import { STATE_LABELS, dueOnLabel, ticketLabel } from './task-state.js';
+import { STATE_LABELS, dueOnLabel, ticketLabel, trackerOf } from './task-state.js';
+import { matchesTicket, taskFromTicket, unlinkedTickets } from './ticket-import.js';
 
 /*
  * The Tasks page's parts: the box to add a task, and your tasks in their
@@ -10,8 +11,79 @@ import { STATE_LABELS, dueOnLabel, ticketLabel } from './task-state.js';
  * work on it.
  */
 
-/** The add-a-task form: a title and due day, with notes and links behind "Notes and links". */
-export function newTaskForm(onCreate) {
+function ticketStatus(status) {
+  const pill = h('span', { class: 'pill ticket-status', title: `Status: ${status.name}` }, status.name);
+  // Set through the style object, which the page's CSP allows, unlike a style attribute.
+  if (status.color) pill.style.setProperty('--status', status.color);
+  return pill;
+}
+
+/**
+ * Add from ClickUp ▾: the tickets assigned to you that no task links yet.
+ * Clicking one makes a task of it and takes it off the list, so several can
+ * be added in a row. `picker.load()` resolves to { connected, tasks, error };
+ * `picker.tasks()` are your tasks now; `picker.create(fields)` resolves
+ * whether it worked.
+ */
+function clickupPicker(picker) {
+  const list = h('div', { class: 'picker-list' });
+  let tickets = null;
+  let query = '';
+
+  function render() {
+    if (tickets === null) return list.replaceChildren(h('p', { class: 'picker-note' }, 'Loading your ClickUp tickets…'));
+    const offered = unlinkedTickets(tickets, picker.tasks()).filter((t) => matchesTicket(t, query));
+    if (offered.length === 0) {
+      return list.replaceChildren(h('p', { class: 'picker-note' }, query ? `No tickets match “${query}”.` : 'Every ticket assigned to you is already a task.'));
+    }
+    return list.replaceChildren(...offered.map((ticket) => h('button', {
+      type: 'button',
+      class: 'menu-item picker-item',
+      role: 'menuitem',
+      title: `Add a task for ${ticket.name}`,
+      onclick: async (event) => {
+        event.currentTarget.disabled = true;
+        if (await picker.create(taskFromTicket(ticket))) render();
+        else event.currentTarget.disabled = false;
+      },
+    },
+    ticketStatus(ticket.status),
+    h('span', { class: 'menu-title' }, ticket.name),
+    h('span', { class: 'menu-meta' }, [ticket.customId ?? ticket.id, ticket.where].filter(Boolean).join(' · ')))));
+  }
+
+  async function load() {
+    tickets = null;
+    render();
+    const result = await picker.load().catch((error) => ({ connected: true, tasks: [], error: error.message }));
+    if (!result.connected) {
+      list.replaceChildren(h('p', { class: 'picker-note' }, 'Connect ClickUp first, in the ClickUp ▾ menu at the top of the page.'));
+      return;
+    }
+    if (result.error) {
+      list.replaceChildren(h('p', { class: 'picker-note' }, `ClickUp: ${result.error}`));
+      return;
+    }
+    tickets = result.tasks;
+    render();
+  }
+
+  const menu = dropdown({
+    key: 'clickup-picker', label: 'Add from ClickUp ▾', title: 'Make tasks from the ClickUp tickets assigned to you', className: 'btn btn-secondary', panelClass: 'picker-panel',
+  },
+  h('input', {
+    type: 'search', class: 'picker-filter', placeholder: 'Filter name, id, status, list…', 'aria-label': 'Filter ClickUp tickets',
+    oninput: (event) => { query = event.target.value.trim(); render(); },
+    // It sits inside the add-a-task form: Enter here mustn't add a task.
+    onkeydown: (event) => { if (event.key === 'Enter') event.preventDefault(); },
+  }),
+  list);
+  menu.addEventListener('toggle', () => { if (menu.open) load(); });
+  return menu;
+}
+
+/** The add-a-task form: a title and due day, with notes and links behind "Notes and links"; and Add from ClickUp. */
+export function newTaskForm(onCreate, picker = null) {
   const form = h('form', {
     class: 'hub-new',
     'aria-label': 'Add a task',
@@ -27,7 +99,7 @@ export function newTaskForm(onCreate) {
         // Kept after a failure, to fix rather than type again.
         if (created) {
           form.reset();
-          form.querySelector('details').open = false;
+          form.querySelector('.hub-new-more').open = false;
           title.focus();
         }
       } finally {
@@ -40,7 +112,8 @@ export function newTaskForm(onCreate) {
       name: 'title', type: 'text', required: true, maxlength: '200', autocomplete: 'off', 'aria-label': 'Task', placeholder: 'Add a task: what needs doing?',
     }),
     h('input', { name: 'dueOn', type: 'date', 'aria-label': 'Due date', title: 'Due date (optional)' }),
-    h('button', { type: 'submit', class: 'btn' }, 'Add')),
+    h('button', { type: 'submit', class: 'btn' }, 'Add'),
+    picker && clickupPicker({ ...picker, create: onCreate })),
   h('details', { class: 'hub-new-more' },
     h('summary', {}, 'Notes and links'),
     h('label', { class: 'task-field' }, h('span', {}, 'Notes (what Claude is told when you start it)'),
@@ -57,7 +130,12 @@ function stateBadge(state) {
 }
 
 function ticketLinks(links) {
-  return links.map((link) => [' · ', h('a', { href: link, target: '_blank', rel: 'noopener noreferrer', title: link }, ticketLabel(link))]);
+  return links.map((link) => {
+    const tracker = trackerOf(link);
+    return h('a', {
+      class: `ticket-badge${tracker ? ` is-${tracker}` : ''}`, href: link, target: '_blank', rel: 'noopener noreferrer', title: link,
+    }, ticketLabel(link));
+  });
 }
 
 /** Mark done, drop, reopen or delete: the row's ⋯ menu. Delete asks once more inside the menu. */

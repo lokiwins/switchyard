@@ -146,4 +146,14 @@ export const SCENES = [
       await page.locator('.hub-group.is-needs-you').waitFor();
     },
   },
+  {
+    name: 'tasks-add-from-clickup',
+    title: 'Add from ClickUp: make tasks from the tickets assigned to you',
+    path: '/tasks',
+    prepare: async (page) => {
+      await page.getByText('Email a receipt after each charge').waitFor();
+      await page.locator('form.hub-new details.menu > summary', { hasText: /^Add from ClickUp/ }).click();
+      await page.locator('.picker-panel .picker-item').first().waitFor();
+    },
+  },
 ];
