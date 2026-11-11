@@ -62,9 +62,9 @@ function listPrs(args, prs, viewer) {
 /**
  * gh's stdout for `args`, or throws for a call the stub doesn't know.
  * @param {string[]} args
- * @param {{ viewer: string, prs: object[] }} fixture
+ * @param {{ viewer: string, prs: object[], issues?: object[] }} fixture
  */
-export function respond(args, { viewer, prs }) {
+export function respond(args, { viewer, prs, issues }) {
   const [command, sub] = args;
   if (command === 'api' && sub === 'user') return `${viewer}\n`;
   if (command === 'api' && sub === 'graphql') return JSON.stringify(branchPrs(args, prs));
@@ -80,6 +80,12 @@ export function respond(args, { viewer, prs }) {
     const pr = prs.find((p) => repoOf(p) === repo && String(p.number) === args[2]);
     if (!pr) throw new Error(`no pull requests found for ${repo}#${args[2]}`);
     return JSON.stringify(pick(pr, jsonFields(args)));
+  }
+  if (command === 'issue' && sub === 'view') {
+    const repo = args[args.indexOf('--repo') + 1];
+    const issue = (issues ?? []).find((i) => i.repo === repo && String(i.number) === args[2]);
+    if (!issue) throw new Error(`no issue found for ${repo}#${args[2]}`);
+    return JSON.stringify(pick(issue, jsonFields(args)));
   }
   throw new Error(`fake gh: unsupported call: gh ${args.join(' ')}`);
 }

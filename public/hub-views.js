@@ -226,7 +226,9 @@ function taskRow(task, context) {
   return h('li', { class: `list-row hub-row is-${task.state}${task.work.length ? ' has-links' : ''}` },
     stateBadge(task.state),
     h('div', { class: 'row-who' },
-      h('span', { class: 'row-title', title: task.title }, task.title),
+      h('button', {
+        type: 'button', class: 'row-title row-title-btn', title: 'Details: edit it, and read its tickets', onclick: () => context.actions.open(task),
+      }, task.title),
       h('span', { class: 'row-where' }, h('span', { class: 'mono' }, task.id), ticketLinks(task.links))),
     detailLine(task),
     h('span', { class: `task-due${due?.tone ? ` ${due.tone}` : ''}` }, due?.text ?? ''),

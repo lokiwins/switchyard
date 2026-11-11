@@ -10,7 +10,7 @@ function fakeFetch(routes) {
   const requests = [];
   const fetch = async (url, init) => {
     const parsed = new URL(url);
-    requests.push({ url: parsed, headers: init.headers });
+    requests.push({ url: parsed, headers: init.headers, method: init.method ?? 'GET', body: init.body ? JSON.parse(init.body) : null });
     const route = routes[parsed.pathname.replace('/api/v2', '')];
     const answer = typeof route === 'function' ? route(parsed) : route;
     if (answer === undefined) return new Response('{"err":"Route not found"}', { status: 404 });
@@ -177,4 +177,59 @@ test('after the first page, the rest are asked for together, and pages past the 
   assert.equal(tasks.truncated, false);
   assert.equal(requests[0], '0', 'the first page alone, to learn whether there are more');
   assert.ok(most > 1, 'later pages in parallel');
+});
+
+test('task: one ticket with its description and list, by task id', async () => {
+  const { fetch, requests } = fakeFetch({ '/task/86b1abc': rawTask({ markdown_description: '## Goal\nShow **every** order.' }) });
+  const ticket = await createClickUp({ token: TOKEN, baseUrl: BASE, fetch }).task('86b1abc', '901');
+  assert.deepEqual(ticket, {
+    id: '86b1abc', customId: null, name: 'Show order history on the account page', status: { name: 'in progress', color: '#4194f6' },
+    description: '## Goal\nShow **every** order.', url: 'https://app.clickup.com/t/86b1abc', listId: '1', listName: 'Sprint 12',
+  });
+  assert.equal(requests[0].url.searchParams.get('include_markdown_description'), 'true');
+  assert.equal(requests[0].url.searchParams.get('custom_task_ids'), null);
+});
+
+test('task: a custom id like ENG-123 is looked up in the workspace', async () => {
+  const { fetch, requests } = fakeFetch({ '/task/ENG-123': rawTask({ custom_id: 'ENG-123' }) });
+  await createClickUp({ token: TOKEN, baseUrl: BASE, fetch }).task('ENG-123', '901');
+  assert.equal(requests[0].url.searchParams.get('custom_task_ids'), 'true');
+  assert.equal(requests[0].url.searchParams.get('team_id'), '901');
+});
+
+test('task: the description falls back to plain text, and is kept to a readable length', async () => {
+  const { fetch } = fakeFetch({ '/task/86b1abc': rawTask({ description: 'x'.repeat(30_000) }) });
+  const ticket = await createClickUp({ token: TOKEN, baseUrl: BASE, fetch }).task('86b1abc', '901');
+  assert.equal(ticket.description.length, 20_000);
+});
+
+test('task: ids that could change the request path are refused before asking ClickUp', async () => {
+  const { fetch, requests } = fakeFetch({});
+  const clickup = createClickUp({ token: TOKEN, baseUrl: BASE, fetch });
+  for (const bad of ['../team', 'a/b', '', 'x'.repeat(70), 'id?x=1']) await rejectsWith(clickup.task(bad, '901'), 400);
+  assert.equal(requests.length, 0);
+});
+
+test('listStatuses: the statuses a ticket can move to, in the list\'s order', async () => {
+  const { fetch } = fakeFetch({
+    '/list/1': {
+      id: '1',
+      statuses: [
+        { status: 'in progress', color: '#4194f6', type: 'custom', orderindex: 1 },
+        { status: 'to do', color: '#87909e', type: 'open', orderindex: 0 },
+        { status: 'complete', color: '#6bc950', type: 'closed', orderindex: 2 },
+      ],
+    },
+  });
+  assert.deepEqual(await createClickUp({ token: TOKEN, baseUrl: BASE, fetch }).listStatuses('1'), [
+    { name: 'to do', color: '#87909e' }, { name: 'in progress', color: '#4194f6' }, { name: 'complete', color: '#6bc950' },
+  ]);
+});
+
+test('setStatus: PUTs the new status on the task', async () => {
+  const { fetch, requests } = fakeFetch({ '/task/86b1abc': rawTask({ status: { status: 'complete', color: '#6bc950' } }) });
+  await createClickUp({ token: TOKEN, baseUrl: BASE, fetch }).setStatus('86b1abc', 'complete');
+  assert.equal(requests[0].method, 'PUT');
+  assert.deepEqual(requests[0].body, { status: 'complete' });
+  assert.equal(requests[0].headers['Content-Type'], 'application/json');
 });

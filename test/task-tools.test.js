@@ -28,6 +28,20 @@ function fakeClickUp({ valid = TOKEN, workspaces = [{ id: '901', name: 'Acme' }]
         calls.last = { workspaceId, userId };
         return tasks;
       },
+      task: async (key, workspaceId) => {
+        await check();
+        calls.ticket = { key, workspaceId };
+        return { id: '86b4fx7', customId: 'SHOP-31', name: 'Show stock', status: { name: 'to do', color: '#87909e' }, description: 'd', url: 'https://app.clickup.com/t/86b4fx7', listId: 'L1', listName: 'Sprint 13' };
+      },
+      listStatuses: async (listId) => {
+        await check();
+        calls.statusesOf = listId;
+        return [{ name: 'to do', color: '#87909e' }, { name: 'in progress', color: '#4194f6' }, { name: 'complete', color: '#6bc950' }];
+      },
+      setStatus: async (taskId, status) => {
+        await check();
+        calls.set = { taskId, status };
+      },
     };
   };
   return { clickupFor, calls };
@@ -231,4 +245,44 @@ test('cachedTasks: what the last fetch found, without asking ClickUp', async () 
   assert.equal(calls.tasks, 1);
   await service.disconnect({ tool: 'clickup' });
   assert.deepEqual(service.cachedTasks(), []);
+});
+
+async function connected() {
+  const fake = fakeClickUp();
+  const tools = createTaskTools({ store: memoryStore(), clickupFor: fake.clickupFor });
+  await tools.connect({ tool: 'clickup', token: TOKEN });
+  return { tools, calls: fake.calls };
+}
+
+test('clickupTicket: the ticket and the statuses it can move to, from the chosen workspace', async () => {
+  const { tools, calls } = await connected();
+  const ticket = await tools.clickupTicket('SHOP-31');
+  assert.deepEqual(calls.ticket, { key: 'SHOP-31', workspaceId: '901' });
+  assert.equal(calls.statusesOf, 'L1');
+  assert.equal(ticket.tracker, 'clickup');
+  assert.deepEqual(ticket.statuses.map((s) => s.name), ['to do', 'in progress', 'complete']);
+});
+
+test('clickupTicket before connecting: a 409 that says to connect', async () => {
+  const tools = createTaskTools({ store: memoryStore(), clickupFor: fakeClickUp().clickupFor });
+  await assert.rejects(tools.clickupTicket('86b4fx7'), (error) => error.status === 409 && /Connect ClickUp/.test(error.message));
+});
+
+test('setClickupStatus: only to one of the list\'s statuses, by the ticket\'s real id, in ClickUp\'s own spelling', async () => {
+  const { tools, calls } = await connected();
+  const after = await tools.setClickupStatus({ key: 'SHOP-31', status: 'IN PROGRESS' });
+  assert.deepEqual(calls.set, { taskId: '86b4fx7', status: 'in progress' });
+  assert.equal(after.tracker, 'clickup');
+  await rejectsWith(tools.setClickupStatus({ key: 'SHOP-31', status: 'shipped' }), 400);
+  await rejectsWith(tools.setClickupStatus({ key: 'SHOP-31', status: 7 }), 400);
+});
+
+test('changing a status drops the cached ticket list, so the picker sees it', async () => {
+  const { tools, calls } = await connected();
+  await tools.tasks();
+  await tools.tasks();
+  assert.equal(calls.tasks, 1);
+  await tools.setClickupStatus({ key: 'SHOP-31', status: 'complete' });
+  await tools.tasks();
+  assert.equal(calls.tasks, 2);
 });
