@@ -23,14 +23,39 @@ runs:
     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 24
-        package-manager-cache: false
+        # npm's download cache, keyed on the screenshots' lockfile.
+        cache: npm
+        cache-dependency-path: scripts/screenshots/package-lock.json
+
+    - name: Find the Playwright version
+      id: playwright
+      shell: bash
+      run: echo "version=$(node -p "require('./scripts/screenshots/package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+
+    # The browser Playwright drives, kept between runs: a new Playwright version is a new key.
+    - name: Cache Playwright's browser
+      id: browsers
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
     - name: Install Playwright and tmux
       shell: bash
       working-directory: scripts/screenshots
+      env:
+        BROWSER_CACHED: ${{ steps.browsers.outputs.cache-hit }}
       run: |
+        # A dropped connection to Ubuntu's mirrors is tried again rather than failing the job.
+        echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
         npm ci --no-audit --no-fund
-        npx playwright install --with-deps --only-shell chromium
+        [ "$BROWSER_CACHED" = true ] || npx playwright install --only-shell chromium
+        # The runner image has Chrome, so it has the browser's libraries already. Only if the
+        # browser can't start are they installed, from Ubuntu's mirrors.
+        if ! node -e "import('playwright').then(async ({ chromium }) => { await (await chromium.launch()).close(); })"; then
+          echo "::notice::Chromium needs system libraries the runner lacks; installing them"
+          npx playwright install-deps chromium
+        fi
         # New task only appears when tmux is installed.
         command -v tmux >/dev/null || sudo apt-get install -y --no-install-recommends tmux
         # The page shows /home/<name>/… as ~/…, so the fixtures live in a home of their own.
