@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { branchNamesTask, linkTasks, tagWorktrees, taskForBranch } from '../src/task-links.js';
+import {
+  branchNamesTask, linkHubTasks, linkTasks, tagWorktrees, taskForBranch, ticketKeys,
+} from '../src/task-links.js';
 
 const task = (overrides = {}) => ({ id: '86b1abc2d', customId: null, name: 'Email receipts', url: 'https://app.clickup.com/t/86b1abc2d', ...overrides });
 
@@ -91,4 +93,34 @@ test('taskForBranch: the task an ended session\'s branch names, or null', () => 
   assert.equal(taskForBranch([task()], 'CU-86b1abc2d').id, '86b1abc2d');
   assert.equal(taskForBranch([task()], 'main'), null);
   assert.equal(taskForBranch([task()], null), null);
+});
+
+const hubTask = (overrides = {}) => ({ id: 'sy-k3x9q2', title: 'Email receipts', links: [], ...overrides });
+
+test('ticketKeys: the ClickUp task id or custom id in a ticket link', () => {
+  assert.deepEqual(ticketKeys(['https://app.clickup.com/t/86b1abc2d']), ['86b1abc2d']);
+  assert.deepEqual(ticketKeys(['https://app.clickup.com/t/9012345/ENG-123']), ['ENG-123']);
+  assert.deepEqual(ticketKeys(['https://github.com/o/r/issues/4', 'https://example.test/t/x']), []);
+});
+
+test('linkHubTasks finds a task\'s worktrees by its id in the branch name', () => {
+  const [linked] = linkHubTasks([hubTask()], repos(worktree({ branch: 'sy-k3x9q2-email-receipts' }), worktree({ path: '/code/other', branch: 'main' })));
+  assert.deepEqual(linked.work.map((w) => w.branch), ['sy-k3x9q2-email-receipts']);
+  assert.deepEqual(linked.links, [], 'its ticket links are left as they are');
+});
+
+test('linkHubTasks also finds worktrees by a linked ClickUp ticket, as CU-<id> or its custom id', () => {
+  const task = hubTask({ links: ['https://app.clickup.com/t/86b1abc2d', 'https://app.clickup.com/t/9012345/ENG-123'] });
+  const [linked] = linkHubTasks([task], repos(
+    worktree({ path: '/code/a', branch: 'feat/CU-86b1abc2d-receipts' }),
+    worktree({ path: '/code/b', branch: 'eng-123-follow-up' }),
+    worktree({ path: '/code/c', branch: 'feat/unrelated' }),
+  ));
+  assert.deepEqual(linked.work.map((w) => w.path), ['/code/a', '/code/b']);
+});
+
+test('linkHubTasks: a worktree is listed once even when several keys match it', () => {
+  const task = hubTask({ links: ['https://app.clickup.com/t/86b1abc2d'] });
+  const [linked] = linkHubTasks([task], repos(worktree({ branch: 'sy-k3x9q2-CU-86b1abc2d' })));
+  assert.equal(linked.work.length, 1);
 });

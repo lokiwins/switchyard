@@ -26,18 +26,22 @@
   <main>
     <div id="errors" class="errors" hidden></div>
 
-    <section class="tool-cards" id="tools" aria-label="Task management tools"></section>
-
-    <section class="panel" aria-labelledby="tasks-title" id="tasks-panel" hidden>
+    <section class="panel hub" aria-labelledby="tasks-title">
       <div class="panel-head">
-        <h2 id="tasks-title">Assigned to you</h2>
+        <h2 id="tasks-title">Tasks</h2>
         <div class="filters">
           <span id="task-count" class="muted"></span>
-          <input id="search" type="search" placeholder="Filter name, id, status, list…" aria-label="Filter tasks">
+          <input id="search" type="search" placeholder="Filter title, id, notes, link, branch…" aria-label="Filter tasks">
         </div>
       </div>
+      <div id="new-task"></div>
       <div id="tasks"></div>
     </section>
+
+    <details class="panel connections">
+      <summary class="panel-head"><h2>Connections</h2><span id="connections-summary" class="muted"></span></summary>
+      <section class="tool-cards" id="tools" aria-label="Task management tools"></section>
+    </details>
   </main>
 
   <div id="toast" class="toast" role="status" hidden></div>

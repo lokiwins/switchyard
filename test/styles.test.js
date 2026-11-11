@@ -68,3 +68,9 @@ test('a menu is never wider than the window', () => {
   assert.match(panel, /max-width:\s*min\([^;]*100vw/);
   assert.match(panel, /min-width:\s*min\([^;]*100vw/);
 });
+
+test('on a phone a task row keeps its ⋯ menu beside the title, and the add box gives the title its own line', () => {
+  const phone = media('max-width: 640px');
+  assert.match(ruleIn(phone, '.list-row.hub-row > .actions') ?? '', /grid-row:\s*1/);
+  assert.match(ruleIn(phone, '.hub-new-row input[name="title"]') ?? '', /flex-basis:\s*100%/);
+});

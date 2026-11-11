@@ -14,6 +14,8 @@ export const STATIC_FILES = {
   '/tasks.js': 'tasks.js',
   '/task-views.js': 'task-views.js',
   '/task-link-views.js': 'task-link-views.js',
+  '/task-state.js': 'task-state.js',
+  '/hub-views.js': 'hub-views.js',
   '/agents.js': 'agents.js',
   '/nav.js': 'nav.js',
   '/actions.js': 'actions.js',

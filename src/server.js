@@ -19,7 +19,8 @@ import { createTaskService } from './tasks.js';
 import { createTaskStarts } from './task-starts.js';
 import { CLICKUP_API, createClickUp } from './clickup.js';
 import { createTaskTools } from './task-tools.js';
-import { linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
+import { createTaskHub } from './task-hub.js';
+import { linkHubTasks, linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
 import { canReadScreen, createTerminal } from './terminal.js';
@@ -134,6 +135,11 @@ const POST_ROUTES = {
   '/api/worktrees/cleanup': ({ cleanup }, body) => cleanup.cleanUpWorktree(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
+  '/api/hub/tasks/create': ({ taskHub }, body) => taskHub.create(body),
+  '/api/hub/tasks/update': ({ taskHub }, body) => taskHub.update(body),
+  '/api/hub/tasks/close': ({ taskHub }, body) => taskHub.close(body),
+  '/api/hub/tasks/reopen': ({ taskHub }, body) => taskHub.reopen(body),
+  '/api/hub/tasks/delete': ({ taskHub }, body) => taskHub.remove(body),
   '/api/task-tools/connect': ({ taskTools }, body) => taskTools.connect(body),
   '/api/task-tools/disconnect': ({ taskTools }, body) => taskTools.disconnect(body),
   '/api/task-tools/workspace': ({ taskTools }, body) => taskTools.chooseWorkspace(body),
@@ -236,6 +242,20 @@ async function tasksPayload({ taskTools, stateService, capabilities }, { force }
     }),
   ]);
   return { ...result, tasks: linkTasks(result.tasks, sessions.repos), capabilities };
+}
+
+/** Your own tasks, each with the worktrees working on it (their PRs and sessions), and what the page's buttons can do. */
+async function hubPayload({ taskHub, stateService, capabilities }, { force }) {
+  const [tasks, sessions] = await Promise.all([
+    taskHub.list(),
+    // Rebuilt for each poll (no git status or GitHub calls, so it's quick): a cached copy would be a poll behind,
+    // say a PR that came in since. Refresh rescans everything. Without the local picture the tasks still show, with no work.
+    (force ? stateService.getSessions({ force }) : stateService.refreshSessions()).catch((error) => {
+      process.stderr.write(`[switchyard] linking tasks to worktrees: ${error.message}\n`);
+      return { repos: [] };
+    }),
+  ]);
+  return { tasks: linkHubTasks(tasks, sessions.repos), capabilities, checkedAt: Date.now() };
 }
 
 const SSE_HEADERS = { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' };
@@ -373,6 +393,9 @@ function createHandler(services) {
       if (url.pathname === '/api/task-tools') {
         return sendJson(res, 200, { success: true, data: { ...(await services.taskTools.sources()), nav: await navFor(services) } });
       }
+      if (url.pathname === '/api/hub/tasks') {
+        return sendJson(res, 200, { success: true, data: { ...(await hubPayload(services, { force })), nav: await navFor(services) } });
+      }
       if (url.pathname === '/api/task-tools/tasks') {
         return sendJson(res, 200, { success: true, data: await tasksPayload(services, { force }) });
       }
@@ -443,8 +466,9 @@ async function main() {
   // SWITCHYARD_CLICKUP_API points at a stand-in ClickUp, for the screenshots' made-up tasks.
   const clickupApi = process.env.SWITCHYARD_CLICKUP_API ?? CLICKUP_API;
   const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }) });
+  const taskHub = createTaskHub();
   const services = {
-    stateService, prService, actions, tasks, taskStarts, taskTools, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
+    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({
