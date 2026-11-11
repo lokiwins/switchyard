@@ -2,6 +2,7 @@ import { h, toast } from './dom.js';
 import { post, tmuxPlace } from './actions.js';
 import { sessionTitle } from './session-text.js';
 import { keyInput } from './terminal-keys.js';
+import { resizeHandle } from './pane-resize.js';
 
 /*
  * "Terminal": a session's tmux pane, live in a dialog. The server streams what
@@ -16,6 +17,7 @@ import { keyInput } from './terminal-keys.js';
 const XTERM = '/vendor/xterm/xterm.mjs';
 const XTERM_WEBGL = '/vendor/xterm/addon-webgl.mjs';
 const XTERM_FIT = '/vendor/xterm/addon-fit.mjs';
+const TERMINAL_WIDTH_PREF = 'switchyard.terminalWidth';
 const XTERM_CSS = '/vendor/xterm/xterm.css';
 // Under the server's 2 KB limit even when every character is three UTF-8 bytes.
 const INPUT_CHUNK_CHARS = 600;
@@ -207,6 +209,8 @@ async function openTerminal(session) {
     reconnect,
     h('button', { type: 'button', class: 'pane-btn', title: 'Close the terminal (the session keeps running)', onclick: close }, 'Close')),
   screen);
+  // Drag its left edge to make it wider or narrower; the width is remembered.
+  dialog.append(resizeHandle(dialog, { pref: TERMINAL_WIDTH_PREF, label: 'Terminal width' }));
   document.body.append(dialog);
   dialog.showModal();
 
