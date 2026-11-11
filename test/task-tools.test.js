@@ -58,12 +58,20 @@ const tools = (overrides = {}) => {
   return { service: createTaskTools({ store, clickupFor: fake.clickupFor, ttlMs: 60_000, now: overrides.now }), store, ...fake };
 };
 
-test('before connecting, ClickUp is offered and the other tools are shown as coming later', async () => {
+test('before connecting: ClickUp to connect, GitHub as gh is signed in, the rest coming later', async () => {
   const { service } = tools();
   const { tools: cards } = await service.sources();
   assert.deepEqual(cards.map((c) => [c.id, c.available, c.connected]), [
-    ['clickup', true, false], ['linear', false, false], ['jira', false, false], ['github-issues', false, false],
+    ['clickup', true, false], ['github', true, false], ['linear', false, false], ['jira', false, false], ['ado', false, false],
   ]);
+  assert.equal(cards.find((c) => c.id === 'github').kind, 'gh', 'GitHub uses your gh login, not a token');
+});
+
+test('GitHub shows as connected when gh is signed in', async () => {
+  const github = { connection: async () => ({ connected: true, user: { username: 'dev' } }) };
+  const service = createTaskTools({ store: memoryStore(), clickupFor: fakeClickUp().clickupFor, github });
+  const card = (await service.sources()).tools.find((c) => c.id === 'github');
+  assert.deepEqual([card.connected, card.user], [true, { username: 'dev' }]);
 });
 
 test('connecting checks the token with ClickUp, then keeps it with your name and workspaces', async () => {

@@ -22,6 +22,7 @@ import { createTaskTools } from './task-tools.js';
 import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
 import { createTicketDetails } from './ticket-details.js';
+import { createGithubIssues } from './github-issues.js';
 import { linkHubTasks, linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
@@ -419,6 +420,13 @@ function createHandler(services) {
       if (url.pathname === '/api/hub/tasks') {
         return sendJson(res, 200, { success: true, data: { ...(await hubPayload(services, { force })), nav: await navFor(services) } });
       }
+      if (url.pathname === '/api/task-tools/tickets') {
+        // Add from ▾: one tracker's open tickets assigned to you.
+        const tool = url.searchParams.get('tool');
+        const ticketsOf = { clickup: () => services.taskTools.tasks({ force }), github: () => services.githubIssues.assigned({ force }) };
+        if (!ticketsOf[tool]) return sendJson(res, 400, { success: false, error: 'Unknown tracker' });
+        return sendJson(res, 200, { success: true, data: await ticketsOf[tool]() });
+      }
       if (url.pathname === '/api/task-tools/tasks') {
         return sendJson(res, 200, { success: true, data: await tasksPayload(services, { force }) });
       }
@@ -488,12 +496,13 @@ async function main() {
   const hookInstalled = createHookCheck(config);
   // SWITCHYARD_CLICKUP_API points at a stand-in ClickUp, for the screenshots' made-up tasks.
   const clickupApi = process.env.SWITCHYARD_CLICKUP_API ?? CLICKUP_API;
-  const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }) });
+  const githubIssues = createGithubIssues();
+  const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }), github: githubIssues });
   const taskHub = createTaskHub();
-  const ticketDetails = createTicketDetails({ taskTools });
+  const ticketDetails = createTicketDetails({ taskTools, github: githubIssues });
   const hubStarter = createHubStarter({ taskHub, newTask: tasks, rediscover: stateService.rediscover });
   const services = {
-    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, ticketDetails, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
+    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({

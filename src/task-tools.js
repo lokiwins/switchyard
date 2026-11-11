@@ -3,22 +3,24 @@ import { ActionError } from './errors.js';
 import { createJsonFile, defaultStoreDir } from './json-store.js';
 
 /*
- * The task management tools the Tasks page connects to. Only ClickUp works
- * so far, with a personal API token. The token is kept in a file only you
- * can read, outside the checkout (~/.config/switchyard/task-tools.json), and
- * is only ever sent to ClickUp: the page is told who you are and which
- * workspace it shows, never the token.
+ * The trackers the Tasks page imports tickets from. ClickUp connects with a
+ * personal API token, kept in a file only you can read, outside the checkout
+ * (~/.config/switchyard/task-tools.json), and only ever sent to ClickUp: the
+ * page is told who you are and which workspace it shows, never the token.
+ * GitHub uses your gh login (see github-issues.js).
  */
 
 const STORE_FILE = 'task-tools.json';
 const DEFAULT_TTL_MS = 60_000;
 
 // The cards the page shows; tools that aren't available yet are shown as coming later.
+// GitHub uses your gh login (kind 'gh'); the others a token you paste.
 const TOOLS = [
-  { id: 'clickup', name: 'ClickUp', available: true },
-  { id: 'linear', name: 'Linear', available: false },
-  { id: 'jira', name: 'Jira', available: false },
-  { id: 'github-issues', name: 'GitHub Issues', available: false },
+  { id: 'clickup', name: 'ClickUp', available: true, kind: 'token' },
+  { id: 'github', name: 'GitHub', available: true, kind: 'gh' },
+  { id: 'linear', name: 'Linear', available: false, kind: 'token' },
+  { id: 'jira', name: 'Jira', available: false, kind: 'token' },
+  { id: 'ado', name: 'Azure DevOps', available: false, kind: 'token' },
 ];
 
 /** Where the token file lives: $XDG_CONFIG_HOME/switchyard, or ~/.config/switchyard. */
@@ -43,6 +45,7 @@ export function createTaskTools({
   clickupFor = (token) => createClickUp({ token }),
   ttlMs = DEFAULT_TTL_MS,
   now = Date.now,
+  github = { connection: async () => ({ connected: false }) },
 } = {}) {
   // The last task list, for one workspace, so the page's polling doesn't spend ClickUp's rate limit.
   let cache = null;
@@ -96,7 +99,7 @@ export function createTaskTools({
   async function connection() {
     await saving;
     const clickup = await saved();
-    if (!clickup) throw new ActionError(409, 'Connect ClickUp first, in the ClickUp ▾ menu at the top of the Tasks page');
+    if (!clickup) throw new ActionError(409, 'Connect ClickUp first, in the Connections ▾ menu at the top of the Tasks page');
     return clickup;
   }
 
@@ -114,8 +117,9 @@ export function createTaskTools({
   }
 
   async function sources() {
-    const clickup = await saved();
-    return { tools: TOOLS.map((tool) => (tool.id === 'clickup' ? { ...tool, ...publicConnection(clickup) } : { ...tool, connected: false })) };
+    const [clickup, gh] = await Promise.all([saved(), github.connection()]);
+    const connectionOf = { clickup: publicConnection(clickup), github: gh };
+    return { tools: TOOLS.map((tool) => ({ ...tool, ...(connectionOf[tool.id] ?? { connected: false }) })) };
   }
 
   return {
