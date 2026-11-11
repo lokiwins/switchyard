@@ -20,6 +20,7 @@ import { createTaskStarts } from './task-starts.js';
 import { CLICKUP_API, createClickUp } from './clickup.js';
 import { createTaskTools } from './task-tools.js';
 import { createTaskHub } from './task-hub.js';
+import { createHubStarter } from './hub-start.js';
 import { linkHubTasks, linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
@@ -140,6 +141,7 @@ const POST_ROUTES = {
   '/api/hub/tasks/close': ({ taskHub }, body) => taskHub.close(body),
   '/api/hub/tasks/reopen': ({ taskHub }, body) => taskHub.reopen(body),
   '/api/hub/tasks/delete': ({ taskHub }, body) => taskHub.remove(body),
+  '/api/hub/tasks/start': ({ hubStarter }, body) => hubStarter.start(body),
   '/api/task-tools/connect': ({ taskTools }, body) => taskTools.connect(body),
   '/api/task-tools/disconnect': ({ taskTools }, body) => taskTools.disconnect(body),
   '/api/task-tools/workspace': ({ taskTools }, body) => taskTools.chooseWorkspace(body),
@@ -245,7 +247,9 @@ async function tasksPayload({ taskTools, stateService, capabilities }, { force }
 }
 
 /** Your own tasks, each with the worktrees working on it (their PRs and sessions), and what the page's buttons can do. */
-async function hubPayload({ taskHub, stateService, capabilities }, { force }) {
+async function hubPayload({
+  taskHub, stateService, approvals, taskStarts, capabilities,
+}, { force }) {
   const [tasks, sessions] = await Promise.all([
     taskHub.list(),
     // Rebuilt for each poll (no git status or GitHub calls, so it's quick): a cached copy would be a poll behind,
@@ -255,7 +259,16 @@ async function hubPayload({ taskHub, stateService, capabilities }, { force }) {
       return { repos: [] };
     }),
   ]);
-  return { tasks: linkHubTasks(tasks, sessions.repos), capabilities, checkedAt: Date.now() };
+  return {
+    tasks: linkHubTasks(tasks, sessions.repos),
+    // For Start ▾: the repos a task can be started in.
+    repos: sessions.repos.map((repo) => ({ name: repo.name, mainPath: repo.mainPath })),
+    // For the work's controls (Allow/Deny), and for tasks just started: asking to trust the folder, or quit.
+    approvals: approvals.pending(),
+    taskStarts: taskStarts.list(sessions.liveSessions ?? []),
+    capabilities,
+    checkedAt: Date.now(),
+  };
 }
 
 const SSE_HEADERS = { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' };
@@ -467,8 +480,9 @@ async function main() {
   const clickupApi = process.env.SWITCHYARD_CLICKUP_API ?? CLICKUP_API;
   const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }) });
   const taskHub = createTaskHub();
+  const hubStarter = createHubStarter({ taskHub, newTask: tasks, rediscover: stateService.rediscover });
   const services = {
-    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
+    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({

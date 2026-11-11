@@ -61,8 +61,8 @@ export function renderLiveRow(state, session, details = null) {
 const PENDING_TONE = { trust: 'amber', exited: 'red' };
 const PENDING_DOT = { trust: 'idle', exited: null };
 
-/** Answer Claude's trust question for a starting task, as you would in its tmux window. */
-function trustButtons(task) {
+/** Answer Claude's trust question for a starting task (anything with its worktree's `path`), as you would in its tmux window. */
+export function trustButtons(task) {
   const answer = (trust) => async () => {
     await post('/api/tasks/trust', { path: task.path, trust });
     return trust ? 'Trusted the folder; Claude is starting' : 'Not trusted; Claude will exit';

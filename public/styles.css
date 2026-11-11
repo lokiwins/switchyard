@@ -388,6 +388,7 @@ button.row-detail:hover { color: var(--gray-900); }
 .row-detail.is-needs-you .row-detail-label, .row-detail.is-cut-off .row-detail-label { color: var(--amber); }
 .row-detail.is-prompt { color: var(--gray-500); }
 .row-detail.is-pending { color: var(--gray-500); font-style: italic; }
+.row-detail.is-failed { color: var(--red); }
 .list-row.is-pending { background: color-mix(in srgb, var(--green) 5%, transparent); }
 .list-row.is-pending.is-trust { background: color-mix(in srgb, var(--amber) 7%, transparent); }
 .list-row.is-pending.is-exited { background: color-mix(in srgb, var(--red) 5%, transparent); }

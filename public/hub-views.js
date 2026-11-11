@@ -1,6 +1,7 @@
-import { h } from './dom.js';
+import { h, readPref, writePref } from './dom.js';
 import { closeDropdown, dropdown } from './actions.js';
 import { linkLine } from './task-link-views.js';
+import { trustButtons } from './agent-views.js';
 import { STATE_LABELS, dueOnLabel, ticketLabel } from './task-state.js';
 
 /*
@@ -96,24 +97,74 @@ function taskMenu(task, actions) {
     remove);
 }
 
-function taskRow(task, { now, caps, actions }) {
-  const due = task.state === 'done' || task.state === 'dropped' ? null : dueOnLabel(task.dueOn, now);
+// The repo you last started a task in, shared with New task on the Agents page.
+const REPO_PREF = 'switchyard.newTaskRepo';
+
+/** Start ▾: pick the repo, then Start: Claude on the task in a new worktree, in the switchyard tmux session. */
+function startMenu(task, { repos, actions }) {
+  const sorted = [...repos].sort((a, b) => a.name.localeCompare(b.name));
+  const remembered = readPref(REPO_PREF, null);
+  const form = h('form', {
+    class: 'task-form',
+    onsubmit: async (event) => {
+      event.preventDefault();
+      const repo = form.elements.repo.value;
+      writePref(REPO_PREF, repo);
+      closeDropdown(form);
+      await actions.start(task, repo);
+    },
+  },
+  h('label', { class: 'task-field' }, h('span', {}, 'Repository'),
+    h('select', { name: 'repo', required: true }, sorted.map((r) => h('option', { value: r.mainPath, selected: r.mainPath === remembered }, r.name)))),
+  h('div', { class: 'task-actions' },
+    h('p', { class: 'reply-hint' }, 'Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session.'),
+    h('button', { type: 'submit', class: 'btn btn-sm' }, 'Start')));
+  return dropdown({ key: `start-${task.id}`, label: 'Start ▾', title: 'Start Claude on this task', className: 'btn btn-sm', panelClass: 'reply-panel', focusInput: false }, form);
+}
+
+/** The row's one line: how a start is going, or the first line of the notes. */
+function detailLine(task) {
+  const { start } = task;
+  if (task.creating) return h('span', { class: 'row-detail is-pending' }, 'Creating the worktree…');
+  if (start?.state === 'asking-trust') return h('span', { class: 'row-detail is-needs-you' }, h('span', { class: 'row-detail-label' }, 'Asks:'), ' trust this folder?');
+  if (start?.state === 'starting') return h('span', { class: 'row-detail is-pending' }, `Starting Claude in tmux window ${start.place}`);
+  if (start?.state === 'exited') {
+    const text = start.detail ? `Claude quit before starting: ${start.detail}` : 'Claude quit before starting';
+    return h('span', { class: 'row-detail is-failed', title: text }, text);
+  }
   const firstLine = task.notes.split('\n')[0];
+  return h('span', { class: 'row-detail muted', title: task.notes }, firstLine);
+}
+
+function rowActions(task, context) {
+  if (task.start?.state === 'asking-trust') return trustButtons(task.start);
+  const canStart = task.state === 'not-started' && context.caps?.tmux && context.repos.length > 0;
+  return [canStart && startMenu(task, context), taskMenu(task, context.actions)];
+}
+
+function taskRow(task, context) {
+  const { now, caps, approvals } = context;
+  const due = task.state === 'done' || task.state === 'dropped' ? null : dueOnLabel(task.dueOn, now);
   return h('li', { class: `list-row hub-row is-${task.state}${task.work.length ? ' has-links' : ''}` },
     stateBadge(task.state),
     h('div', { class: 'row-who' },
       h('span', { class: 'row-title', title: task.title }, task.title),
       h('span', { class: 'row-where' }, h('span', { class: 'mono' }, task.id), ticketLinks(task.links))),
-    h('span', { class: 'row-detail muted', title: task.notes }, firstLine),
+    detailLine(task),
     h('span', { class: `task-due${due?.tone ? ` ${due.tone}` : ''}` }, due?.text ?? ''),
-    h('div', { class: 'actions' }, taskMenu(task, actions)),
-    task.work.length > 0 && h('div', { class: 'task-links', 'aria-label': 'Work on this task' }, task.work.map((link) => linkLine(link, caps))));
+    h('div', { class: 'actions' }, rowActions(task, context)),
+    task.work.length > 0 && h('div', { class: 'task-links', 'aria-label': 'Work on this task' }, task.work.map((link) => linkLine(link, caps, approvals))));
 }
 
 /** The groups, each a heading and its tasks; Done is folded away until opened. */
-export function renderGroups(groups, { now = Date.now(), caps, actions, doneOpen, onDoneToggle }) {
+export function renderGroups(groups, {
+  now = Date.now(), caps, actions, repos = [], approvals = [], doneOpen, onDoneToggle,
+}) {
+  const context = {
+    now, caps, actions, repos, approvals,
+  };
   return groups.map((group) => {
-    const list = h('ul', { class: 'list' }, group.tasks.map((task) => taskRow(task, { now, caps, actions })));
+    const list = h('ul', { class: 'list' }, group.tasks.map((task) => taskRow(task, context)));
     const heading = [group.label, h('span', { class: 'hub-count' }, String(group.tasks.length))];
     if (group.key !== 'done') {
       return h('section', { class: `hub-group is-${group.key}`, 'aria-label': group.label }, h('h3', { class: 'hub-group-head' }, heading), list);
