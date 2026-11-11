@@ -33,6 +33,15 @@ export const SCENES = [
     prepare: agentsLoaded,
   },
   {
+    name: 'agents-phone',
+    title: 'Agents on a phone: the top bar in two rows, nothing wider than the screen',
+    path: '/',
+    prepare: async (page) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await agentsLoaded(page);
+    },
+  },
+  {
     name: 'new-task',
     title: 'New task: start Claude on a task in its own worktree',
     path: '/',
