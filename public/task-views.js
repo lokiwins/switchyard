@@ -1,7 +1,7 @@
 import { h } from './dom.js';
 
 /*
- * The Tasks page's connections: a card for each task management tool. Also
+ * The Tasks page's connections: a card for each tracker. Also
  * which session a worktree's Terminal and Jump go to.
  */
 
@@ -54,13 +54,20 @@ function connectedBody(tool, { onDisconnect, onWorkspace }) {
   ];
 }
 
-/** One card per tool: ClickUp to connect or connected; the rest marked as coming later. */
+/** GitHub's card: it uses your gh login, so there's nothing to paste, only to sign in to gh. */
+function ghBody(tool) {
+  if (tool.connected) return h('p', { class: 'tool-meta' }, h('span', { class: 'dot connected', 'aria-hidden': 'true' }), `Signed in to gh as ${tool.user.username}`);
+  return h('p', { class: 'tool-help' }, 'Uses your GitHub CLI login. Run ', h('code', {}, 'gh auth login'), ' in a terminal, then press Refresh.');
+}
+
+/** One card per tracker: to connect, connected, or coming soon. */
 export function renderToolCards(tools, handlers) {
   return tools.map((tool) => h('article', { class: `tool-card${tool.connected ? ' is-connected' : ''}${tool.available ? '' : ' is-later'}` },
     h('header', { class: 'tool-head' },
       h('h3', {}, tool.name),
-      !tool.available && h('span', { class: 'pill' }, 'Coming later')),
-    tool.available && (tool.connected ? connectedBody(tool, handlers) : connectForm(handlers.onConnect))));
+      !tool.available && h('span', { class: 'pill' }, 'Coming soon')),
+    tool.available && (tool.kind === 'gh' ? ghBody(tool)
+      : tool.connected ? connectedBody(tool, handlers) : connectForm(handlers.onConnect))));
 }
 
 // Questions waiting on you first, then working, then waiting; parked ones last.

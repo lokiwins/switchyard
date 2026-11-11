@@ -5,7 +5,7 @@
  * (see src/github.js, src/state.js, src/pr-sync.js) from the fixture file
  * named by SWITCHYARD_FAKE_GH, and fails on anything else, like gh would.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 /** `-f key=value` pairs of a `gh api graphql` call. */
@@ -87,13 +87,33 @@ export function respond(args, { viewer, prs, issues }) {
     if (!issue) throw new Error(`no issue found for ${repo}#${args[2]}`);
     return JSON.stringify(pick(issue, jsonFields(args)));
   }
+  if (command === 'search' && sub === 'issues') {
+    // gh search issues --assignee=@me --state=open: as GitHub's search gives them, newest change first.
+    const found = (issues ?? []).filter((i) => i.assignees?.includes(viewer) && i.state === 'OPEN')
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((i) => ({ ...i, state: 'open', repository: { nameWithOwner: i.repo } }));
+    return JSON.stringify(found.map((i) => pick(i, jsonFields(args))));
+  }
   throw new Error(`fake gh: unsupported call: gh ${args.join(' ')}`);
+}
+
+/** gh issue close/reopen: the fixture with that issue's state changed; null for any other call. */
+export function change(args, fixture) {
+  const [command, sub, number] = args;
+  if (command !== 'issue' || !['close', 'reopen'].includes(sub)) return null;
+  const repo = args[args.indexOf('--repo') + 1];
+  const issue = (fixture.issues ?? []).find((i) => i.repo === repo && String(i.number) === number);
+  if (!issue) throw new Error(`no issue found for ${repo}#${number}`);
+  return { ...fixture, issues: fixture.issues.map((i) => (i === issue ? { ...i, state: sub === 'close' ? 'CLOSED' : 'OPEN' } : i)) };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const fixture = JSON.parse(readFileSync(process.env.SWITCHYARD_FAKE_GH, 'utf8'));
-    process.stdout.write(respond(process.argv.slice(2), fixture));
+    // Each call is a new process, so a change is kept in the fixture file.
+    const changed = change(process.argv.slice(2), fixture);
+    if (changed) writeFileSync(process.env.SWITCHYARD_FAKE_GH, JSON.stringify(changed));
+    else process.stdout.write(respond(process.argv.slice(2), fixture));
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exit(1);

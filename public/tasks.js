@@ -139,21 +139,17 @@ const toolHandlers = {
   onWorkspace: (workspaceId) => changeTools('/api/task-tools/workspace', { tool: 'clickup', workspaceId }, { redrawOnFailure: true }),
 };
 
-/** ClickUp ▾ in the header: whether it's connected, and its card to connect, switch workspace or disconnect. */
+/** Connections ▾ in the header: which trackers are connected, and a card for each to connect it. */
 function renderTools() {
   const tools = ui.tools ?? [];
-  const clickup = tools.find((tool) => tool.id === 'clickup');
-  const later = tools.filter((tool) => !tool.available).map((tool) => tool.name);
-  const connected = Boolean(clickup?.connected);
+  const connected = tools.filter((tool) => tool.connected);
   $('connections').replaceChildren(dropdown({
     key: 'connections',
-    label: [h('span', { class: `dot${connected ? ' connected' : ''}`, 'aria-hidden': 'true' }), ' ClickUp ▾'],
-    title: connected ? `ClickUp: connected as ${clickup.user.username}` : 'ClickUp: not connected',
+    label: [h('span', { class: `dot${connected.length ? ' connected' : ''}`, 'aria-hidden': 'true' }), ' Connections ▾'],
+    title: connected.length ? `Connected: ${connected.map((tool) => tool.name).join(', ')}` : 'No tracker connected',
     className: 'btn btn-secondary connections-btn',
     panelClass: 'connections-panel',
-  },
-  renderToolCards(tools.filter((tool) => tool.available), toolHandlers),
-  later.length > 0 && h('p', { class: 'tool-help' }, `${later.join(', ')}: coming later.`)));
+  }, renderToolCards(tools, toolHandlers)));
 }
 
 async function loadTools() {
@@ -183,8 +179,12 @@ async function load({ force = false } = {}) {
 
 $('new-task').replaceChildren(newTaskForm(
   (fields) => change('/api/hub/tasks/create', fields, `Added: ${fields.title.trim()}`),
-  // Add from ClickUp ▾: your assigned tickets (ClickUp is asked at most once a minute), less those a task links.
-  { load: () => getJson('/api/task-tools/tasks'), tasks: () => ui.data?.tasks ?? [] },
+  // Add from ▾: a tracker's tickets assigned to you (each asked at most once a minute), less those a task links.
+  {
+    load: (tool) => getJson(`/api/task-tools/tickets?tool=${encodeURIComponent(tool)}`),
+    tasks: () => ui.data?.tasks ?? [],
+    tools: () => (ui.tools ?? []).filter((tool) => tool.available),
+  },
 ));
 $('refresh').addEventListener('click', () => load({ force: true }));
 $('search').addEventListener('input', (event) => {

@@ -18,23 +18,37 @@ function ticketStatus(status) {
   return pill;
 }
 
+// The tracker tab Add from ▾ opened on last.
+const IMPORT_TAB_PREF = 'switchyard.importTab';
+// What to do when a tracker isn't connected yet.
+const CONNECT_HINT = {
+  github: ['Sign in to the GitHub CLI first: run ', h('code', {}, 'gh auth login'), ' in a terminal, then try again.'],
+};
+const connectHint = (tool) => CONNECT_HINT[tool.id] ?? [`Connect ${tool.name} first, in the Connections ▾ menu at the top of the page.`];
+
 /**
- * Add from ClickUp ▾: the tickets assigned to you that no task links yet.
- * Clicking one makes a task of it and takes it off the list, so several can
- * be added in a row. `picker.load()` resolves to { connected, tasks, error };
+ * Add from ▾: a tab per tracker, each listing the open tickets assigned to
+ * you there that no task links yet. Clicking one makes a task of it and takes
+ * it off the list, so several can be added in a row. `picker.tools()` are the
+ * trackers to offer; `picker.load(id)` resolves to { connected, tasks, error };
  * `picker.tasks()` are your tasks now; `picker.create(fields)` resolves
  * whether it worked.
  */
-function clickupPicker(picker) {
-  const list = h('div', { class: 'picker-list' });
+function ticketPicker(picker) {
+  const tabs = h('div', { class: 'picker-tabs', role: 'tablist', 'aria-label': 'Tracker' });
+  const list = h('div', { class: 'picker-list', role: 'tabpanel' });
+  let tool = null;
   let tickets = null;
   let query = '';
+  // Each load is numbered, so a slow tracker's answer can't land in another tab.
+  let loads = 0;
 
   function render() {
-    if (tickets === null) return list.replaceChildren(h('p', { class: 'picker-note' }, 'Loading your ClickUp tickets…'));
+    if (!tool) return list.replaceChildren(h('p', { class: 'picker-note' }, 'No tracker to import from yet.'));
+    if (tickets === null) return list.replaceChildren(h('p', { class: 'picker-note' }, `Loading your ${tool.name} tickets…`));
     const offered = unlinkedTickets(tickets, picker.tasks()).filter((t) => matchesTicket(t, query));
     if (offered.length === 0) {
-      return list.replaceChildren(h('p', { class: 'picker-note' }, query ? `No tickets match “${query}”.` : 'Every ticket assigned to you is already a task.'));
+      return list.replaceChildren(h('p', { class: 'picker-note' }, query ? `No tickets match “${query}”.` : `Every ${tool.name} ticket assigned to you is already a task.`));
     }
     return list.replaceChildren(...offered.map((ticket) => h('button', {
       type: 'button',
@@ -52,37 +66,56 @@ function clickupPicker(picker) {
     h('span', { class: 'menu-meta' }, [ticket.customId ?? ticket.id, ticket.where].filter(Boolean).join(' · ')))));
   }
 
-  async function load() {
+  async function show(next) {
+    tool = next;
+    writePref(IMPORT_TAB_PREF, tool.id);
+    tabs.querySelectorAll('button').forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.tool === tool.id)));
     tickets = null;
     render();
-    const result = await picker.load().catch((error) => ({ connected: true, tasks: [], error: error.message }));
+    loads += 1;
+    const load = loads;
+    const result = await picker.load(tool.id).catch((error) => ({ connected: true, tasks: [], error: error.message }));
+    if (load !== loads) return;
     if (!result.connected) {
-      list.replaceChildren(h('p', { class: 'picker-note' }, 'Connect ClickUp first, in the ClickUp ▾ menu at the top of the page.'));
+      list.replaceChildren(h('p', { class: 'picker-note' }, connectHint(tool)));
       return;
     }
     if (result.error) {
-      list.replaceChildren(h('p', { class: 'picker-note' }, `ClickUp: ${result.error}`));
+      list.replaceChildren(h('p', { class: 'picker-note' }, `${tool.name}: ${result.error}`));
       return;
     }
     tickets = result.tasks;
     render();
   }
 
+  /** Tabs for the trackers there are now; opens on the last one used, else the first connected. */
+  function open() {
+    const tools = picker.tools();
+    tabs.replaceChildren(...tools.map((t) => h('button', {
+      type: 'button', role: 'tab', class: 'picker-tab', 'data-tool': t.id, onclick: () => show(t),
+    }, t.connected && h('span', { class: 'dot connected', 'aria-hidden': 'true' }), t.name)));
+    const remembered = tools.find((t) => t.id === readPref(IMPORT_TAB_PREF, null));
+    const first = remembered ?? tools.find((t) => t.connected) ?? tools[0];
+    if (first) show(first);
+    else { tool = null; render(); }
+  }
+
   const menu = dropdown({
-    key: 'clickup-picker', label: 'Add from ClickUp ▾', title: 'Make tasks from the ClickUp tickets assigned to you', className: 'btn btn-secondary', panelClass: 'picker-panel',
+    key: 'ticket-picker', label: 'Add from ▾', title: 'Make tasks from the tickets assigned to you in your trackers', className: 'btn btn-secondary', panelClass: 'picker-panel',
   },
+  tabs,
   h('input', {
-    type: 'search', class: 'picker-filter', placeholder: 'Filter name, id, status, list…', 'aria-label': 'Filter ClickUp tickets',
+    type: 'search', class: 'picker-filter', placeholder: 'Filter name, id, status, where…', 'aria-label': 'Filter tickets',
     oninput: (event) => { query = event.target.value.trim(); render(); },
     // It sits inside the add-a-task form: Enter here mustn't add a task.
     onkeydown: (event) => { if (event.key === 'Enter') event.preventDefault(); },
   }),
   list);
-  menu.addEventListener('toggle', () => { if (menu.open) load(); });
+  menu.addEventListener('toggle', () => { if (menu.open) open(); });
   return menu;
 }
 
-/** The add-a-task form: a title and due day, with notes and links behind "Notes and links"; and Add from ClickUp. */
+/** The add-a-task form: a title and due day, with notes and links behind "Notes and links"; and Add from ▾. */
 export function newTaskForm(onCreate, picker = null) {
   const form = h('form', {
     class: 'hub-new',
@@ -113,7 +146,7 @@ export function newTaskForm(onCreate, picker = null) {
     }),
     h('input', { name: 'dueOn', type: 'date', 'aria-label': 'Due date', title: 'Due date (optional)' }),
     h('button', { type: 'submit', class: 'btn' }, 'Add'),
-    picker && clickupPicker({ ...picker, create: onCreate })),
+    picker && ticketPicker({ ...picker, create: onCreate })),
   h('details', { class: 'hub-new-more' },
     h('summary', {}, 'Notes and links'),
     h('label', { class: 'task-field' }, h('span', {}, 'Notes (what Claude is told when you start it)'),

@@ -159,11 +159,11 @@ export const SCENES = [
   },
   {
     name: 'tasks-add-from-clickup',
-    title: 'Add from ClickUp: make tasks from the tickets assigned to you',
+    title: 'Add from: make tasks from the tickets assigned to you, a tab per tracker',
     path: '/tasks',
     prepare: async (page) => {
       await page.getByText('Email a receipt after each charge').waitFor();
-      await page.locator('form.hub-new details.menu > summary', { hasText: /^Add from ClickUp/ }).click();
+      await page.locator('form.hub-new details.menu > summary', { hasText: /^Add from/ }).click();
       await page.locator('.picker-panel .picker-item').first().waitFor();
     },
   },

@@ -323,11 +323,23 @@ export const CLICKUP_DESCRIPTIONS = {
   '86b4fx5': 'Send a receipt by email after each successful charge, with the amount and the last four digits of the card.',
 };
 
-/** Issues the stand-in gh knows, for the details pane. */
+/** Issues the stand-in gh knows: for the details pane, and (assigned to you, open) for Add from ▾. */
 export const ISSUES = [
   {
     repo: 'acme/storefront', number: 51, title: 'CI takes 14 minutes on every push', state: 'OPEN', url: 'https://github.com/acme/storefront/issues/51',
-    body: 'Most of it is `npm ci` and the two slow suites.\n\n- Cache `node_modules`\n- Split the e2e suite',
+    body: 'Most of it is `npm ci` and the two slow suites.\n\n- Cache `node_modules`\n- Split the e2e suite', assignees: [VIEWER], updatedAt: '2026-11-09T15:00:00Z',
+  },
+  {
+    repo: 'acme/billing-api', number: 12, title: 'Refunds should email the customer', state: 'OPEN', url: 'https://github.com/acme/billing-api/issues/12',
+    body: 'Today a refund is silent. Send the same receipt email, marked **Refund**.', assignees: [VIEWER], updatedAt: '2026-11-10T08:30:00Z',
+  },
+  {
+    repo: 'acme/storefront', number: 58, title: 'Search loses its filter on Back', state: 'OPEN', url: 'https://github.com/acme/storefront/issues/58',
+    body: 'Going back to search results drops the category filter.', assignees: [VIEWER], updatedAt: '2026-11-10T11:00:00Z',
+  },
+  {
+    repo: 'acme/storefront', number: 60, title: 'Someone else\'s issue', state: 'OPEN', url: 'https://github.com/acme/storefront/issues/60',
+    body: '', assignees: ['sam'], updatedAt: '2026-11-10T12:00:00Z',
   },
 ];
 

@@ -20,14 +20,17 @@ test('parseTicketLink refuses anything that could reach gh as an option or anoth
   }
 });
 
-function setup({ gh = '{}' } = {}) {
+function setup() {
   const calls = [];
   const details = createTicketDetails({
     taskTools: {
       clickupTicket: async (key) => { calls.push(['clickup', key]); return { tracker: 'clickup', id: key }; },
       setClickupStatus: async (body) => { calls.push(['status', body]); return { tracker: 'clickup', status: { name: body.status } }; },
     },
-    runGh: async (args) => { calls.push(['gh', ...args]); return gh; },
+    github: {
+      ticket: async (ref, link) => { calls.push(['github', ref, link]); return { tracker: 'github', url: link }; },
+      setStatus: async (ref, link, status) => { calls.push(['github-status', ref, status]); return { tracker: 'github', status: { name: status } }; },
+    },
   });
   return { details, calls };
 }
@@ -38,15 +41,10 @@ test('get: a ClickUp ticket comes from ClickUp', async () => {
   assert.deepEqual(calls, [['clickup', '86b4fx5']]);
 });
 
-test('get: a GitHub issue or PR comes from gh, every value its own argument', async () => {
-  const body = JSON.stringify({ title: 'Faster CI', body: 'Cache **node_modules**.', state: 'OPEN', url: 'https://github.com/acme/storefront/issues/51' });
-  const { details, calls } = setup({ gh: body });
-  assert.deepEqual(await details.get('https://github.com/acme/storefront/issues/51'), {
-    tracker: 'github', title: 'Faster CI', status: { name: 'open', color: null }, description: 'Cache **node_modules**.', url: 'https://github.com/acme/storefront/issues/51',
-  });
-  assert.deepEqual(calls, [['gh', 'issue', 'view', '51', '--repo', 'acme/storefront', '--json', 'title,body,state,url']]);
-  await details.get('https://github.com/acme/storefront/pull/7');
-  assert.deepEqual(calls[1].slice(0, 3), ['gh', 'pr', 'view']);
+test('get: a GitHub issue or PR goes to gh, by its checked repo and number', async () => {
+  const { details, calls } = setup();
+  await details.get('https://github.com/acme/storefront/issues/51');
+  assert.deepEqual(calls, [['github', { tracker: 'github', repo: 'acme/storefront', number: 51, kind: 'issue' }, 'https://github.com/acme/storefront/issues/51']]);
 });
 
 test('get: other links are not read, only linked to', async () => {
@@ -56,9 +54,13 @@ test('get: other links are not read, only linked to', async () => {
   await assert.rejects(details.get(42), (error) => error.status === 400);
 });
 
-test('setStatus: only for ClickUp tickets', async () => {
+test('setStatus: ClickUp tickets and GitHub issues; other trackers not yet', async () => {
   const { details, calls } = setup();
   await details.setStatus({ url: 'https://app.clickup.com/t/9012345/SHOP-31', status: 'complete' });
-  assert.deepEqual(calls, [['status', { key: 'SHOP-31', status: 'complete' }]]);
-  await assert.rejects(details.setStatus({ url: 'https://github.com/a/b/issues/1', status: 'closed' }), (error) => error.status === 400);
+  await details.setStatus({ url: 'https://github.com/a/b/issues/1', status: 'closed' });
+  assert.deepEqual(calls, [
+    ['status', { key: 'SHOP-31', status: 'complete' }],
+    ['github-status', { tracker: 'github', repo: 'a/b', number: 1, kind: 'issue' }, 'closed'],
+  ]);
+  await assert.rejects(details.setStatus({ url: 'https://acme.atlassian.net/browse/SHOP-1', status: 'Done' }), (error) => error.status === 400);
 });

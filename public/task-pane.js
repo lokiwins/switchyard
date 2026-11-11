@@ -25,16 +25,16 @@ function statusPill(status) {
   return pill;
 }
 
-/** Status ▾ for a ClickUp ticket: its list's statuses; choosing one changes it in ClickUp. */
+/** Status ▾: the statuses a ticket can move to (a ClickUp list's, or an issue's open/closed); choosing one changes it there. */
 function statusPicker(link, ticket, onChanged) {
   const select = h('select', {
     class: 'pane-select',
-    'aria-label': `Status in ClickUp: ${ticket.name}`,
+    'aria-label': `Status in ${TRACKER_NAMES[ticket.tracker] ?? 'its tracker'}: ${ticket.name ?? ticket.title}`,
     onchange: async () => {
       select.disabled = true;
       try {
         const updated = await post('/api/hub/ticket/status', { url: link, status: select.value });
-        toast(`ClickUp: ${ticket.name} is now ${updated.status.name}`);
+        toast(`${TRACKER_NAMES[ticket.tracker] ?? 'It'}: ${ticket.name ?? ticket.title} is now ${updated.status.name}`);
         onChanged(updated);
       } catch (error) {
         toast(error.message);
