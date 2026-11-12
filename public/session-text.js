@@ -22,6 +22,12 @@ const claudeTitle = (t) => t.agentName ?? t.title ?? null;
 /** Whether switchyard can press keys where a session runs: a tmux pane, or an iTerm tab (see canAnswerIn in src/terminal.js). */
 export const canPressKeys = (host) => host?.kind === 'tmux' || (host?.kind === 'terminal' && host.app === 'iTerm');
 
+/** Whether a session has a tab you can go back to: a tmux window, a terminal app's tab, or an editor's terminal. */
+const hasOpenTab = (host) => host?.kind === 'tmux' || host?.kind === 'editor' || (host?.kind === 'terminal' && Boolean(host.tty));
+
+/** A parked session folds behind "Show parked" only when it has no open tab; one you can still go back to stays listed. */
+export const foldsWhenParked = (session) => Boolean(session.parked) && !hasOpenTab(session.host);
+
 /**
  * For a session waiting on you where the page can't answer (Terminal, an
  * editor's terminal, another app): where to answer it, and how to be able to

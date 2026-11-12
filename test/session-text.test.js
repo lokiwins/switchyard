@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { answerElsewhere, sessionDetail, sessionTitle } from '../public/session-text.js';
+import { answerElsewhere, foldsWhenParked, sessionDetail, sessionTitle } from '../public/session-text.js';
 
 const live = (fields, transcript = {}) => ({ sessionId: 'abcdef12-0000', cwd: '/w/my-repo', status: 'idle', ...fields, transcript });
 
@@ -76,4 +76,18 @@ test('no hint where the page can already answer: tmux, iTerm, or a prompt the ho
   assert.equal(answerElsewhere({ needsYou: true, host: { kind: 'terminal', label: 'iTerm', app: 'iTerm' } }, []), null);
   assert.equal(answerElsewhere({ needsYou: true, host: { kind: 'editor', label: 'VS Code' } }, [{ id: 'a' }]), null);
   assert.equal(answerElsewhere({ needsYou: false, host: { kind: 'editor', label: 'VS Code' } }, []), null);
+});
+
+test('a parked session stays in the list while its terminal is open; only ones with no tab fold away', () => {
+  const parked = (host) => live({ parked: true, host });
+  assert.equal(foldsWhenParked(parked({ kind: 'tmux', label: 'tmux', window: '@3' })), false);
+  assert.equal(foldsWhenParked(parked({ kind: 'terminal', app: 'iTerm', label: 'iTerm', tty: '/dev/ttys004' })), false);
+  assert.equal(foldsWhenParked(parked({ kind: 'terminal', app: 'Terminal', label: 'Terminal', tty: '/dev/ttys005' })), false);
+  assert.equal(foldsWhenParked(parked({ kind: 'editor', label: 'VS Code', scheme: 'vscode' })), false);
+  // No tab to go back to: an app that isn't a terminal, a terminal tab whose tty is unknown, or no host found.
+  assert.equal(foldsWhenParked(parked({ kind: 'app', label: 'ChatGPT' })), true);
+  assert.equal(foldsWhenParked(parked({ kind: 'terminal', app: 'iTerm', label: 'iTerm', tty: null })), true);
+  assert.equal(foldsWhenParked(parked(null)), true);
+  // A session that isn't parked never folds.
+  assert.equal(foldsWhenParked(live({ parked: false, host: null })), false);
 });
