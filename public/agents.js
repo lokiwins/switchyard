@@ -151,7 +151,8 @@ function renderRunning(state, filter) {
   const starting = pendingRows();
   const list = sessions.length === 0 && starting.length > 0 ? [] : renderLiveList(state, sessions, {
     showParked: ui.showParked || ui.filter === 'parked',
-    onToggleParked: () => {
+    // The Parked filter always shows them all, so there's nothing to toggle there.
+    onToggleParked: ui.filter === 'parked' ? null : () => {
       ui.showParked = !ui.showParked;
       render();
     },

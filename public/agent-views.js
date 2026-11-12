@@ -1,7 +1,7 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
 import { actionButton, jumpButton, post, tmuxPlace } from './actions.js';
 import { sessionRow, statusBadge, taskLink, whereLabel } from './session-row.js';
-import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle } from './session-text.js';
+import { answerElsewhere, foldsWhenParked, sessionDetail, sessionDot, sessionLabel, sessionTitle } from './session-text.js';
 import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
 import { terminalButton } from './live-terminal.js';
 import { answerMenu, planButton } from './screen-answer.js';
@@ -95,18 +95,21 @@ const rank = (s) => (s.needsYou ? 3 : s.status === 'busy' ? 2 : 1);
 const byRecent = (a, b) => (b.statusUpdatedAt ?? 0) - (a.statusUpdatedAt ?? 0);
 
 /**
- * Running sessions: working and waiting first, parked ones (idle over a day)
- * behind a toggle unless `parkedOpen` is forced on.
+ * Running sessions: working and waiting first, then parked ones (idle over a
+ * day) whose tab is still open. Parked ones with no tab to go back to sit
+ * behind a toggle (none without `onToggleParked`) unless `showParked` is on.
  */
 export function renderLiveList(state, sessions, { showParked, onToggleParked, details, emptyText }) {
   if (sessions.length === 0) return [h('div', { class: 'empty' }, emptyText)];
-  const active = sessions.filter((s) => !s.parked).sort((a, b) => rank(b) - rank(a) || byRecent(a, b));
-  const parked = sessions.filter((s) => s.parked).sort(byRecent);
+  const working = sessions.filter((s) => !s.parked).sort((a, b) => rank(b) - rank(a) || byRecent(a, b));
+  const parkedInTabs = sessions.filter((s) => s.parked && !foldsWhenParked(s)).sort(byRecent);
+  const active = [...working, ...parkedInTabs];
+  const parked = sessions.filter(foldsWhenParked).sort(byRecent);
   const row = (s) => renderLiveRow(state, s, details);
   return [
     active.length > 0 && h('ul', { class: 'list' }, active.map(row)),
-    parked.length > 0 && active.length > 0 && h('button', { type: 'button', class: 'list-toggle', onclick: onToggleParked },
-      showParked ? 'Hide parked sessions' : `Show ${parked.length} parked session${parked.length > 1 ? 's' : ''} (idle over a day)`),
+    parked.length > 0 && active.length > 0 && onToggleParked && h('button', { type: 'button', class: 'list-toggle', onclick: onToggleParked },
+      showParked ? 'Hide parked sessions' : `Show ${parked.length} parked session${parked.length > 1 ? 's' : ''} (idle over a day, no open tab)`),
     parked.length > 0 && (showParked || active.length === 0) && h('ul', { class: 'list' }, parked.map(row)),
   ].filter(Boolean);
 }
