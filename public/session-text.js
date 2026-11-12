@@ -22,6 +22,9 @@ const claudeTitle = (t) => t.agentName ?? t.title ?? null;
 /** Whether switchyard can press keys where a session runs: a tmux pane, or an iTerm tab (see canAnswerIn in src/terminal.js). */
 export const canPressKeys = (host) => host?.kind === 'tmux' || (host?.kind === 'terminal' && host.app === 'iTerm');
 
+/** Whether the page can show every task's tmux window in iTerm, through iTerm's tmux integration. */
+export const canShowTerminalSessions = (caps) => caps?.terminal === 'iTerm' && caps?.tmux === true;
+
 /** Whether a session has a tab you can go back to: a tmux window, a terminal app's tab, or an editor's terminal. */
 const hasOpenTab = (host) => host?.kind === 'tmux' || host?.kind === 'editor' || (host?.kind === 'terminal' && Boolean(host.tty));
 

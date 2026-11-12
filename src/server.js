@@ -127,6 +127,7 @@ const POST_ROUTES = {
   '/api/prs/copilot-review': ({ prService }, body) => prService.copilotReview(body),
   '/api/approvals/decide': ({ approvals }, body) => approvals.decide(body),
   '/api/terminal/focus': ({ actions }, body) => actions.focusSession(body),
+  '/api/terminal/show-sessions': ({ actions }) => actions.showTerminalSessions(),
   '/api/terminal/reply': ({ actions }, body) => actions.replyToSession(body),
   '/api/terminal/interrupt': ({ actions }, body) => actions.interruptSession(body),
   '/api/terminal/answer': answerPrompt,

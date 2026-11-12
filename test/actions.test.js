@@ -12,6 +12,7 @@ const chatgpt = { kind: 'app', label: 'ChatGPT', appName: 'ChatGPT' };
 function setup({
   host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004',
   useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'], screen = '',
+  integrated = [], paneShown = false, sessionUp = true,
 } = {}) {
   const calls = [];
   const fullState = {
@@ -24,6 +25,7 @@ function setup({
     app: 'iTerm',
     focus: async (t) => { calls.push(['focus', t]); return tabFound; },
     open: async (command) => { calls.push(['open', command]); },
+    focusTmuxPane: async (pane) => { calls.push(['focus-pane', pane]); return paneShown; },
     type: async (t, text) => { calls.push(['type', t, text]); return tabFound; },
     screen: async () => screenNow(),
     pressKey: async (t, key) => { calls.push(['term-key', t, key]); return tabFound; },
@@ -34,6 +36,10 @@ function setup({
     ? screen(calls.filter((c) => c[0] === 'tmux-key' || c[0] === 'term-key').map((c) => c[2])) : screen);
   const tmux = {
     clientsShowing: async (window) => { calls.push(['clients', window]); return clients; },
+    integrationClients: async (session) => { calls.push(['integrated', session]); return integrated; },
+    hasSession: async (session) => session === 'switchyard' && sessionUp,
+    activePane: async () => '%7',
+    integrationCommand: async (session) => `exec tmux -CC attach-session -t '=${session}'`,
     openView: async (window) => { calls.push(['view', window]); return `exec tmux attach-session -t =switchyard-view-${window.slice(1)}`; },
     sendLine: async (pane, text) => { calls.push(['tmux-type', pane, text]); },
     interrupt: async (pane) => { calls.push(['tmux-interrupt', pane]); },
@@ -200,13 +206,13 @@ test('editorUrl encodes the folder path', () => {
 test('Jump selects the tab already showing the task\'s tmux window', async () => {
   const { actions, calls } = setup({ host: inTmux, clients: ['/dev/ttys002'] });
   assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'tab', host: 'tmux' });
-  assert.deepEqual(calls, [['clients', '@4'], ['focus', '/dev/ttys002']]);
+  assert.deepEqual(calls, [['integrated', 'switchyard'], ['clients', '@4'], ['focus', '/dev/ttys002']]);
 });
 
 test('Jump opens the task in a tab of its own when no tab shows it', async () => {
   const { actions, calls } = setup({ host: inTmux });
   assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'opened', host: 'iTerm' });
-  assert.deepEqual(calls, [['clients', '@4'], ['view', '@4'], ['open', 'exec tmux attach-session -t =switchyard-view-4']]);
+  assert.deepEqual(calls, [['integrated', 'switchyard'], ['clients', '@4'], ['view', '@4'], ['open', 'exec tmux attach-session -t =switchyard-view-4']]);
 });
 
 test('Jump opens a tab of its own when the one showing the task is not one it can select', async () => {
@@ -429,4 +435,40 @@ test('Answer only works for a tmux session that is waiting on you', async () => 
   await rejectsWith(setup({ ...waiting, session: { needsYou: false } }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 409);
   await rejectsWith(setup({ ...waiting, host: chatgpt }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 501);
   await rejectsWith(setup({ ...waiting, alive: false }).actions.answerPrompt(answer({ number: 1, label: 'Red' })), 409);
+});
+
+test('Jump brings forward the task\'s window in iTerm\'s tmux integration when it shows the session', async () => {
+  const { actions, calls } = setup({ host: inTmux, integrated: ['/dev/ttys028'], paneShown: true });
+  assert.deepEqual(await actions.focusSession({ sessionId: ID }), { precision: 'tab', host: 'iTerm' });
+  assert.deepEqual(calls, [['integrated', 'switchyard'], ['focus-pane', '%3']]);
+});
+
+test('Jump falls back to a tab of its own when iTerm\'s integration doesn\'t show the task', async () => {
+  const { actions, calls } = setup({ host: inTmux, integrated: ['/dev/ttys028'], paneShown: false });
+  assert.equal((await actions.focusSession({ sessionId: ID })).precision, 'opened');
+  assert.deepEqual(calls.map((c) => c[0]), ['integrated', 'focus-pane', 'clients', 'view', 'open']);
+});
+
+test('Show Terminal Sessions opens every task window in iTerm through its tmux integration', async () => {
+  const { actions, calls } = setup();
+  assert.deepEqual(await actions.showTerminalSessions(), { precision: 'opened', host: 'iTerm' });
+  assert.deepEqual(calls, [['integrated', 'switchyard'], ['open', "exec tmux -CC attach-session -t '=switchyard'"]]);
+});
+
+test('Show Terminal Sessions brings them forward when iTerm already shows them, rather than opening them twice', async () => {
+  const { actions, calls } = setup({ integrated: ['/dev/ttys028'], paneShown: true });
+  assert.deepEqual(await actions.showTerminalSessions(), { precision: 'tab', host: 'iTerm' });
+  assert.deepEqual(calls, [['integrated', 'switchyard'], ['focus-pane', '%7']]);
+});
+
+test('Show Terminal Sessions opens them again when the integration that shows them can\'t be found in iTerm', async () => {
+  const { actions, calls } = setup({ integrated: ['/dev/ttys028'], paneShown: false });
+  assert.equal((await actions.showTerminalSessions()).precision, 'opened');
+  assert.deepEqual(calls.at(-1), ['open', "exec tmux -CC attach-session -t '=switchyard'"]);
+});
+
+test('Show Terminal Sessions says so when there are none yet', async () => {
+  const { actions, calls } = setup({ sessionUp: false });
+  await rejectsWith(actions.showTerminalSessions(), 404);
+  assert.deepEqual(calls, []);
 });

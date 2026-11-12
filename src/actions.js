@@ -6,7 +6,7 @@ import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { shellQuote } from './shell.js';
 import { canAnswerIn, canTypeInto, createTerminal, ttyOf } from './terminal.js';
-import { freeWindowName, runInWindow } from './task-session.js';
+import { TASK_SESSION, freeWindowName, runInWindow } from './task-session.js';
 import { createTmux } from './tmux.js';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
@@ -154,11 +154,31 @@ export function createActionService({
    * in a tab of its own, showing just that window (see openView in tmux.js).
    */
   async function focusTmux(host) {
+    if (await showsInIterm(host.session, host.pane)) return { precision: 'tab', host: 'iTerm' };
     for (const tty of await tmux.clientsShowing(host.window)) {
       if (await terminal.focus(tty).catch(() => false)) return { precision: 'tab', host: host.label };
     }
     await terminal.open(await tmux.openView(host.window));
     return { precision: 'opened', host: terminal.app };
+  }
+
+  /** Whether iTerm's tmux integration shows `session`, and could bring `pane`'s window forward. */
+  async function showsInIterm(session, pane) {
+    if (terminal.app !== 'iTerm' || (await tmux.integrationClients(session)).length === 0) return false;
+    return terminal.focusTmuxPane(pane);
+  }
+
+  /**
+   * Every task's window, in iTerm: its tmux integration (`tmux -CC`) shows
+   * each tmux window as an iTerm window or tab of its own. Brought forward
+   * when iTerm already shows them, opened in a new tab otherwise.
+   */
+  async function showTerminalSessions() {
+    if (terminal.app !== 'iTerm') throw new ActionError(501, 'Showing terminal sessions needs iTerm, for its tmux integration');
+    if (!(await tmux.hasSession(TASK_SESSION))) throw new ActionError(404, 'No terminal sessions yet: start one with New task');
+    if (await showsInIterm(TASK_SESSION, await tmux.activePane(TASK_SESSION))) return { precision: 'tab', host: 'iTerm' };
+    await terminal.open(await tmux.integrationCommand(TASK_SESSION));
+    return { precision: 'opened', host: 'iTerm' };
   }
 
   /**
@@ -417,5 +437,5 @@ export function createActionService({
     return { opened: true };
   }
 
-  return { focusSession, replyToSession, interruptSession, answerPrompt, tmuxTarget, resumeSession, openWorktree };
+  return { focusSession, showTerminalSessions, replyToSession, interruptSession, answerPrompt, tmuxTarget, resumeSession, openWorktree };
 }

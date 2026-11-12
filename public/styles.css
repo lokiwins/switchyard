@@ -294,6 +294,8 @@ main {
   flex-wrap: wrap; min-height: 32px; margin-bottom: var(--space-2);
 }
 .panel-head .muted { font-size: var(--text-xs); }
+/* A control next to the panel's title, with the filters still to the right. */
+.panel-head .panel-action { margin-right: auto; }
 .subhead { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-4) 0 var(--space-1); }
 .subhead .muted { font-size: var(--text-xs); }
 

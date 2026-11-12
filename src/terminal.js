@@ -111,6 +111,30 @@ end run`,
   end tell
   return "missing"
 end run`,
+    // iTerm's tmux integration (tmux -CC) shows each tmux window as an iTerm window or tab
+    // of its own, with no tty; iTerm names the pane each one shows in its session variables.
+    focusTmuxPane: `on run argv
+  tell application "iTerm"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          tell s
+            set role to variable named "tmuxRole"
+            set pane to variable named "tmuxWindowPane"
+          end tell
+          if (role as text) is "client" and (pane as text) is (item 1 of argv) then
+            select w
+            tell t to select
+            tell s to select
+            activate
+            return "found"
+          end if
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  return "missing"
+end run`,
   },
   Terminal: {
     focus: `on run argv
@@ -250,6 +274,17 @@ export function createTerminal({ app, platform = process.platform, exec = run })
       ensureSupported();
       if (!scripts.enterLine) throw new TerminalError(501, `switchyard can't type into ${app} tabs`);
       return (await osascript(scripts.enterLine, [tty, assertSingleLine(text)], app, exec)) === 'typed';
+    },
+
+    /**
+     * Bring forward the window or tab iTerm's tmux integration shows `pane`
+     * (e.g. "%12") in. Resolves false if none shows it, or the app has no tmux integration.
+     */
+    async focusTmuxPane(pane) {
+      const number = /^%(\d+)$/.exec(pane)?.[1];
+      if (!number) throw new TerminalError(400, 'Expected a tmux pane id like %3');
+      if (!supported || !scripts.focusTmuxPane) return false;
+      return (await osascript(scripts.focusTmuxPane, [number], app, exec)) === 'found';
     },
 
     /** Open a new tab and type `command` into it. */

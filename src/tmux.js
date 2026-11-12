@@ -203,6 +203,48 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
     },
 
     /**
+     * The terminals showing `session` through iTerm's tmux integration
+     * (`tmux -CC`): control-mode clients with a tty. switchyard's own control
+     * clients (the live terminal) have none. Empty when the session isn't there.
+     */
+    async integrationClients(session) {
+      try {
+        const lines = await exec('tmux', ['list-clients', '-t', `=${session}`, '-F', '#{client_tty}\t#{client_control_mode}']);
+        return lines.split('\n').flatMap((line) => {
+          const [tty, controlMode] = line.split('\t');
+          return tty && controlMode === '1' ? [tty] : [];
+        });
+      } catch {
+        return [];
+      }
+    },
+
+    /** Whether `session` is running. */
+    async hasSession(session) {
+      try {
+        await exec('tmux', ['has-session', '-t', `=${session}`]);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
+    /** The pane `session` is showing now, e.g. "%7". */
+    async activePane(session) {
+      return (await tmux(['display-message', '-p', '-t', `=${session}:`, '#{pane_id}'])).trim();
+    },
+
+    /**
+     * The shell command that shows all of `session` in iTerm through its tmux
+     * integration, each window a window or tab of iTerm's own. It names this
+     * server's socket: the new tab's shell might otherwise find another server.
+     */
+    async integrationCommand(session) {
+      const socket = (await tmux(['display-message', '-p', '#{socket_path}'])).trim();
+      return `exec tmux -S ${shellQuoteAlways(socket)} -CC attach-session -t ${shellQuoteAlways(`=${session}`)}`;
+    },
+
+    /**
      * A view of one window, for a terminal tab: made if it isn't there, and
      * the shell command that attaches it. Attached, the view ends when its
      * tab closes (destroy-unattached), and the tab is titled after the window.

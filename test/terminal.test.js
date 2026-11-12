@@ -60,3 +60,18 @@ test("screen reads a Terminal tab's text by its tty", async () => {
   assert.match(calls[0][2], /application "Terminal"[\s\S]*contents of \(contents of t\)/);
   assert.equal(calls[0].at(-1), '/dev/ttys004');
 });
+
+test('focusTmuxPane brings forward the iTerm window or tab its tmux integration shows a pane in, by the pane number', async () => {
+  const { exec, calls } = fakeOsascript('found');
+  assert.equal(await iterm(exec).focusTmuxPane('%12'), true);
+  assert.equal(calls[0].at(-1), '12', 'the pane number reaches the script as an argument');
+  assert.match(calls[0].join(' '), /tmuxWindowPane/);
+  assert.equal(await iterm(fakeOsascript('missing').exec).focusTmuxPane('%12'), false);
+});
+
+test('focusTmuxPane takes only a pane id, and is false where there is no tmux integration (Terminal)', async () => {
+  const { exec, calls } = fakeOsascript('found');
+  for (const pane of ['12', '%1; rm', '@3', '']) await rejectsWith(iterm(exec).focusTmuxPane(pane), 400);
+  assert.equal(await createTerminal({ app: 'Terminal', platform: 'darwin', exec }).focusTmuxPane('%12'), false);
+  assert.equal(calls.length, 0);
+});
