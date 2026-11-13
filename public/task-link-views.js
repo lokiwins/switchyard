@@ -2,7 +2,7 @@ import { h } from './dom.js';
 import { jumpButton, openMenu } from './actions.js';
 import { terminalButton } from './live-terminal.js';
 import { sessionToJump } from './task-views.js';
-import { approvalButtons, replyMenu, stopButton } from './session-controls.js';
+import { approvalButtons, endMenu, replyMenu, stopButton } from './session-controls.js';
 import { answerMenu, planButton } from './screen-answer.js';
 
 /*
@@ -23,6 +23,7 @@ function sessionControls(session, approvals) {
     stopButton(session),
     terminalButton(session),
     jumpButton(session),
+    endMenu(session),
   ];
 }
 

@@ -23,6 +23,7 @@ const CLIENT_FORMAT = '#{client_tty}\t#{client_control_mode}\t#{window_id}';
 // A view session's name: this, then the number of the window it shows.
 const VIEW_PREFIX = 'switchyard-view-';
 const WINDOW_ID = /^@(\d+)$/;
+const PANE_ID = /^%\d+$/;
 const MAX_WINDOW_NAME = 60;
 // The PATH a new terminal tab starts from. tmux gives a new window the PATH
 // of the tmux command that made it (`-e PATH=` doesn't change that), so that
@@ -273,6 +274,12 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
     /** Close a window; closing a session's last window ends the session. */
     async killWindow(window) {
       await tmux(['kill-window', '-t', window]);
+    },
+
+    /** Close one pane, and what runs in it; its window stays for its other panes. */
+    async killPane(pane) {
+      if (!PANE_ID.test(pane)) throw new TmuxError(400, 'Expected a tmux pane id like %3');
+      await tmux(['kill-pane', '-t', pane]);
     },
   };
 }

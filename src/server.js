@@ -133,6 +133,7 @@ const POST_ROUTES = {
   '/api/terminal/show-sessions': ({ actions }) => actions.showTerminalSessions(),
   '/api/terminal/reply': ({ actions }, body) => actions.replyToSession(body),
   '/api/terminal/interrupt': ({ actions }, body) => actions.interruptSession(body),
+  '/api/terminal/end': ({ actions }, body) => actions.endSession(body),
   '/api/terminal/answer': answerPrompt,
   '/api/terminal/input': ({ liveTerminals }, body) => liveTerminals.input(body),
   '/api/terminal/resize': ({ liveTerminals }, body) => liveTerminals.resize(body),

@@ -17,7 +17,7 @@ export async function post(url, body) {
 /** Something changed: the page reloads its data, skipping the server's cache with `force`. */
 export const announceChange = ({ force = false } = {}) => document.dispatchEvent(new CustomEvent('switchyard:changed', { detail: { force } }));
 
-/** A button that runs a server action, disabling itself meanwhile and toasting the outcome. */
+/** A button that runs a server action (given the button), disabling itself meanwhile and toasting the outcome. */
 export function actionButton(label, title, perform, className = 'btn btn-action') {
   return h('button', {
     type: 'button',
@@ -27,7 +27,7 @@ export function actionButton(label, title, perform, className = 'btn btn-action'
       const button = event.currentTarget;
       button.disabled = true;
       try {
-        const message = await perform();
+        const message = await perform(button);
         if (message) toast(message);
         announceChange();
       } catch (error) {

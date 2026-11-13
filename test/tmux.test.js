@@ -237,3 +237,10 @@ test('integrationCommand attaches a session with iTerm\'s tmux integration, on t
   assert.equal(await createTmux({ exec }).integrationCommand('switchyard'), "exec tmux -S '/private/tmp/tmux-501/default' -CC attach-session -t '=switchyard'");
   assert.deepEqual(calls[0], ['tmux', 'display-message', '-p', '#{socket_path}']);
 });
+
+test('killPane closes one pane by id', async () => {
+  const { exec, calls } = fakeExec();
+  await createTmux({ exec }).killPane('%3');
+  assert.deepEqual(calls[0], ['tmux', 'kill-pane', '-t', '%3']);
+  for (const pane of ['3', '@3', '%3; x']) await rejectsWith(createTmux({ exec }).killPane(pane), 400);
+});

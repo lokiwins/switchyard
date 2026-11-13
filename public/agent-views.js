@@ -2,7 +2,7 @@ import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
 import { actionButton, jumpButton, post, tmuxPlace } from './actions.js';
 import { sessionRow, statusBadge, taskLink, whereLabel } from './session-row.js';
 import { answerElsewhere, foldsWhenParked, sessionDetail, sessionDot, sessionLabel, sessionTitle } from './session-text.js';
-import { approvalButtons, approvalDetail, approvalsFor, replyMenu, stopButton } from './session-controls.js';
+import { approvalButtons, approvalDetail, approvalsFor, endMenu, replyMenu, stopButton } from './session-controls.js';
 import { terminalButton } from './live-terminal.js';
 import { answerMenu, planButton } from './screen-answer.js';
 import { pendingText } from './pending-tasks.js';
@@ -52,6 +52,7 @@ export function renderLiveRow(state, session, details = null) {
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),
       terminalButton(session),
       jumpButton(session),
+      endMenu(session),
       copyButton('cd', `cd ${shellQuote(session.cwd)}`),
     ],
   });
