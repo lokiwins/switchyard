@@ -7,7 +7,7 @@ const VALUES = {
   terminal: { app: 'iTerm' },
   editor: { urlScheme: 'cursor' },
   agents: { parkedAfterHours: 24, endedHistoryDays: 7, interruptedAttentionDays: 3 },
-  github: { copilotReviewer: 'copilot-pull-request-reviewer[bot]' },
+  github: { copilotReviewer: 'copilot-pull-request-reviewer[bot]', issueRepos: ['acme/storefront'] },
   git: { longLivedBranches: ['main', 'release/*'] },
   ci: { holdPatterns: ['\\bhold\\b'], stripPrefixes: ['ci/circleci: '] },
 };

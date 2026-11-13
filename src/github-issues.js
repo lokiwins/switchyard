@@ -16,8 +16,38 @@ const MAX_DESCRIPTION = 20_000;
 const NOT_SIGNED_IN = /gh auth login|not logged in|authentication required/i;
 const ISSUE_STATUSES = [{ name: 'open', color: null }, { name: 'closed', color: null }];
 
-/** @param {{ runGh?: (args: string[]) => Promise<string>, now?: () => number }} deps */
-export function createGithubIssues({ runGh = (args) => run('gh', args), now = Date.now } = {}) {
+const repoOf = (task) => task.id.slice(0, task.id.lastIndexOf('#'));
+
+/** Only the tasks in `chosen` repos (owner/repo, any case); every task when none is chosen. */
+function inChosenRepos(result, chosen) {
+  if (chosen.length === 0) return result;
+  const wanted = new Set(chosen.map((name) => name.toLowerCase()));
+  return { ...result, tasks: result.tasks.filter((task) => wanted.has(repoOf(task).toLowerCase())) };
+}
+
+/**
+ * The repos Settings offers to tick: those your assigned issues are in and
+ * those checked out in your folders, plus any already chosen, by name (any
+ * case, the first spelling kept), each with how many issues it has for you.
+ */
+export function repoChoices(tasks, localRepos, chosen) {
+  const byKey = new Map();
+  const add = (name, fields) => {
+    const key = name.toLowerCase();
+    const entry = byKey.get(key) ?? { name, issues: 0, local: false, chosen: false };
+    byKey.set(key, { ...entry, ...fields(entry) });
+  };
+  for (const task of tasks) add(repoOf(task), (e) => ({ issues: e.issues + 1 }));
+  for (const name of localRepos) if (name) add(name, () => ({ local: true }));
+  for (const name of chosen) add(name, () => ({ chosen: true }));
+  return [...byKey.values()].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+}
+
+/**
+ * @param {{ runGh?: (args: string[]) => Promise<string>, now?: () => number, issueRepos?: () => string[] }} deps
+ * `issueRepos` gives the repos chosen in Settings now, so a change there applies at once.
+ */
+export function createGithubIssues({ runGh = (args) => run('gh', args), now = Date.now, issueRepos = () => [] } = {}) {
   let cache = null;
 
   const gh = (args) => runGh(args).catch((error) => {
@@ -46,6 +76,12 @@ export function createGithubIssues({ runGh = (args) => run('gh', args), now = Da
     }
   }
 
+  /** Every open issue assigned to you, whatever Settings chose. */
+  async function allAssigned({ force = false } = {}) {
+    if (!force && cache && now() - cache.fetchedAt < TTL_MS) return cache.result;
+    return fetchAssigned();
+  }
+
   async function ticket({ repo, number, kind }, link) {
     const item = JSON.parse(await gh([kind, 'view', String(number), '--repo', repo, '--json', 'title,body,state,url']));
     return {
@@ -69,11 +105,12 @@ export function createGithubIssues({ runGh = (args) => run('gh', args), now = Da
       }
     },
 
-    /** The open issues assigned to you, from the cache when it's fresh. `force` (Refresh) asks GitHub. */
+    /** The open issues assigned to you in the repos chosen in Settings, from the cache when it's fresh. `force` (Refresh) asks GitHub. */
     async assigned({ force = false } = {}) {
-      if (!force && cache && now() - cache.fetchedAt < TTL_MS) return cache.result;
-      return fetchAssigned();
+      return inChosenRepos(await allAssigned({ force }), issueRepos());
     },
+
+    allAssigned,
 
     ticket,
 

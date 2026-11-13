@@ -18,6 +18,8 @@ export const DEFAULTS = Object.freeze({
   }),
   github: Object.freeze({
     copilotReviewer: 'copilot-pull-request-reviewer[bot]',
+    // The repos (owner/repo) the Tasks page's GitHub issues list shows; empty shows every repo.
+    issueRepos: Object.freeze([]),
   }),
   terminal: Object.freeze({
     // "auto" uses iTerm when switchyard was started from iTerm, otherwise Terminal; "none" hides terminal buttons.
@@ -37,7 +39,7 @@ export const DEFAULTS = Object.freeze({
 const SECTION_KEYS = {
   ci: ['holdPatterns', 'stripPrefixes'],
   git: ['longLivedBranches'],
-  github: ['copilotReviewer'],
+  github: ['copilotReviewer', 'issueRepos'],
   terminal: ['app'],
   editor: ['urlScheme'],
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
@@ -47,6 +49,8 @@ const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEY
 export class SettingsError extends Error {}
 
 const TERMINAL_CHOICES = ['auto', 'iTerm', 'Terminal', 'none'];
+// owner/repo, as GitHub allows them: letters, digits, '-', '_' and '.'.
+const GITHUB_REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 /** Resolve terminal.app "auto" from the terminal switchyard was launched in. */
 export function resolveTerminalApp(app, env = process.env) {
@@ -131,13 +135,17 @@ export function parseSettings(file = {}) {
   if (typeof github.copilotReviewer !== 'string' || github.copilotReviewer === '') {
     fail('github.copilotReviewer', 'must be a non-empty string');
   }
+  const issueRepos = github.issueRepos;
+  if (!Array.isArray(issueRepos) || issueRepos.some((name) => typeof name !== 'string' || !GITHUB_REPO.test(name))) {
+    fail('github.issueRepos', 'must be a list of repos written as owner/repo');
+  }
   return {
     ci: {
       holdPatterns: compilePatterns(stringList(ci.holdPatterns, 'ci.holdPatterns'), 'ci.holdPatterns'),
       stripPrefixes: stringList(ci.stripPrefixes, 'ci.stripPrefixes'),
     },
     git: { isLongLivedBranch: branchMatcher(stringList(git.longLivedBranches, 'git.longLivedBranches')) },
-    github: { copilotReviewer: github.copilotReviewer },
+    github: { copilotReviewer: github.copilotReviewer, issueRepos: [...issueRepos] },
     terminal: { app: terminal.app },
     editor: { urlScheme: editor.urlScheme === 'none' ? null : editor.urlScheme },
     agents: {

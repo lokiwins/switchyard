@@ -20,7 +20,8 @@
     ]
   },
   "github": {
-    "copilotReviewer": "copilot-pull-request-reviewer[bot]"
+    "copilotReviewer": "copilot-pull-request-reviewer[bot]",
+    "issueRepos": []
   },
   "terminal": {
     "app": "auto"
