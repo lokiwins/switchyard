@@ -74,6 +74,18 @@ export function tokenBreakdown(graph) {
   };
 }
 
+const MAX_LAYOUT_STEPS = 1500;
+const MIN_LAYOUT_STEPS = 250;
+// Each layout step weighs every pair of nodes, so its cost grows with the square of the node count.
+// This many pair-steps take about a second; a few hundred steps already settle a big graph.
+const LAYOUT_PAIR_STEPS = 60_000_000;
+
+/** How many steps to lay out `nodes` nodes: the full count for small graphs, fewer as they grow. */
+export function layoutSteps(nodes) {
+  const affordable = Math.floor(LAYOUT_PAIR_STEPS / Math.max(1, nodes) ** 2);
+  return Math.min(MAX_LAYOUT_STEPS, Math.max(MIN_LAYOUT_STEPS, affordable));
+}
+
 const SESSION_SIZE = 28;
 
 function nodeElement(node) {
