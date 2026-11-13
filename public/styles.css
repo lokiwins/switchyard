@@ -887,3 +887,73 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 .btn-danger:disabled { opacity: 0.5; cursor: default; }
 .cleanup-panel { width: min(380px, 80vw); font-size: var(--text-xs); }
 .cleanup-panel p { margin: 0 0 8px; }
+
+/* ---------- session graph ---------- */
+:root {
+  --graph-session: var(--gray-900);
+  --graph-prompt: var(--accent);
+  --graph-compaction: var(--red);
+  --graph-memory: var(--purple);
+  --graph-skill: var(--amber);
+  --graph-subagent: #c2410c;
+  --graph-file: #0f766e;
+  --graph-tool: var(--gray-500);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --graph-subagent: #fb923c;
+    --graph-file: #5eead4;
+  }
+}
+/* Cytoscape's own container rule, here because the CSP blocks the <style> it would add (see graph.html). */
+.__________cytoscape_container { position: relative; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.graph-main { max-width: none; }
+.graph-legend {
+  display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-2); padding: 0; border: 0; min-width: 0;
+}
+.graph-kind { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
+.graph-kind input { margin: 0; }
+.graph-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--gray-400); }
+.graph-swatch.kind-session { background: var(--graph-session); }
+.graph-swatch.kind-prompt { background: var(--graph-prompt); }
+.graph-swatch.kind-compaction { background: var(--graph-compaction); }
+.graph-swatch.kind-memory { background: var(--graph-memory); }
+.graph-swatch.kind-skill { background: var(--graph-skill); }
+.graph-swatch.kind-subagent { background: var(--graph-subagent); }
+.graph-swatch.kind-file { background: var(--graph-file); }
+.graph-swatch.kind-tool { background: var(--graph-tool); }
+.graph-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--space-3); }
+.graph-canvas {
+  height: calc(100vh - 210px); min-height: 420px;
+  border-radius: var(--radius-sm); background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--divider);
+}
+.graph-detail { min-width: 0; max-height: calc(100vh - 210px); overflow-y: auto; font-size: var(--text-sm); }
+.graph-detail p { margin: 0; overflow-wrap: anywhere; }
+.graph-detail .stack { gap: var(--space-2); }
+.graph-node-label { font-weight: 600; }
+.graph-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; width: 100%; }
+.graph-links li { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.graph-links .graph-swatch { align-self: center; }
+.graph-link {
+  font: inherit; font-size: var(--text-xs); padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--accent); text-align: left; overflow-wrap: anywhere; min-width: 0;
+}
+.graph-link:hover { text-decoration: underline; }
+@media (max-width: 760px) {
+  .graph-body { grid-template-columns: minmax(0, 1fr); }
+  .graph-canvas { height: 60vh; min-height: 320px; }
+  .graph-detail { max-height: none; }
+}
+#graph-where { overflow-wrap: anywhere; }
+.graph-panel .panel-head > .stack { flex: 1 1 280px; }
+.graph-panel .filters { flex-wrap: nowrap; }
+.graph-panel #find { width: 220px; min-width: 0; flex: 1 1 auto; }
+@media (max-width: 760px) {
+  .graph-panel .filters { width: 100%; }
+}

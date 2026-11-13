@@ -60,16 +60,48 @@ function buildRepos(code, git, now) {
   return tips;
 }
 
+/** A fixture path: ~/… is under the fixture home, a relative one is in the session's folder. */
+const fixturePath = (path, { cwd, home }) => (path.startsWith('~/') ? join(home, path.slice(2)) : join(cwd, path));
+
+function toolCall(tool, i, where) {
+  const input = tool.input?.file_path ? { ...tool.input, file_path: fixturePath(tool.input.file_path, where) } : { ...tool.input };
+  return { type: 'tool_use', id: tool.id ?? `toolu_${i}_${tool.name}`, name: tool.name, input };
+}
+
+/**
+ * One transcript entry for a turn: a prompt, a reply with its tool calls, a
+ * compaction, or files loaded into context (memory: [{ path, type }]).
+ */
+function turnEntry(turn, i, where, common) {
+  if (turn.prompt) return { type: 'user', ...common, message: { role: 'user', content: turn.prompt } };
+  if (turn.compact) return { type: 'system', subtype: 'compact_boundary', ...common, content: 'Conversation compacted', compactMetadata: { trigger: 'auto', preTokens: turn.compact } };
+  if (turn.memory) {
+    return { type: 'attachment', ...common, attachment: { type: 'instructions', files: turn.memory.map((m) => ({ path: fixturePath(m.path, where), type: m.type })) } };
+  }
+  const tools = [...(turn.tool ? [turn.tool] : []), ...(turn.tools ?? [])].map((tool) => toolCall(tool, i, where));
+  return { type: 'assistant', ...common, message: { role: 'assistant', content: [...(turn.reply ? [{ type: 'text', text: turn.reply }] : []), ...tools] } };
+}
+
 /** Transcript lines for a session's turns, the last one `minutesAgo` before now. */
-function transcriptLines(session, { sessionId, cwd, branch, now }) {
+function transcriptLines(session, { sessionId, cwd, branch, now, home }) {
   const at = (i) => new Date(now - minutes(session.minutesAgo) - (session.turns.length - 1 - i) * 30_000).toISOString();
-  const common = (i) => ({ sessionId, cwd, gitBranch: branch, timestamp: at(i), uuid: randomUUID() });
-  const lines = session.turns.map((turn, i) => {
-    if (turn.prompt) return { type: 'user', ...common(i), message: { role: 'user', content: turn.prompt } };
-    const tool = turn.tool && { type: 'tool_use', id: `toolu_${i}`, name: turn.tool.name, input: { ...turn.tool.input, file_path: join(cwd, turn.tool.input.file_path) } };
-    return { type: 'assistant', ...common(i), message: { role: 'assistant', content: [{ type: 'text', text: turn.reply }, ...(tool ? [tool] : [])] } };
-  });
+  const lines = session.turns.map((turn, i) => turnEntry(turn, i, { cwd, home }, { sessionId, cwd, gitBranch: branch, timestamp: at(i), uuid: randomUUID() }));
   return [{ type: 'ai-title', sessionId, aiTitle: session.title }, ...lines];
+}
+
+/** A session's subagents: each one's transcript and .meta.json, under <session>/subagents as Claude Code keeps them. */
+function writeSubagents(session, { dir, sessionId, cwd, branch, now, home }) {
+  for (const [n, agent] of (session.subagents ?? []).entries()) {
+    const subagents = join(dir, sessionId, 'subagents');
+    mkdirSync(subagents, { recursive: true });
+    const agentId = `a${n}fixture`;
+    writeFileSync(join(subagents, `agent-${agentId}.meta.json`), JSON.stringify({ agentType: agent.agentType, description: agent.description, toolUseId: agent.toolUseId }));
+    const lines = [{ prompt: agent.description }, ...agent.turns].map((turn, i) => ({
+      ...turnEntry(turn, i, { cwd, home }, { sessionId, agentId, cwd, gitBranch: branch, timestamp: new Date(now).toISOString(), uuid: randomUUID() }),
+      isSidechain: true,
+    }));
+    writeFileSync(join(subagents, `agent-${agentId}.jsonl`), `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`);
+  }
 }
 
 function folderOf(code, worktree) {
@@ -114,7 +146,9 @@ function buildSessions({ code, claudeDir, now, env, root }) {
     const dir = join(claudeDir, 'projects', cwd.replace(/[^a-zA-Z0-9]/g, '-'));
     const file = join(dir, `${sessionId}.jsonl`);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(file, `${transcriptLines(session, { sessionId, cwd, branch, now }).map((l) => JSON.stringify(l)).join('\n')}\n`);
+    const home = dirname(claudeDir);
+    writeFileSync(file, `${transcriptLines(session, { sessionId, cwd, branch, now, home }).map((l) => JSON.stringify(l)).join('\n')}\n`);
+    writeSubagents(session, { dir, sessionId, cwd, branch, now, home });
     const lastAt = new Date(now - minutes(session.minutesAgo));
     utimesSync(file, lastAt, lastAt);
     if (!session.status) continue;

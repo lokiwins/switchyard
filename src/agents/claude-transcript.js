@@ -24,7 +24,7 @@ export function transcriptDirName(cwd) {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-');
 }
 
-function promptText(content) {
+export function promptText(content) {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return null;
   if (content.some((part) => part.type === 'tool_result')) return null;
@@ -32,7 +32,7 @@ function promptText(content) {
   return text || null;
 }
 
-function isHumanPrompt(entry) {
+export function isHumanPrompt(entry) {
   if (entry.type !== 'user' || entry.isMeta || entry.isSidechain || entry.isCompactSummary) return false;
   if (entry.origin && entry.origin.kind !== 'human') return false;
   const text = promptText(entry.message?.content);

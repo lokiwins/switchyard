@@ -146,6 +146,18 @@ export const SCENES = [
     },
   },
   {
+    name: 'session-graph',
+    title: 'Graph: what a session brought into context — prompts, files, tools, memory, skills and subagents',
+    path: '/',
+    prepare: async (page) => {
+      await agentsLoaded(page);
+      const href = await rowOf(page, 'Retry failed charges with backoff').getByRole('link', { name: 'Graph' }).getAttribute('href');
+      await page.goto(new URL(href, page.url()).href);
+      await page.locator('.graph-kind').first().waitFor();
+      await settle(page);
+    },
+  },
+  {
     name: 'tasks',
     title: 'Tasks: your own tasks, what needs you first, then by when each is due',
     path: '/tasks',

@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { homedir } from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,7 @@ import { createSwrCache } from './cache.js';
 import { CONFIG_FILE, loadConfig } from './config.js';
 import { createLiveConfig } from './live-config.js';
 import { createSettingsService, createSettingsStore } from './settings-file.js';
+import { createSessionGraphs } from './session-graphs.js';
 import { navCounts } from './nav.js';
 import { createActionService } from './actions.js';
 import { createAgentFeed, watchFolder } from './agent-feed.js';
@@ -307,6 +309,44 @@ async function streamAgents(req, res, services) {
   }
 }
 
+/**
+ * Server-sent events for the graph page: a session's context graph now, then
+ * again whenever its transcript or a subagent's grows (see session-graphs.js).
+ */
+async function streamGraph(req, res, url, { sessionGraphs }) {
+  let stop = () => {};
+  let closed = false;
+  req.on('close', () => {
+    closed = true;
+    stop();
+  });
+  try {
+    const unsubscribe = await sessionGraphs.subscribe(url.searchParams.get('session'), (graph) => {
+      if (!res.headersSent) res.writeHead(200, SSE_HEADERS);
+      if (!res.writableEnded && !res.destroyed) res.write(`event: graph\ndata: ${JSON.stringify(graph)}\n\n`);
+    });
+    if (closed) return unsubscribe();
+    const heartbeat = setInterval(() => res.write(': ping\n\n'), STREAM_HEARTBEAT_MS);
+    stop = () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+  } catch (error) {
+    if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
+    throw error;
+  }
+  return undefined;
+}
+
+async function sendGraph(res, url, { sessionGraphs }) {
+  try {
+    return sendJson(res, 200, { success: true, data: await sessionGraphs.snapshot(url.searchParams.get('session')) });
+  } catch (error) {
+    if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
+    throw error;
+  }
+}
+
 async function streamPrs(req, res, services) {
   const { prService, capabilities } = services;
   res.writeHead(200, SSE_HEADERS);
@@ -408,6 +448,8 @@ function createHandler(services) {
         return sendJson(res, 200, { success: true, data: await navFor(services) });
       }
       if (url.pathname === '/api/agents/stream') return await streamAgents(req, res, services);
+      if (url.pathname === '/api/agents/graph') return await sendGraph(res, url, services);
+      if (url.pathname === '/api/agents/graph/stream') return await streamGraph(req, res, url, services);
       if (url.pathname === '/api/prs/stream') return await streamPrs(req, res, services);
       if (url.pathname === '/api/terminal/live') return await streamTerminal(req, res, url, services);
       if (url.pathname === '/api/approvals/detail') return await sendApprovalDetail(res, url, services);
@@ -543,8 +585,9 @@ async function main() {
       agentFeed.changed();
     },
   });
+  const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
+    sessionGraphs, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({

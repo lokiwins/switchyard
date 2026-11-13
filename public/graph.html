@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Session graph · Switchyard</title>
+  <link rel="stylesheet" href="/styles.css">
+  <!-- Cytoscape adds a <style> for its container unless an element with this id exists; the CSP blocks
+       inline styles, so styles.css carries that rule instead (see .__________cytoscape_container). -->
+  <meta name="cytoscape-style" id="__________cytoscape_stylesheet" content="in styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Switchyard</h1>
+      <nav class="nav" aria-label="Pages">
+        <a href="/">Agents <span class="nav-badge" data-badge="agents" hidden></span></a>
+        <a href="/worktrees">Worktrees</a>
+        <a href="/prs">Pull requests <span class="nav-badge" data-badge="prs" hidden></span></a>
+        <a href="/tasks">Tasks</a>
+        <a href="/settings">Settings</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <span id="updated" class="muted" aria-live="polite">Loading…</span>
+    </div>
+  </header>
+
+  <main class="graph-main">
+    <div id="errors" class="errors" hidden></div>
+
+    <section class="panel graph-panel" aria-labelledby="graph-title">
+      <div class="panel-head">
+        <div class="stack">
+          <h2 id="graph-title">Session graph</h2>
+          <span class="muted small" id="graph-where"></span>
+        </div>
+        <div class="filters">
+          <input type="search" id="find" list="node-names" placeholder="Find a node…" aria-label="Find a node" autocomplete="off" spellcheck="false">
+          <datalist id="node-names"></datalist>
+          <button type="button" class="btn btn-sm btn-secondary" id="arrange" title="Lay the whole graph out again">Arrange</button>
+          <button type="button" class="btn btn-sm btn-secondary" id="fit" title="Zoom to show every node">Fit</button>
+        </div>
+      </div>
+      <fieldset class="graph-legend" id="legend">
+        <legend class="visually-hidden">Show</legend>
+      </fieldset>
+      <div class="graph-body">
+        <div id="graph" class="graph-canvas" role="img" aria-label="The session's context graph"></div>
+        <aside class="graph-detail" id="detail" aria-live="polite"></aside>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="/graph.js"></script>
+</body>
+</html>
