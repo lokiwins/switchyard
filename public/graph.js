@@ -1,7 +1,7 @@
 import cytoscape from '/vendor/cytoscape/cytoscape.esm.min.mjs';
 import { h, readPref, shortPath, timeAgo, writePref } from './dom.js';
 import { startNavBadges } from './nav.js';
-import { KINDS, diffElements, formatShare, formatTokens, kindCounts, nodeConnections, toElements, tokenBreakdown } from './graph-model.js';
+import { KINDS, diffElements, formatShare, formatTokens, kindCounts, layoutSteps, nodeConnections, toElements, tokenBreakdown } from './graph-model.js';
 
 /*
  * A session's context graph: your prompts in order, and the files, tools,
@@ -59,7 +59,7 @@ const cy = cytoscape({
   maxZoom: 4,
 });
 
-const LAYOUT = { name: 'cose', animate: false, nodeDimensionsIncludeLabels: false, idealEdgeLength: 90, nodeRepulsion: 20000, gravity: 0.3, numIter: 1500, padding: 24 };
+const LAYOUT = { name: 'cose', animate: false, nodeDimensionsIncludeLabels: false, idealEdgeLength: 90, nodeRepulsion: 20000, gravity: 0.3, padding: 24 };
 // Selecting a node zooms in at least this far, so its label and its neighbours' are readable.
 const SELECT_ZOOM = 1;
 // A small graph fitted to the screen would be drawn huge; past this zoom it is centred instead.
@@ -84,7 +84,7 @@ function arrange() {
     const angle = (2 * Math.PI * i) / nodes.length;
     node.position({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
   });
-  cy.layout({ ...LAYOUT, randomize: false, fit: false }).run();
+  cy.layout({ ...LAYOUT, numIter: layoutSteps(nodes.length), randomize: false, fit: false }).run();
   fit();
 }
 
@@ -314,16 +314,27 @@ async function explainFailure() {
   }
 }
 
+let stream = null;
+
 function connect() {
-  const stream = new EventSource(`/api/agents/graph/stream?session=${encodeURIComponent(sessionId)}`);
-  stream.addEventListener('graph', (event) => {
+  if (stream) return;
+  const opened = new EventSource(`/api/agents/graph/stream?session=${encodeURIComponent(sessionId)}`);
+  stream = opened;
+  opened.addEventListener('graph', (event) => {
     $('errors').hidden = true;
     showGraph(JSON.parse(event.data));
   });
-  stream.addEventListener('error', () => {
-    if (stream.readyState === EventSource.CLOSED) explainFailure();
+  opened.addEventListener('error', () => {
+    if (opened.readyState === EventSource.CLOSED) explainFailure();
     else $('updated').textContent = ui.updatedAt ? `Reconnecting… (updated ${timeAgo(ui.updatedAt)})` : 'Connecting…';
   });
+}
+
+/** A hidden tab gives up its stream, so a busy session isn't re-sent to it every second; it catches up on return. */
+function disconnect() {
+  stream?.close();
+  stream = null;
+  $('updated').textContent = 'Paused while hidden';
 }
 
 $('arrange').addEventListener('click', arrange);
@@ -334,6 +345,12 @@ $('find').addEventListener('keydown', (event) => {
 $('fit').addEventListener('click', fit);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => cy.style(graphStyle()));
 
+document.addEventListener('visibilitychange', () => {
+  if (!sessionId) return;
+  if (document.hidden) disconnect();
+  else connect();
+});
+
 startNavBadges();
-if (sessionId) connect();
-else showError('No session given: open a graph from a session\'s Graph button on the Agents page.');
+if (!sessionId) showError('No session given: open a graph from a session\'s Graph button on the Agents page.');
+else if (!document.hidden) connect();
