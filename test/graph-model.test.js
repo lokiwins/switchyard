@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { KINDS, TOKEN_KINDS, diffElements, formatShare, formatTokens, kindCounts, nodeConnections, nodeSize, toElements, tokenBreakdown } from '../public/graph-model.js';
+import { KINDS, TOKEN_KINDS, diffElements, formatShare, formatTokens, kindCounts, layoutSteps, nodeConnections, nodeSize, toElements, tokenBreakdown } from '../public/graph-model.js';
 
 const graph = {
   nodes: [
@@ -117,4 +117,13 @@ test('shares are whole percents, with a sliver as <1%', () => {
   assert.equal(formatShare(0.5), '50%');
   assert.equal(formatShare(0.004), '<1%');
   assert.equal(formatShare(0), '0%');
+});
+
+test('small graphs get the full layout, big ones fewer steps so they still draw in about a second', () => {
+  assert.equal(layoutSteps(20), 1500);
+  assert.equal(layoutSteps(150), 1500);
+  assert.ok(layoutSteps(300) < 1500 && layoutSteps(300) > 250);
+  assert.ok(layoutSteps(481) <= 300);
+  assert.equal(layoutSteps(5000), 250);
+  assert.ok(layoutSteps(400) > layoutSteps(500));
 });
