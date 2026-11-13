@@ -131,7 +131,7 @@ The first time you use these, macOS asks whether to let switchyard's terminal co
 
 ## Configuration
 
-Everything works without a config file. To adjust it for your machine or workplace, copy `config.example.json` to `config.json`. That file is gitignored, so workplace-specific values (your CI's job names, your team's branches) stay local. Unknown keys and invalid values stop the server at startup with a message naming the key.
+Everything works without a config file. The **Settings** page (in the top bar) changes most options and saves them to `config.json`; they apply at once, without a restart. Only `port` and `claudeDir` need editing by hand and a restart. To adjust the file directly, copy `config.example.json` to `config.json`. That file is gitignored, so workplace-specific values (your CI's job names, your team's branches) stay local. Unknown keys and invalid values stop the server at startup with a message naming the key.
 
 | Key | Default | What it does |
 |---|---|---|
