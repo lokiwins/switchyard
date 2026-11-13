@@ -53,11 +53,14 @@ export const canReply = (session) => !session.needsYou
 const replyTarget = (session) => (inTmux(session) ? `tmux window ${tmuxPlace(session.host)}` : `${session.host.label} tab`);
 
 /** "Graph": the session's context graph (prompts, files, tools, memory, skills, subagents) on a page of its own. */
+// Every Graph button opens the one graph tab: the first opens it, later ones show their session there.
+const GRAPH_TAB = 'switchyard-graph';
+
 export function graphLink(session) {
   return h('a', {
     href: `/graph?session=${encodeURIComponent(session.sessionId)}`,
-    target: '_blank',
-    rel: 'noopener',
+    // Same site, so no `noopener`: the graph tab keeps its opener, which is what lets its Close button close it.
+    target: GRAPH_TAB,
     class: 'btn btn-sm btn-secondary',
     title: 'See what this session brought into context: prompts, files, tools, memory, skills and subagents',
   }, 'Graph');

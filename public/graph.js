@@ -343,6 +343,21 @@ $('find').addEventListener('keydown', (event) => {
   if (event.key === 'Enter') find();
 });
 $('fit').addEventListener('click', fit);
+
+// How long to give the browser to close the tab before taking it back to the sessions instead.
+const CLOSE_WAIT_MS = 150;
+
+/**
+ * Close the graph tab. A browser lets a page close only a tab another page opened (the Graph
+ * button's); a graph opened by its address goes back to the Agents page instead.
+ */
+function closeGraph() {
+  window.close();
+  setTimeout(() => {
+    if (!window.closed) location.assign('/');
+  }, CLOSE_WAIT_MS);
+}
+$('close').addEventListener('click', closeGraph);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => cy.style(graphStyle()));
 
 document.addEventListener('visibilitychange', () => {
