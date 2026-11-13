@@ -6,7 +6,8 @@ import { parseSettings } from './settings.js';
 
 const DEFAULT_PORT = 4477;
 const DEFAULT_ROOT_CANDIDATES = ['~/work', '~/code', '~/src', '~/projects', '~/dev'];
-const CONFIG_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'config.json');
+// SWITCHYARD_CONFIG points elsewhere, e.g. at the screenshots' own config.json.
+export const CONFIG_FILE = process.env.SWITCHYARD_CONFIG ?? resolve(dirname(fileURLToPath(import.meta.url)), '..', 'config.json');
 
 export function expandHome(path) {
   return path.startsWith('~') ? join(homedir(), path.slice(1)) : path;
@@ -21,8 +22,9 @@ function readConfigFile() {
   }
 }
 
-function resolveRoots(fileRoots) {
-  const envRoots = process.env.SWITCHYARD_ROOTS?.split(':').filter(Boolean);
+/** The folders to look for repos in: SWITCHYARD_ROOTS, else config.json's roots, else the usual places; only ones that exist. */
+export function resolveRoots(fileRoots, env = process.env) {
+  const envRoots = env.SWITCHYARD_ROOTS?.split(':').filter(Boolean);
   const roots = envRoots ?? fileRoots ?? DEFAULT_ROOT_CANDIDATES;
   return roots.map(expandHome).filter((root) => existsSync(root));
 }

@@ -135,6 +135,15 @@ export const SCENES = [
     },
   },
   {
+    name: 'settings',
+    title: 'Settings: change switchyard\'s options from the page; they apply at once',
+    path: '/settings',
+    fullPage: true,
+    prepare: async (page) => {
+      await page.locator('#facts dd').first().waitFor();
+    },
+  },
+  {
     name: 'tasks',
     title: 'Tasks: your own tasks, what needs you first, then by when each is due',
     path: '/tasks',

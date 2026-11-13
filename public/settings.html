@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · Switchyard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Switchyard</h1>
+      <nav class="nav" aria-label="Pages">
+        <a href="/">Agents <span class="nav-badge" data-badge="agents" hidden></span></a>
+        <a href="/worktrees">Worktrees</a>
+        <a href="/prs">Pull requests <span class="nav-badge" data-badge="prs" hidden></span></a>
+        <a href="/tasks">Tasks</a>
+        <a href="/settings" aria-current="page">Settings</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <span id="updated" class="muted" aria-live="polite">Loading…</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="errors" class="errors" hidden></div>
+
+    <form id="settings" class="settings" novalidate>
+      <section class="panel" aria-labelledby="repos-title">
+        <div class="panel-head"><h2 id="repos-title">Repositories</h2></div>
+        <label class="setting">
+          <span class="setting-label">Folders to look for repos in</span>
+          <textarea name="roots" rows="3" spellcheck="false" placeholder="~/work"></textarea>
+          <span class="setting-hint">One folder per line. Leave empty to use ~/work, ~/code, ~/src, ~/projects and ~/dev, whichever exist.</span>
+          <span class="setting-hint" id="roots-now"></span>
+        </label>
+      </section>
+
+      <section class="panel" aria-labelledby="apps-title">
+        <div class="panel-head"><h2 id="apps-title">Terminal and editor</h2></div>
+        <label class="setting">
+          <span class="setting-label">Terminal app</span>
+          <select name="terminal.app">
+            <option value="auto">Automatic (iTerm if switchyard started there, else Terminal)</option>
+            <option value="iTerm">iTerm</option>
+            <option value="Terminal">Terminal</option>
+            <option value="none">None (hide terminal buttons)</option>
+          </select>
+          <span class="setting-hint">Where Jump, Resume and Open make tabs.</span>
+        </label>
+        <label class="setting">
+          <span class="setting-label">Editor</span>
+          <input name="editor.urlScheme" list="editor-schemes" spellcheck="false" autocomplete="off">
+          <datalist id="editor-schemes">
+            <option value="vscode">VS Code</option>
+            <option value="cursor">Cursor</option>
+            <option value="vscode-insiders">VS Code Insiders</option>
+            <option value="windsurf">Windsurf</option>
+            <option value="none">None</option>
+          </datalist>
+          <span class="setting-hint">The URL scheme folder links open with, e.g. vscode or cursor; none hides them.</span>
+        </label>
+      </section>
+
+      <section class="panel" aria-labelledby="agents-title">
+        <div class="panel-head"><h2 id="agents-title">Agents</h2></div>
+        <div class="setting-row">
+          <label class="setting">
+            <span class="setting-label">Parked after (hours)</span>
+            <input name="agents.parkedAfterHours" inputmode="decimal">
+            <span class="setting-hint">An idle session untouched this long counts as parked, not waiting on you.</span>
+          </label>
+          <label class="setting">
+            <span class="setting-label">Ended sessions shown (days)</span>
+            <input name="agents.endedHistoryDays" inputmode="decimal">
+            <span class="setting-hint">How far back Recently ended goes.</span>
+          </label>
+          <label class="setting">
+            <span class="setting-label">Interrupted needs you for (days)</span>
+            <input name="agents.interruptedAttentionDays" inputmode="decimal">
+            <span class="setting-hint">How long an interrupted session stays flagged.</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="github-title">
+        <div class="panel-head"><h2 id="github-title">GitHub and CI</h2></div>
+        <label class="setting">
+          <span class="setting-label">Copilot reviewer</span>
+          <input name="github.copilotReviewer" spellcheck="false" autocomplete="off">
+          <span class="setting-hint">The login Copilot reviews PRs as.</span>
+        </label>
+        <label class="setting">
+          <span class="setting-label">Long-lived branches</span>
+          <textarea name="git.longLivedBranches" rows="5" spellcheck="false"></textarea>
+          <span class="setting-hint">Never matched to a worktree's PR. One per line; * is a wildcard, as in release/*.</span>
+        </label>
+        <label class="setting">
+          <span class="setting-label">Checks on hold</span>
+          <textarea name="ci.holdPatterns" rows="3" spellcheck="false"></textarea>
+          <span class="setting-hint">Regular expressions for manual approval jobs, which stay pending until approved. One per line.</span>
+        </label>
+        <label class="setting">
+          <span class="setting-label">Check name prefixes to hide</span>
+          <textarea name="ci.stripPrefixes" rows="2" spellcheck="false"></textarea>
+          <span class="setting-hint">Removed from check names when shown. One per line, spaces kept.</span>
+        </label>
+      </section>
+
+      <section class="panel" aria-labelledby="startup-title">
+        <div class="panel-head"><h2 id="startup-title">Set when switchyard starts</h2></div>
+        <dl class="setting-facts" id="facts"></dl>
+        <p class="setting-hint">Change these in config.json, then restart switchyard.</p>
+      </section>
+
+      <div class="settings-actions">
+        <button type="submit" class="btn" id="save">Save</button>
+        <button type="button" class="btn btn-secondary" id="revert">Undo changes</button>
+        <span class="muted" id="save-state" aria-live="polite"></span>
+      </div>
+    </form>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="/settings.js"></script>
+</body>
+</html>

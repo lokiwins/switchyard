@@ -618,6 +618,27 @@ details.hub-group[open] > summary::before { content: "▾"; }
   table { table-layout: auto; }
 }
 
+/* Settings: one panel per area, each setting a label over its field, with what it does below. */
+.settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); max-width: 760px; }
+.settings .panel { margin: 0; }
+.setting { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--space-1); min-width: 0; margin-bottom: var(--space-4); }
+.setting:last-child { margin-bottom: 0; }
+.setting-label { font-size: var(--text-sm); font-weight: 600; color: var(--gray-900); }
+.setting-hint { font-size: var(--text-xs); color: var(--gray-500); overflow-wrap: anywhere; }
+.setting input, .setting select, .setting textarea {
+  width: 100%; min-width: 0; max-width: 520px; padding: 6px 10px; font: inherit; font-size: var(--text-sm);
+  color: var(--gray-900); background: var(--surface);
+  border: 0; border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1px var(--gray-200);
+}
+.setting textarea { font-family: var(--mono); resize: vertical; }
+.setting input:focus, .setting select:focus, .setting textarea:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+.setting-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }
+.setting-row .setting { margin-bottom: 0; }
+.setting-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-1) var(--space-4); margin: 0 0 var(--space-2); font-size: var(--text-sm); }
+.setting-facts dt { color: var(--gray-500); }
+.setting-facts dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); }
+.settings-actions { display: flex; gap: var(--space-2); align-items: center; }
+
 @media (max-width: 640px) {
   .topbar, main { padding-left: var(--space-4); padding-right: var(--space-4); }
   .panel { padding: var(--space-3); }
@@ -629,7 +650,8 @@ details.hub-group[open] > summary::before { content: "▾"; }
   .topbar h1 { order: 1; }
   .topbar-actions { order: 2; margin-left: auto; }
   .topbar-actions #updated { display: none; }
-  .nav { order: 3; flex-basis: 100%; min-width: 0; justify-content: space-between; }
+  /* Five pages don't fit across a phone: they wrap to a second line rather than widen the page. */
+  .nav { order: 3; flex-basis: 100%; min-width: 0; flex-wrap: wrap; row-gap: 2px; }
   .nav a { padding: 4px 6px; white-space: nowrap; }
   .pr { grid-template-columns: minmax(0, 1fr); }
   /* A checked-out PR's folder can be long: it gets an ellipsis (the full path is its tooltip), not the page's width. */

@@ -196,6 +196,8 @@ export function buildFixtures({ root: tempRoot, home: homeDir, port, now }) {
     SWITCHYARD_ROOTS: code,
     SWITCHYARD_FAKE_GH: gh.fixture,
     SWITCHYARD_CLICKUP_API: clickup.url,
+    // The fixtures' own config.json (none yet: every setting at its default), never the checkout's.
+    SWITCHYARD_CONFIG: join(home, '.config', 'switchyard', 'config.json'),
   };
   const stop = () => {
     clickup.stop();

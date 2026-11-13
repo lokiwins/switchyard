@@ -4,7 +4,9 @@ import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClaudeProvider } from './agents/claude.js';
 import { createSwrCache } from './cache.js';
-import { loadConfig } from './config.js';
+import { CONFIG_FILE, loadConfig } from './config.js';
+import { createLiveConfig } from './live-config.js';
+import { createSettingsService, createSettingsStore } from './settings-file.js';
 import { navCounts } from './nav.js';
 import { createActionService } from './actions.js';
 import { createAgentFeed, watchFolder } from './agent-feed.js';
@@ -127,6 +129,7 @@ const POST_ROUTES = {
   '/api/prs/copilot-review': ({ prService }, body) => prService.copilotReview(body),
   '/api/approvals/decide': ({ approvals }, body) => approvals.decide(body),
   '/api/terminal/focus': ({ actions }, body) => actions.focusSession(body),
+  '/api/settings/save': ({ settingsService }, body) => settingsService.save(body),
   '/api/terminal/show-sessions': ({ actions }) => actions.showTerminalSessions(),
   '/api/terminal/reply': ({ actions }, body) => actions.replyToSession(body),
   '/api/terminal/interrupt': ({ actions }, body) => actions.interruptSession(body),
@@ -407,6 +410,9 @@ function createHandler(services) {
       if (url.pathname === '/api/prs/stream') return await streamPrs(req, res, services);
       if (url.pathname === '/api/terminal/live') return await streamTerminal(req, res, url, services);
       if (url.pathname === '/api/approvals/detail') return await sendApprovalDetail(res, url, services);
+      if (url.pathname === '/api/settings') {
+        return sendJson(res, 200, { success: true, data: { ...services.settingsService.view(), nav: await navFor(services) } });
+      }
       if (url.pathname === '/api/task-tools') {
         return sendJson(res, 200, { success: true, data: { ...(await services.taskTools.sources()), nav: await navFor(services) } });
       }
@@ -465,8 +471,20 @@ function loadConfigOrExit() {
   }
 }
 
+/**
+ * A terminal that follows the Settings page: actions hold this one, and it
+ * passes each call to the app chosen now.
+ */
+function followingTerminal(config) {
+  let current = createTerminal({ app: resolveTerminalApp(config.settings.terminal.app) });
+  config.onChange(({ settings }) => {
+    current = createTerminal({ app: resolveTerminalApp(settings.terminal.app) });
+  });
+  return new Proxy({}, { get: (_, key) => current[key] });
+}
+
 async function main() {
-  const config = loadConfigOrExit();
+  const config = createLiveConfig(loadConfigOrExit());
   const cache = createSwrCache();
   const tmux = createTmux();
   // The board reuses the PR sync's details for your PRs; the sync is created just below.
@@ -481,7 +499,7 @@ async function main() {
     settings: config.settings,
     getLocalIndex: () => stateService.getLocal().then(buildLocalIndex),
   });
-  const terminal = createTerminal({ app: resolveTerminalApp(config.settings.terminal.app) });
+  const terminal = followingTerminal(config);
   // Actions only need sessions and worktree paths, so they read the fast sessions view.
   const sessionsView = { getState: stateService.getSessions };
   // Checked once: install tmux, then restart switchyard to get New task and tmux resumes.
@@ -502,13 +520,26 @@ async function main() {
   const taskHub = createTaskHub();
   const ticketDetails = createTicketDetails({ taskTools, github: githubIssues });
   const hubStarter = createHubStarter({ taskHub, newTask: tasks, rediscover: stateService.rediscover });
+  const settingsService = createSettingsService({
+    store: createSettingsStore({ path: CONFIG_FILE }),
+    live: config,
+    onSaved: async () => {
+      await stateService.settingsChanged();
+      agentFeed.changed();
+    },
+  });
   const services = {
-    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, port: config.port,
+    stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({
     load: () => stateService.refreshSessions().then((data) => agentsPayload(services, data)),
     onError: logError('agent update'),
+  });
+  // A saved terminal app or editor reaches the pages with the next data they load.
+  config.onChange(({ settings }) => {
+    capabilities.terminal = terminal.app;
+    capabilities.editorScheme = settings.editor.urlScheme;
   });
   watchFolder(join(config.claudeDir, 'sessions'), agentFeed.changed, { onError: logError('watching Claude sessions') });
   createServer(createHandler({ ...services, agentFeed })).listen(config.port, HOST, () => {

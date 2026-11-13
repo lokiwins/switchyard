@@ -327,6 +327,11 @@ export function createStateService({
     },
     /** Find the repos and their worktrees again now, say after New task added one. */
     rediscover: () => cache.reload('repos', () => discoverWithRemotes()),
+    /** Settings changed: find the repos again (the roots may have), and build every view afresh with the new settings. */
+    settingsChanged: async () => {
+      await cache.reload('repos', () => discoverWithRemotes());
+      for (const key of ['state', 'local', 'sessions']) cache.invalidate(key);
+    },
     /** The sessions view rebuilt now, for a session that just changed; the repo list stays cached. */
     refreshSessions: () => cache.reload('sessions', () => build({ github: false, git: false })),
   };
