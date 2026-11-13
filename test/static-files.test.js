@@ -46,3 +46,11 @@ test('every page that can open the live terminal gets a style nonce for xterm.js
     assert.equal(STYLE_NONCE_PAGES.has(page), hostsTerminal, `${page} ${hostsTerminal ? 'opens the terminal but gets no' : 'gets a needless'} style nonce`);
   }
 });
+
+test('every page module parses, so a typo fails here rather than leaving a page blank', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const modules = Object.values(STATIC_FILES).filter((file) => file.endsWith('.js') && !file.startsWith('vendor/'));
+  for (const file of modules) {
+    assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', join(PUBLIC_DIR, file)], { stdio: 'pipe' }), file);
+  }
+});

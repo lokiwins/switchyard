@@ -98,3 +98,11 @@ test('terminal and editor settings validate and resolve', async () => {
   assert.equal(resolveTerminalApp('none'), null);
   assert.equal(resolveTerminalApp('Terminal'), 'Terminal');
 });
+
+test('github.issueRepos: which repos the GitHub issues list shows, as owner/repo; empty shows them all', () => {
+  assert.deepEqual(parseSettings({}).github.issueRepos, []);
+  assert.deepEqual(parseSettings({ github: { issueRepos: ['acme/storefront', 'Acme/Billing-API'] } }).github.issueRepos, ['acme/storefront', 'Acme/Billing-API']);
+  for (const bad of [['storefront'], ['acme/store front'], ['a/b/c'], 'acme/storefront', [''], [3]]) {
+    assert.throws(() => parseSettings({ github: { issueRepos: bad } }), /github\.issueRepos/, JSON.stringify(bad));
+  }
+});

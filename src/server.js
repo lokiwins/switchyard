@@ -24,7 +24,7 @@ import { createTaskTools } from './task-tools.js';
 import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
 import { createTicketDetails } from './ticket-details.js';
-import { createGithubIssues } from './github-issues.js';
+import { createGithubIssues, repoChoices } from './github-issues.js';
 import { linkHubTasks, linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
@@ -413,6 +413,9 @@ function createHandler(services) {
       if (url.pathname === '/api/settings') {
         return sendJson(res, 200, { success: true, data: { ...services.settingsService.view(), nav: await navFor(services) } });
       }
+      if (url.pathname === '/api/settings/github-repos') {
+        return sendJson(res, 200, { success: true, data: await githubRepoChoices(services) });
+      }
       if (url.pathname === '/api/task-tools') {
         return sendJson(res, 200, { success: true, data: { ...(await services.taskTools.sources()), nav: await navFor(services) } });
       }
@@ -471,6 +474,17 @@ function loadConfigOrExit() {
   }
 }
 
+/** The repos Settings offers for the GitHub issues list: those your issues are in, and those in your folders. */
+async function githubRepoChoices({ githubIssues, stateService, settingsService }) {
+  const [assigned, sessions] = await Promise.all([githubIssues.allAssigned(), stateService.getSessions()]);
+  const chosen = settingsService.view().values.github.issueRepos;
+  return {
+    connected: assigned.connected,
+    error: assigned.error ?? null,
+    repos: repoChoices(assigned.tasks, sessions.repos.map((repo) => repo.github), chosen),
+  };
+}
+
 /**
  * A terminal that follows the Settings page: actions hold this one, and it
  * passes each call to the app chosen now.
@@ -515,7 +529,7 @@ async function main() {
   const hookInstalled = createHookCheck(config);
   // SWITCHYARD_CLICKUP_API points at a stand-in ClickUp, for the screenshots' made-up tasks.
   const clickupApi = process.env.SWITCHYARD_CLICKUP_API ?? CLICKUP_API;
-  const githubIssues = createGithubIssues();
+  const githubIssues = createGithubIssues({ issueRepos: () => config.settings.github.issueRepos });
   const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }), github: githubIssues });
   const taskHub = createTaskHub();
   const ticketDetails = createTicketDetails({ taskTools, github: githubIssues });

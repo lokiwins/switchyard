@@ -14,7 +14,7 @@ export const EDITABLE = {
   terminal: ['app'],
   editor: ['urlScheme'],
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
-  github: ['copilotReviewer'],
+  github: ['copilotReviewer', 'issueRepos'],
   git: ['longLivedBranches'],
   ci: ['holdPatterns', 'stripPrefixes'],
 };

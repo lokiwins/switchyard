@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createGithubIssues } from '../src/github-issues.js';
+import { createGithubIssues, repoChoices } from '../src/github-issues.js';
 
 const ISSUE = {
   number: 51, title: 'CI takes 14 minutes', url: 'https://github.com/acme/storefront/issues/51', state: 'open',
@@ -111,4 +111,30 @@ test('a status change drops the cached list, so the picker sees it', async () =>
   await issues.setStatus({ repo: 'acme/storefront', number: 51, kind: 'issue' }, ISSUE.url, 'closed');
   await issues.assigned();
   assert.equal(calls.filter((c) => c[0] === 'search').length, 2);
+});
+
+test('assigned shows only the repos chosen in Settings (any case); none chosen shows every repo', async () => {
+  const other = { ...ISSUE, number: 12, url: 'https://github.com/acme/billing-api/issues/12', repository: { nameWithOwner: 'acme/billing-api' } };
+  const { runGh } = fakeGh({ 'search issues': JSON.stringify([ISSUE, other]) });
+  let chosen = ['Acme/Billing-API'];
+  const issues = createGithubIssues({ runGh, issueRepos: () => chosen });
+  assert.deepEqual((await issues.assigned()).tasks.map((t) => t.id), ['acme/billing-api#12']);
+  chosen = [];
+  assert.deepEqual((await issues.assigned()).tasks.map((t) => t.id), ['acme/storefront#51', 'acme/billing-api#12'], 'a change in Settings applies to the cached list too');
+});
+
+test('repoChoices: the repos to tick, from your assigned issues and the repos in your folders, with any already chosen', () => {
+  const tasks = [{ id: 'acme/storefront#51' }, { id: 'acme/storefront#58' }, { id: 'oss/lib#3' }];
+  const choices = repoChoices(tasks, ['acme/storefront', 'acme/billing-api', null], ['old/gone']);
+  assert.deepEqual(choices, [
+    { name: 'acme/billing-api', issues: 0, local: true, chosen: false },
+    { name: 'acme/storefront', issues: 2, local: true, chosen: false },
+    { name: 'old/gone', issues: 0, local: false, chosen: true },
+    { name: 'oss/lib', issues: 1, local: false, chosen: false },
+  ]);
+});
+
+test('repoChoices matches names in any case, keeping the first spelling', () => {
+  const choices = repoChoices([{ id: 'Acme/Storefront#1' }], ['acme/storefront'], ['ACME/storefront']);
+  assert.deepEqual(choices, [{ name: 'Acme/Storefront', issues: 1, local: true, chosen: true }]);
 });

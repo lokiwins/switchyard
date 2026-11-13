@@ -3,7 +3,7 @@
  * from the settings the server sends and takes.
  */
 
-const LISTS = new Set(['roots', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes']);
+const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes']);
 const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays']);
 // A prefix's trailing space is part of what's removed from a check's name.
 const UNTRIMMED = new Set(['ci.stripPrefixes']);
@@ -12,7 +12,7 @@ const UNTRIMMED = new Set(['ci.stripPrefixes']);
 export const FIELD_NAMES = [
   'roots', 'terminal.app', 'editor.urlScheme',
   'agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays',
-  'github.copilotReviewer', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
+  'github.copilotReviewer', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
 ];
 
 const valueAt = (values, name) => name.split('.').reduce((value, key) => value?.[key], values);

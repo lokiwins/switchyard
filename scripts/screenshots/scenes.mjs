@@ -141,6 +141,8 @@ export const SCENES = [
     fullPage: true,
     prepare: async (page) => {
       await page.locator('#facts dd').first().waitFor();
+      // The repos for the GitHub issues list load after the rest.
+      await page.locator('.repo-choice').first().waitFor();
     },
   },
   {
