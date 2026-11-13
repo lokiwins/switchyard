@@ -134,10 +134,26 @@ export const SESSIONS = [
     status: 'idle',
     title: 'Retry failed charges with backoff',
     minutesAgo: 12,
+    // A fuller history, for the session graph: memory loaded, files read and changed, a compaction, a subagent.
     turns: [
+      { memory: [{ path: '~/.claude/CLAUDE.md', type: 'User' }, { path: 'CLAUDE.md', type: 'Project' }] },
+      { prompt: 'Why do some charges fail twice in the logs?' },
+      { reply: 'Looking at the charge flow.', tools: [{ name: 'Read', input: { file_path: 'src/charges/charge.js' } }, { name: 'Read', input: { file_path: 'src/charges/gateway.js' } }, { name: 'Bash', input: { command: 'grep -rn "declined" logs/' } }] },
+      { reply: 'The gateway client retries on its own.', tools: [{ name: 'Read', input: { file_path: 'docs/payments.md' } }, { name: 'WebSearch', input: { query: 'payment gateway idempotency keys' } }] },
+      { compact: 168000 },
+      { memory: [{ path: '~/.claude/CLAUDE.md', type: 'User' }, { path: 'CLAUDE.md', type: 'Project' }] },
       { prompt: 'Retry failed charges with exponential backoff, at most 3 times.' },
+      { reply: 'I\'ll add the retry around the gateway call.', tools: [{ name: 'Read', input: { file_path: 'src/charges/charge.js' } }, { name: 'Edit', input: { file_path: 'src/charges/charge.js' } }, { name: 'Write', input: { file_path: 'src/charges/backoff.js' } }] },
+      { reply: 'Now the tests.', tools: [{ name: 'Write', input: { file_path: 'test/backoff.test.js' } }, { name: 'Bash', input: { command: 'npm test' } }] },
+      { reply: 'Asking for a review.', tools: [{ id: 'toolu_review', name: 'Agent', input: { description: 'Review the retry change', subagent_type: 'code-reviewer' } }, { name: 'Skill', input: { skill: 'verify' } }] },
       { reply: 'Done. Failed charges now retry after 1s, 2s and 4s, and the tests cover each step. Want me to open a PR?' },
     ],
+    subagents: [{
+      toolUseId: 'toolu_review',
+      agentType: 'code-reviewer',
+      description: 'Review the retry change',
+      turns: [{ tools: [{ name: 'Read', input: { file_path: 'src/charges/backoff.js' } }, { name: 'Read', input: { file_path: 'test/backoff.test.js' } }, { name: 'Bash', input: { command: 'git diff' } }] }],
+    }],
   },
   {
     worktree: 'billing-api-invoice-pdf',

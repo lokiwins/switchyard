@@ -25,6 +25,7 @@ Four pages share a header nav. Each nav link carries a badge counting what needs
   Interruptions from the last 3 days are highlighted and flag their worktree. Sessions that never received a prompt are hidden.
 - **Filters and search:** tiles and a segmented control for All / Working / Waiting / Interrupted / Parked / Ended, plus search across name, repo, branch, folder and prompt. Click a prompt to expand it in place.
 - Each row has `cd` and resume (`cd <dir> && claude --resume <id>`) copy buttons, plus a link to the worktree's PR when there is one.
+- **Graph** opens the session's context graph (`/graph?session=<id>`) in a new tab, built from its transcript and its subagents' transcripts. Your prompts form a chain from the session, and each links to what it brought into Claude's context: files read, edited or written, tools (each MCP server is one node), CLAUDE.md, rules and memory files loaded, skills, and subagents, each with the files and tools it used. Compactions sit in the chain, and whatever was last used before the latest one is faded, since it's no longer in context. Bigger nodes were used more. It updates live while the session runs. Tick kinds on or off, find a node by name, and click one to see its full path or prompt and its connections. It's drawn with [Cytoscape.js](https://js.cytoscape.org/), vendored in `public/vendor/cytoscape`.
 
 ### Worktrees page (`/worktrees`)
 

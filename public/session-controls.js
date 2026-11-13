@@ -52,6 +52,17 @@ export const canReply = (session) => !session.needsYou
 /** Where a reply is typed, for hints. */
 const replyTarget = (session) => (inTmux(session) ? `tmux window ${tmuxPlace(session.host)}` : `${session.host.label} tab`);
 
+/** "Graph": the session's context graph (prompts, files, tools, memory, skills, subagents) on a page of its own. */
+export function graphLink(session) {
+  return h('a', {
+    href: `/graph?session=${encodeURIComponent(session.sessionId)}`,
+    target: '_blank',
+    rel: 'noopener',
+    class: 'btn btn-sm btn-secondary',
+    title: 'See what this session brought into context: prompts, files, tools, memory, skills and subagents',
+  }, 'Graph');
+}
+
 /** "Stop": presses Esc in a working tmux session, ending its current turn. */
 export function stopButton(session) {
   if (!inTmux(session) || session.status !== 'busy') return null;

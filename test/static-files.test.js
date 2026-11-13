@@ -29,7 +29,7 @@ function pathsLoadedBy(page) {
 }
 
 test('every file a page loads is served, so no module is left out', () => {
-  for (const page of ['agents.html', 'worktrees.html', 'prs.html', 'tasks.html']) {
+  for (const page of ['agents.html', 'worktrees.html', 'prs.html', 'tasks.html', 'settings.html', 'graph.html']) {
     for (const path of pathsLoadedBy(page)) {
       assert.equal(STATIC_FILES[path], path.slice(1), `${page} loads ${path}, which isn't in src/static-files.js`);
     }
@@ -41,7 +41,7 @@ test('every listed file exists in public/', () => {
 });
 
 test('every page that can open the live terminal gets a style nonce for xterm.js', () => {
-  for (const page of ['agents.html', 'worktrees.html', 'prs.html', 'tasks.html']) {
+  for (const page of ['agents.html', 'worktrees.html', 'prs.html', 'tasks.html', 'settings.html', 'graph.html']) {
     const hostsTerminal = pathsLoadedBy(page).includes('/live-terminal.js');
     assert.equal(STYLE_NONCE_PAGES.has(page), hostsTerminal, `${page} ${hostsTerminal ? 'opens the terminal but gets no' : 'gets a needless'} style nonce`);
   }

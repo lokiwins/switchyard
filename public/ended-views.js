@@ -1,6 +1,7 @@
 import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
 import { editorLink, resumeButton } from './actions.js';
 import { sessionDetail, sessionTitle } from './session-text.js';
+import { graphLink } from './session-controls.js';
 import { sessionRow, statusBadge, taskLink, whereLabel } from './session-row.js';
 
 const COLLAPSED_LIMIT = 5;
@@ -37,6 +38,7 @@ export function renderEndedRow(session, details = null, caps = null) {
       session.prUrl && h('a', { href: session.prUrl, target: '_blank', rel: 'noopener', class: 'small' }, `#${session.prNumber}`),
       resumeButton(session, caps) ?? copyButton('resume', session.resumeCommand),
       editorLink(session.cwd, caps),
+      graphLink(session),
     ],
   });
 }
