@@ -240,3 +240,102 @@ test('without a folder given, file labels use the one the transcript records', (
   assert.equal(graph.cwd, '/w/shop');
   assert.equal(graph.nodes.find((n) => n.id === 'file:/w/shop/src/a.js').label, 'src/a.js');
 });
+
+// ---------- tokens: what each node put into the main context, about 4 characters a token ----------
+
+const chars = (n) => 'x'.repeat(n);
+const resultOf = (id, content) => ({ type: 'user', ...stamp(), message: { content: [{ type: 'tool_result', tool_use_id: id, content }] } });
+const reply = (text, usage = null) => ({ type: 'assistant', ...stamp(), message: { id: `m${seq}`, content: [{ type: 'text', text }], ...(usage ? { usage } : {}) } });
+
+test('a prompt counts its own text', () => {
+  const [p] = build([prompt(chars(400))]).nodes.filter((n) => n.kind === 'prompt');
+  assert.equal(p.tokens, 100);
+});
+
+test('a file counts the call and what its result put into context', () => {
+  const graph = build([
+    prompt('Read it'),
+    toolUse('t1', 'Read', { file_path: '/w/shop/a.js' }),
+    resultOf('t1', chars(4000)),
+  ]);
+  const file = node(graph, 'file:/w/shop/a.js');
+  const call = Math.ceil(JSON.stringify({ file_path: '/w/shop/a.js' }).length / 4);
+  assert.equal(file.tokens, 1000 + call);
+  assert.equal(file.liveTokens, file.tokens);
+});
+
+test('tool results given as parts count their text, and an image a fixed amount', () => {
+  const graph = build([
+    prompt('Look'),
+    toolUse('t1', 'Bash', {}),
+    resultOf('t1', [{ type: 'text', text: chars(400) }, { type: 'image', source: { data: chars(99999) } }]),
+  ]);
+  assert.equal(node(graph, 'tool:Bash').tokens, Math.ceil(2 / 4) + 100 + 1600);
+});
+
+test('memory, skills and @-attachments count their content', () => {
+  const graph = build([
+    attachment({ type: 'instructions', files: [{ path: '/w/shop/CLAUDE.md', type: 'Project', content: chars(800) }] }),
+    prompt('Go'),
+    attachment({ type: 'nested_memory', path: '/w/shop/src/CLAUDE.md', content: { type: 'Project', content: chars(400) } }),
+    attachment({ type: 'invoked_skills', skills: [{ name: 'verify', content: chars(1200) }] }),
+    attachment({ type: 'file', filename: '/w/shop/b.js', content: { type: 'text', file: { content: chars(40) } } }),
+  ]);
+  assert.equal(node(graph, 'memory:/w/shop/CLAUDE.md').tokens, 200);
+  assert.equal(node(graph, 'memory:/w/shop/src/CLAUDE.md').tokens, 100);
+  assert.equal(node(graph, 'skill:verify').tokens, 300);
+  assert.equal(node(graph, 'file:/w/shop/b.js').tokens, 10);
+});
+
+test('a subagent counts its call and its answer, not what it read in its own context', () => {
+  const graph = build(
+    [prompt('Review'), toolUse('toolu_9', 'Agent', { description: 'Review' }), resultOf('toolu_9', chars(800))],
+    [{ toolUseId: 'toolu_9', meta: {}, entries: [{ ...toolUse('s1', 'Read', { file_path: '/w/shop/big.js' }), isSidechain: true }, { ...resultOf('s1', chars(40000)), isSidechain: true }] }],
+  );
+  assert.equal(node(graph, 'agent:toolu_9').tokens, Math.ceil(JSON.stringify({ description: 'Review' }).length / 4) + 200);
+  assert.equal(node(graph, 'file:/w/shop/big.js').tokens, 0);
+});
+
+test('totals by kind cover the session and what is in context now, with Claude\'s replies as their own kind', () => {
+  const graph = build([
+    prompt(chars(400)),
+    toolUse('t1', 'Read', { file_path: '/w/shop/old.js' }),
+    resultOf('t1', chars(4000)),
+    reply(chars(200)),
+    compact(),
+    { type: 'user', ...stamp(), isCompactSummary: true, message: { role: 'user', content: chars(2000) } },
+    prompt(chars(40)),
+    reply(chars(80)),
+  ]);
+  assert.equal(graph.tokens.session.prompt, 110);
+  assert.equal(graph.tokens.session.reply, 70);
+  assert.ok(graph.tokens.session.file > 1000);
+  assert.equal(graph.tokens.live.prompt, 10);
+  assert.equal(graph.tokens.live.reply, 20);
+  assert.equal(graph.tokens.live.file ?? 0, 0);
+  assert.equal(graph.tokens.live.compaction, 500);
+  assert.equal(node(graph, 'file:/w/shop/old.js').liveTokens, 0);
+  const boundary = graph.nodes.find((n) => n.kind === 'compaction');
+  assert.equal(boundary.tokens, 500);
+  assert.equal(boundary.liveTokens, 500);
+});
+
+test('the context size is the last main call\'s input, as Claude reported it', () => {
+  const graph = build([
+    prompt('Hi'),
+    reply('One', { input_tokens: 5, cache_read_input_tokens: 1000, cache_creation_input_tokens: 20, output_tokens: 7 }),
+    { ...reply('From a subagent', { input_tokens: 1, cache_read_input_tokens: 99999, cache_creation_input_tokens: 0, output_tokens: 1 }), isSidechain: true },
+  ]);
+  assert.equal(graph.tokens.context, 1025);
+});
+
+test('without any reported usage the context size is unknown', () => {
+  assert.equal(build([prompt('Hi')]).tokens.context, null);
+});
+
+test('prompt and compaction ids are numbered in order, so rereading a transcript gives the same ids', () => {
+  const entries = [prompt('One'), compact(), prompt('Two')];
+  const ids = (graph) => graph.nodes.map((n) => n.id).filter((id) => /^(prompt|compaction):/.test(id));
+  assert.deepEqual(ids(build(entries)), ['prompt:1', 'compaction:1', 'prompt:2']);
+  assert.deepEqual(ids(build(entries)), ids(build(entries)));
+});
