@@ -12,7 +12,7 @@ const chatgpt = { kind: 'app', label: 'ChatGPT', appName: 'ChatGPT' };
 function setup({
   host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004',
   useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'], screen = '',
-  integrated = [], paneShown = false, sessionUp = true,
+  integrated = [], paneShown = false, sessionUp = true, otherPanes = [],
 } = {}) {
   const calls = [];
   const fullState = {
@@ -45,7 +45,11 @@ function setup({
     interrupt: async (pane) => { calls.push(['tmux-interrupt', pane]); },
     pressKey: async (pane, key) => { calls.push(['tmux-key', pane, key]); },
     screenText: async () => screenNow(),
-    listPanes: async () => new Map(paneTty ? [[paneTty, { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' }]] : []),
+    listPanes: async () => new Map([
+      ...(paneTty ? [[paneTty, { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' }]] : []),
+      ...otherPanes,
+    ]),
+    killPane: async (pane) => { calls.push(['kill-pane', pane]); },
     hasWindow: async (session, name) => session === 'switchyard' && windows.includes(name),
     newWindow: async (options) => { calls.push(['new-window', options]); return { window: '@9', pane: '%9' }; },
     killWindow: async (window) => { calls.push(['kill-window', window]); },
@@ -471,4 +475,30 @@ test('Show Terminal Sessions says so when there are none yet', async () => {
   const { actions, calls } = setup({ sessionUp: false });
   await rejectsWith(actions.showTerminalSessions(), 404);
   assert.deepEqual(calls, []);
+});
+
+test('End closes a tmux task\'s window, which ends its Claude session', async () => {
+  const { actions, calls } = setup({ host: inTmux });
+  assert.deepEqual(await actions.endSession({ sessionId: ID }), { ended: true, window: 'switchyard:my-repo-fix' });
+  assert.deepEqual(calls, [['kill-window', '@4']]);
+});
+
+test('End closes only the session\'s pane when you have split its window', async () => {
+  const { actions, calls } = setup({ host: inTmux, otherPanes: [['/dev/ttys009', { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%8' }]] });
+  await actions.endSession({ sessionId: ID });
+  assert.deepEqual(calls, [['kill-pane', '%3']]);
+});
+
+test('End refuses, closing nothing, when Claude no longer runs in that pane', async () => {
+  for (const options of [{ alive: false }, { paneTty: '/dev/ttys099' }]) {
+    const { actions, calls } = setup({ host: inTmux, ...options });
+    await rejectsWith(actions.endSession({ sessionId: ID }), 409);
+    assert.deepEqual(calls, []);
+  }
+});
+
+test('End works only for sessions in tmux, and only running ones', async () => {
+  await rejectsWith(setup({ host: { ...iterm, tty: '/dev/ttys004' } }).actions.endSession({ sessionId: ID }), 501);
+  await rejectsWith(setup({ host: inTmux }).actions.endSession({ sessionId: 'ffffffff-0000' }), 404);
+  await rejectsWith(setup({ host: inTmux }).actions.endSession({ sessionId: '$(rm -rf ~)' }), 400);
 });

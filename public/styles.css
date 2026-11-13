@@ -203,6 +203,9 @@ main {
 }
 /* Reply ▾: a one-line message box in the dropdown panel. */
 .reply-panel { --panel-min: 340px; --panel-max: 420px; padding: var(--space-2); gap: 6px; }
+/* End ▾: what ending does, then the button that does it. */
+.end-panel { --panel-min: 240px; --panel-max: 320px; padding: var(--space-2); gap: 6px; }
+.end-panel .reply-hint { white-space: normal; }
 .reply-form { display: flex; gap: 6px; }
 .reply-form input {
   flex: 1; min-width: 0; padding: 4px 8px;

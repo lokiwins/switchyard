@@ -272,6 +272,23 @@ export function createActionService({
     return { interrupted: true };
   }
 
+  /**
+   * End a task: close the tmux window its Claude session runs in, which ends
+   * the session (it can be resumed from Recently ended). Only its pane closes
+   * when you've split the window, so your other panes stay.
+   */
+  async function endSession(body) {
+    const session = await liveSession(parseSessionId(body));
+    if (session.host?.kind !== 'tmux') throw new ActionError(501, 'Ending a session from switchyard works for sessions running in tmux');
+    const pane = await currentTmuxPane(session);
+    const panes = [...(await tmux.listPanes()).values()];
+    const { window, windowName, session: tmuxSession } = panes.find((p) => p.pane === pane);
+    const shared = panes.filter((p) => p.window === window).length > 1;
+    if (shared) await tmux.killPane(pane);
+    else await tmux.killWindow(window);
+    return { ended: true, window: `${tmuxSession}:${windowName}` };
+  }
+
   // Panes and tabs an answer is being sent to: a second answer would land on whatever the first one brings up.
   const answering = new Set();
 
@@ -437,5 +454,5 @@ export function createActionService({
     return { opened: true };
   }
 
-  return { focusSession, showTerminalSessions, replyToSession, interruptSession, answerPrompt, tmuxTarget, resumeSession, openWorktree };
+  return { focusSession, showTerminalSessions, endSession, replyToSession, interruptSession, answerPrompt, tmuxTarget, resumeSession, openWorktree };
 }

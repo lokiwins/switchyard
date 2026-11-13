@@ -61,6 +61,28 @@ export function stopButton(session) {
   }, 'btn btn-sm btn-secondary');
 }
 
+/**
+ * End a task's session: Claude ends and its tmux window closes. Two clicks,
+ * since the window's scrollback goes with it; the session can be resumed.
+ */
+export function endMenu(session) {
+  if (!inTmux(session)) return null;
+  return dropdown({
+    key: `end:${session.sessionId}`,
+    label: 'End ▾',
+    title: 'End this Claude session and close its tmux window',
+    className: 'btn btn-sm btn-secondary',
+    panelClass: 'end-panel',
+    focusInput: false,
+  },
+  h('p', { class: 'reply-hint' }, `Ends Claude and closes tmux window ${tmuxPlace(session.host)}. You can resume the session from Recently ended.`),
+  actionButton('End session', 'End Claude and close its tmux window', async (button) => {
+    await post('/api/terminal/end', { sessionId: session.sessionId });
+    closeDropdown(button);
+    return 'Session ended. Resume it from Recently ended.';
+  }, 'btn btn-sm btn-danger'));
+}
+
 async function sendReply(event, session) {
   event.preventDefault();
   const form = event.currentTarget;
