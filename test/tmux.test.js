@@ -210,3 +210,30 @@ test('paneCommand is what the pane runs in front, or null when the pane is gone'
   const gone = fakeExec({ 'display-message': new Error("can't find pane: %3") });
   assert.equal(await createTmux({ exec: gone.exec }).paneCommand('%3'), null);
 });
+
+test('integrationClients finds the terminals showing a session through tmux -CC (control mode with a tty), not switchyard\'s own', async () => {
+  const { exec, calls } = fakeExec({ 'list-clients': '/dev/ttys028\t1\n\t1\n/dev/ttys004\t0\n' });
+  assert.deepEqual(await createTmux({ exec }).integrationClients('switchyard'), ['/dev/ttys028']);
+  assert.deepEqual(calls[0], ['tmux', 'list-clients', '-t', '=switchyard', '-F', '#{client_tty}\t#{client_control_mode}']);
+});
+
+test('integrationClients is empty when the session or server is not there', async () => {
+  const { exec } = fakeExec({ 'list-clients': new Error("can't find session: switchyard") });
+  assert.deepEqual(await createTmux({ exec }).integrationClients('switchyard'), []);
+});
+
+test('hasSession and activePane', async () => {
+  const { exec, calls } = fakeExec({ 'display-message': '%7\n' });
+  const tmux = createTmux({ exec });
+  assert.equal(await tmux.hasSession('switchyard'), true);
+  assert.deepEqual(calls[0], ['tmux', 'has-session', '-t', '=switchyard']);
+  assert.equal(await tmux.activePane('switchyard'), '%7');
+  assert.deepEqual(calls[1], ['tmux', 'display-message', '-p', '-t', '=switchyard:', '#{pane_id}']);
+  assert.equal(await createTmux({ exec: fakeExec({ 'has-session': new Error("can't find session") }).exec }).hasSession('switchyard'), false);
+});
+
+test('integrationCommand attaches a session with iTerm\'s tmux integration, on this server\'s socket, in place of the new tab\'s shell', async () => {
+  const { exec, calls } = fakeExec({ 'display-message': '/private/tmp/tmux-501/default\n' });
+  assert.equal(await createTmux({ exec }).integrationCommand('switchyard'), "exec tmux -S '/private/tmp/tmux-501/default' -CC attach-session -t '=switchyard'");
+  assert.deepEqual(calls[0], ['tmux', 'display-message', '-p', '#{socket_path}']);
+});

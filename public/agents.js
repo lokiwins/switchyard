@@ -1,6 +1,7 @@
 import { h, readPref, timeAgo, toast, writePref } from './dom.js';
-import { sessionSearchText } from './session-text.js';
+import { canShowTerminalSessions, sessionSearchText } from './session-text.js';
 import { locateSession, renderLiveList, renderPendingRow } from './agent-views.js';
+import { actionButton, post } from './actions.js';
 import { renderEnded } from './ended-views.js';
 import { applyNav, startNavBadges } from './nav.js';
 import { isTypingReply } from './session-controls.js';
@@ -197,11 +198,23 @@ function renderNewTask(state) {
   $('new-task').replaceChildren(newTaskMenu(state) ?? '');
 }
 
+/** One button that shows every task's tmux window in iTerm, or brings them forward. */
+function renderShowSessions(state) {
+  const slot = $('show-sessions');
+  const wanted = canShowTerminalSessions(state.capabilities);
+  if (wanted === (slot.childElementCount > 0)) return;
+  slot.replaceChildren(wanted ? actionButton('Show Terminal Sessions', 'Show every task\'s tmux window in iTerm, through its tmux integration', async () => {
+    const result = await post('/api/terminal/show-sessions', {});
+    return result.precision === 'opened' ? 'Opening your terminal sessions in iTerm' : null;
+  }, 'btn') : '');
+}
+
 function render() {
   renderViews();
   const { state } = ui;
   if (!state) return;
   renderNewTask(state);
+  renderShowSessions(state);
   $('updated').textContent = `Updated ${timeAgo(state.generatedAt)}`;
   renderErrors(state.errors);
   settleTasks(state);

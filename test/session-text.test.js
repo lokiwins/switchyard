@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { answerElsewhere, foldsWhenParked, sessionDetail, sessionTitle } from '../public/session-text.js';
+import { answerElsewhere, canShowTerminalSessions, foldsWhenParked, sessionDetail, sessionTitle } from '../public/session-text.js';
 
 const live = (fields, transcript = {}) => ({ sessionId: 'abcdef12-0000', cwd: '/w/my-repo', status: 'idle', ...fields, transcript });
 
@@ -90,4 +90,11 @@ test('a parked session stays in the list while its terminal is open; only ones w
   assert.equal(foldsWhenParked(parked(null)), true);
   // A session that isn't parked never folds.
   assert.equal(foldsWhenParked(live({ parked: false, host: null })), false);
+});
+
+test('Show Terminal Sessions is offered with tmux and iTerm only, since it uses iTerm\'s tmux integration', () => {
+  assert.equal(canShowTerminalSessions({ terminal: 'iTerm', tmux: true }), true);
+  assert.equal(canShowTerminalSessions({ terminal: 'iTerm', tmux: false }), false);
+  assert.equal(canShowTerminalSessions({ terminal: 'Terminal', tmux: true }), false);
+  assert.equal(canShowTerminalSessions(undefined), false);
 });
