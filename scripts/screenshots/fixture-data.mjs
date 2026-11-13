@@ -101,6 +101,9 @@ const PLAN_SCREEN = [
  * "<repo>-<suffix>". `screen` runs it in a tmux pane showing those lines,
  * so the page can read and answer the dialog on it.
  */
+// Stand-in file content of about `chars` characters.
+const filler = (chars) => 'Lorem ipsum dolor sit amet. '.repeat(Math.ceil(chars / 28)).slice(0, chars);
+
 export const SESSIONS = [
   {
     worktree: 'storefront-login-redirect',
@@ -136,23 +139,23 @@ export const SESSIONS = [
     minutesAgo: 12,
     // A fuller history, for the session graph: memory loaded, files read and changed, a compaction, a subagent.
     turns: [
-      { memory: [{ path: '~/.claude/CLAUDE.md', type: 'User' }, { path: 'CLAUDE.md', type: 'Project' }] },
+      { memory: [{ path: '~/.claude/CLAUDE.md', type: 'User', chars: 6000 }, { path: 'CLAUDE.md', type: 'Project', chars: 14000 }] },
       { prompt: 'Why do some charges fail twice in the logs?' },
-      { reply: 'Looking at the charge flow.', tools: [{ name: 'Read', input: { file_path: 'src/charges/charge.js' } }, { name: 'Read', input: { file_path: 'src/charges/gateway.js' } }, { name: 'Bash', input: { command: 'grep -rn "declined" logs/' } }] },
-      { reply: 'The gateway client retries on its own.', tools: [{ name: 'Read', input: { file_path: 'docs/payments.md' } }, { name: 'WebSearch', input: { query: 'payment gateway idempotency keys' } }] },
-      { compact: 168000 },
-      { memory: [{ path: '~/.claude/CLAUDE.md', type: 'User' }, { path: 'CLAUDE.md', type: 'Project' }] },
+      { reply: 'Looking at the charge flow.', tools: [{ name: 'Read', input: { file_path: 'src/charges/charge.js' }, result: 18000 }, { name: 'Read', input: { file_path: 'src/charges/gateway.js' }, result: 26000 }, { name: 'Bash', input: { command: 'grep -rn "declined" logs/' }, result: 52000 }] },
+      { reply: 'The gateway client retries on its own.', tools: [{ name: 'Read', input: { file_path: 'docs/payments.md' }, result: 9000 }, { name: 'WebSearch', input: { query: 'payment gateway idempotency keys' }, result: 16000 }] },
+      { compact: 168000, summary: 9000 },
+      { memory: [{ path: '~/.claude/CLAUDE.md', type: 'User', chars: 6000 }, { path: 'CLAUDE.md', type: 'Project', chars: 14000 }] },
       { prompt: 'Retry failed charges with exponential backoff, at most 3 times.' },
-      { reply: 'I\'ll add the retry around the gateway call.', tools: [{ name: 'Read', input: { file_path: 'src/charges/charge.js' } }, { name: 'Edit', input: { file_path: 'src/charges/charge.js' } }, { name: 'Write', input: { file_path: 'src/charges/backoff.js' } }] },
-      { reply: 'Now the tests.', tools: [{ name: 'Write', input: { file_path: 'test/backoff.test.js' } }, { name: 'Bash', input: { command: 'npm test' } }] },
-      { reply: 'Asking for a review.', tools: [{ id: 'toolu_review', name: 'Agent', input: { description: 'Review the retry change', subagent_type: 'code-reviewer' } }, { name: 'Skill', input: { skill: 'verify' } }] },
-      { reply: 'Done. Failed charges now retry after 1s, 2s and 4s, and the tests cover each step. Want me to open a PR?' },
+      { reply: 'I\'ll add the retry around the gateway call.', tools: [{ name: 'Read', input: { file_path: 'src/charges/charge.js' }, result: 18000 }, { name: 'Edit', input: { file_path: 'src/charges/charge.js', old_string: 'await gateway.charge(card)', new_string: 'await withBackoff(() => gateway.charge(card))' }, result: 300 }, { name: 'Write', input: { file_path: 'src/charges/backoff.js', content: filler(2400) }, result: 200 }] },
+      { reply: 'Now the tests.', tools: [{ name: 'Write', input: { file_path: 'test/backoff.test.js', content: filler(4200) }, result: 200 }, { name: 'Bash', input: { command: 'npm test' }, result: 7000 }] },
+      { reply: 'Asking for a review.', tools: [{ id: 'toolu_review', name: 'Agent', input: { description: 'Review the retry change', subagent_type: 'code-reviewer' }, result: 3200 }, { name: 'Skill', input: { skill: 'verify' }, result: 4000 }] },
+      { reply: 'Done. Failed charges now retry after 1s, 2s and 4s, and the tests cover each step. Want me to open a PR?', context: 31000 },
     ],
     subagents: [{
       toolUseId: 'toolu_review',
       agentType: 'code-reviewer',
       description: 'Review the retry change',
-      turns: [{ tools: [{ name: 'Read', input: { file_path: 'src/charges/backoff.js' } }, { name: 'Read', input: { file_path: 'test/backoff.test.js' } }, { name: 'Bash', input: { command: 'git diff' } }] }],
+      turns: [{ tools: [{ name: 'Read', input: { file_path: 'src/charges/backoff.js' }, result: 2400 }, { name: 'Read', input: { file_path: 'test/backoff.test.js' }, result: 4200 }, { name: 'Bash', input: { command: 'git diff' }, result: 6000 }] }],
     }],
   },
   {

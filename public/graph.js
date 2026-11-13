@@ -1,7 +1,7 @@
 import cytoscape from '/vendor/cytoscape/cytoscape.esm.min.mjs';
 import { h, readPref, shortPath, timeAgo, writePref } from './dom.js';
 import { startNavBadges } from './nav.js';
-import { KINDS, diffElements, kindCounts, nodeConnections, toElements } from './graph-model.js';
+import { KINDS, diffElements, formatShare, formatTokens, kindCounts, nodeConnections, toElements, tokenBreakdown } from './graph-model.js';
 
 /*
  * A session's context graph: your prompts in order, and the files, tools,
@@ -125,6 +125,50 @@ function showLegend(graph) {
 
 const plural = (count = 0, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const BAR_WIDTH = 1000;
+const BAR_HEIGHT = 10;
+const BAR_GAP = 2;
+
+function svg(tag, attrs, ...children) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  el.append(...children);
+  return el;
+}
+
+/** A thin bar of the shares, no text on it: the rows below carry the figures. A gap separates segments. */
+function shareBar(rows) {
+  let x = 0;
+  const segments = rows.map((row) => {
+    const width = Math.max(0, row.share * BAR_WIDTH - BAR_GAP);
+    const rect = svg('rect', { x: x.toFixed(1), y: 0, width: width.toFixed(1), height: BAR_HEIGHT, rx: 2, class: `kind-${row.kind}` },
+      svg('title', {}, `${row.name}: ~${formatTokens(row.tokens)} tokens (${formatShare(row.share)})`));
+    x += row.share * BAR_WIDTH;
+    return rect;
+  });
+  return svg('svg', { class: 'graph-bar', viewBox: `0 0 ${BAR_WIDTH} ${BAR_HEIGHT}`, preserveAspectRatio: 'none', role: 'img', 'aria-label': 'What fills the context now' }, ...segments);
+}
+
+/** What's in context now: the size Claude last reported, and what fills it by kind. */
+function contextBreakdown(graph) {
+  const breakdown = tokenBreakdown(graph);
+  if (breakdown.total === 0) return null;
+  return h('div', { class: 'graph-context' },
+    h('h3', {}, 'In context now'),
+    h('p', { class: 'graph-context-figure' }, `${breakdown.reported ? '' : '~'}${formatTokens(breakdown.total)} `, h('span', { class: 'muted' }, 'tokens')),
+    h('p', { class: 'small muted' }, breakdown.reported
+      ? 'As Claude reported on its last call. The parts are estimated from what each put into context.'
+      : 'Estimated from what each part put into context; Claude hasn\'t reported a size yet.'),
+    shareBar(breakdown.rows),
+    h('ul', { class: 'graph-shares' }, ...breakdown.rows.map((row) => h('li', {},
+      h('span', { class: `graph-swatch kind-${row.kind}`, 'aria-hidden': 'true' }),
+      h('span', {}, row.name),
+      h('span', { class: 'num' }, `~${formatTokens(row.tokens)}`),
+      h('span', { class: 'num muted' }, formatShare(row.share))))),
+    graph.compactions > 0 && h('p', { class: 'small muted' }, `Counting what compactions dropped, your prompts, files, tools and the rest put ~${formatTokens(breakdown.session)} tokens into context over the whole session.`));
+}
+
 function summary(graph) {
   const counts = kindCounts(graph);
   const out = graph.nodes.filter((n) => !n.inContext).length;
@@ -137,7 +181,8 @@ function summary(graph) {
     graph.compactions > 0
       ? h('p', { class: 'small' }, `Compacted ${graph.compactions} time${graph.compactions > 1 ? 's' : ''}. Faded nodes were last used before the latest compaction, so they're no longer in context (${out}).`)
       : h('p', { class: 'small' }, 'Never compacted: everything shown is still in context.'),
-    h('p', { class: 'small muted' }, 'Click a node to see what it is and what it connects to. Bigger nodes were used more.'));
+    h('p', { class: 'small muted' }, 'Click a node to see what it is and what it connects to. Bigger nodes put more into context.'),
+    contextBreakdown(graph));
 }
 
 function select(id) {
@@ -146,6 +191,16 @@ function select(id) {
   cy.elements().unselect();
   node.select();
   cy.animate({ zoom: { level: Math.max(cy.zoom(), SELECT_ZOOM), position: node.position() }, center: { eles: node } }, { duration: 200 });
+}
+
+function tokenLine(graph, node) {
+  if (!node.tokens) {
+    const bySubagent = graph.edges.some((e) => e.target === node.id && e.source.startsWith('agent:'));
+    return bySubagent ? 'No tokens in the main context: what a subagent reads stays in its own.' : 'No tokens counted yet.';
+  }
+  const now = node.liveTokens === node.tokens ? 'all still in context'
+    : node.liveTokens === 0 ? 'none of it still in context' : `~${formatTokens(node.liveTokens)} still in context`;
+  return `~${formatTokens(node.tokens)} tokens into context, ${now}.`;
 }
 
 function nodeDetail(graph, node) {
@@ -159,6 +214,7 @@ function nodeDetail(graph, node) {
       node.kind === 'session' ? null : `Used ${node.uses} time${node.uses === 1 ? '' : 's'}`,
       node.inContext ? 'in context' : 'no longer in context (before the last compaction)',
     ].filter(Boolean).join(' · ')),
+    node.kind !== 'session' && h('p', { class: 'small' }, tokenLine(graph, node)),
     links.length > 0 && h('h3', {}, `Connections (${links.length})`),
     links.length > 0 && h('ul', { class: 'graph-links' }, ...links.map((link) => h('li', {},
       h('span', { class: `graph-swatch kind-${link.kind}`, 'aria-hidden': 'true' }),

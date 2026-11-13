@@ -63,29 +63,46 @@ function buildRepos(code, git, now) {
 /** A fixture path: ~/… is under the fixture home, a relative one is in the session's folder. */
 const fixturePath = (path, { cwd, home }) => (path.startsWith('~/') ? join(home, path.slice(2)) : join(cwd, path));
 
-function toolCall(tool, i, where) {
+/** The `n`th tool call of turn `i`; ids are unique, as Claude's are, so each result finds its call. */
+function toolCall(tool, i, n, where) {
   const input = tool.input?.file_path ? { ...tool.input, file_path: fixturePath(tool.input.file_path, where) } : { ...tool.input };
-  return { type: 'tool_use', id: tool.id ?? `toolu_${i}_${tool.name}`, name: tool.name, input };
+  return { type: 'tool_use', id: tool.id ?? `toolu_${i}_${n}_${tool.name}`, name: tool.name, input };
 }
 
+// Stand-in text of about `chars` characters, for what a file or a tool result put into context.
+const filler = (chars) => 'Lorem ipsum dolor sit amet. '.repeat(Math.ceil(chars / 28)).slice(0, chars);
+
 /**
- * One transcript entry for a turn: a prompt, a reply with its tool calls, a
- * compaction, or files loaded into context (memory: [{ path, type }]).
+ * The transcript entries for a turn: a prompt, a reply with its tool calls
+ * (and their results when a tool has `result`, its size in characters), a
+ * compaction (and its summary), or files loaded into context
+ * (memory: [{ path, type, chars }]). A reply's `context` is the input size
+ * Claude reports for that call.
  */
-function turnEntry(turn, i, where, common) {
-  if (turn.prompt) return { type: 'user', ...common, message: { role: 'user', content: turn.prompt } };
-  if (turn.compact) return { type: 'system', subtype: 'compact_boundary', ...common, content: 'Conversation compacted', compactMetadata: { trigger: 'auto', preTokens: turn.compact } };
-  if (turn.memory) {
-    return { type: 'attachment', ...common, attachment: { type: 'instructions', files: turn.memory.map((m) => ({ path: fixturePath(m.path, where), type: m.type })) } };
+function turnEntries(turn, i, where, common) {
+  if (turn.prompt) return [{ type: 'user', ...common, message: { role: 'user', content: turn.prompt } }];
+  if (turn.compact) {
+    return [
+      { type: 'system', subtype: 'compact_boundary', ...common, content: 'Conversation compacted', compactMetadata: { trigger: 'auto', preTokens: turn.compact } },
+      ...(turn.summary ? [{ type: 'user', ...common, uuid: randomUUID(), isCompactSummary: true, message: { role: 'user', content: filler(turn.summary) } }] : []),
+    ];
   }
-  const tools = [...(turn.tool ? [turn.tool] : []), ...(turn.tools ?? [])].map((tool) => toolCall(tool, i, where));
-  return { type: 'assistant', ...common, message: { role: 'assistant', content: [...(turn.reply ? [{ type: 'text', text: turn.reply }] : []), ...tools] } };
+  if (turn.memory) {
+    const files = turn.memory.map((m) => ({ path: fixturePath(m.path, where), type: m.type, content: filler(m.chars ?? 0) }));
+    return [{ type: 'attachment', ...common, attachment: { type: 'instructions', files } }];
+  }
+  const tools = [...(turn.tool ? [turn.tool] : []), ...(turn.tools ?? [])];
+  const calls = tools.map((tool, n) => toolCall(tool, i, n, where));
+  const usage = turn.context ? { usage: { input_tokens: 3, cache_read_input_tokens: turn.context - 3, cache_creation_input_tokens: 0, output_tokens: 400 } } : {};
+  const reply = { type: 'assistant', ...common, message: { role: 'assistant', content: [...(turn.reply ? [{ type: 'text', text: turn.reply }] : []), ...calls], ...usage } };
+  const results = tools.map((tool, n) => (tool.result ? { type: 'tool_result', tool_use_id: calls[n].id, content: filler(tool.result) } : null)).filter(Boolean);
+  return results.length > 0 ? [reply, { type: 'user', ...common, uuid: randomUUID(), message: { role: 'user', content: results } }] : [reply];
 }
 
 /** Transcript lines for a session's turns, the last one `minutesAgo` before now. */
 function transcriptLines(session, { sessionId, cwd, branch, now, home }) {
   const at = (i) => new Date(now - minutes(session.minutesAgo) - (session.turns.length - 1 - i) * 30_000).toISOString();
-  const lines = session.turns.map((turn, i) => turnEntry(turn, i, { cwd, home }, { sessionId, cwd, gitBranch: branch, timestamp: at(i), uuid: randomUUID() }));
+  const lines = session.turns.flatMap((turn, i) => turnEntries(turn, i, { cwd, home }, { sessionId, cwd, gitBranch: branch, timestamp: at(i), uuid: randomUUID() }));
   return [{ type: 'ai-title', sessionId, aiTitle: session.title }, ...lines];
 }
 
@@ -96,10 +113,9 @@ function writeSubagents(session, { dir, sessionId, cwd, branch, now, home }) {
     mkdirSync(subagents, { recursive: true });
     const agentId = `a${n}fixture`;
     writeFileSync(join(subagents, `agent-${agentId}.meta.json`), JSON.stringify({ agentType: agent.agentType, description: agent.description, toolUseId: agent.toolUseId }));
-    const lines = [{ prompt: agent.description }, ...agent.turns].map((turn, i) => ({
-      ...turnEntry(turn, i, { cwd, home }, { sessionId, agentId, cwd, gitBranch: branch, timestamp: new Date(now).toISOString(), uuid: randomUUID() }),
-      isSidechain: true,
-    }));
+    const lines = [{ prompt: agent.description }, ...agent.turns]
+      .flatMap((turn, i) => turnEntries(turn, i, { cwd, home }, { sessionId, agentId, cwd, gitBranch: branch, timestamp: new Date(now).toISOString(), uuid: randomUUID() }))
+      .map((entry) => ({ ...entry, isSidechain: true }));
     writeFileSync(join(subagents, `agent-${agentId}.jsonl`), `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`);
   }
 }
