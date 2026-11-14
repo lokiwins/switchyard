@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/lokiwins/switchyard/compare/v0.3.0...v0.4.0) (2026-11-14)
+
+
+### Features
+
+* make a task from a session or worktree, linked to its work ([#54](https://github.com/lokiwins/switchyard/issues/54)) ([395a719](https://github.com/lokiwins/switchyard/commit/395a7194bc4aa436f7f273e144f5173f949ff967))
+
 ## [0.3.0](https://github.com/lokiwins/switchyard/compare/v0.2.0...v0.3.0) (2026-11-13)
 
 
