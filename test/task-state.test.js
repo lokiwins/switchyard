@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  dueOnLabel, groupTasks, matchesHubTask, taskState, ticketLabel,
+  dueOnLabel, groupTasks, linkedWhere, matchesHubTask, taskState, ticketLabel,
 } from '../public/task-state.js';
 
 // Tuesday 10 Nov 2026, mid-morning local time.
@@ -137,4 +137,10 @@ test('a task whose Claude quit before starting is paused, with why', () => {
   const [group] = groupTasks([task({ work: [work({ path: '/code/shop-x' })] })], NOW, [start('/code/shop-x', 'exited', { detail: 'claude: command not found' })]);
   assert.equal(group.tasks[0].state, 'paused');
   assert.equal(group.tasks[0].start.detail, 'claude: command not found');
+});
+
+test('linkedWhere says where a task made from a session will be linked', () => {
+  assert.equal(linkedWhere({ repoName: 'shop', branch: 'fix-login', sessionOnly: false }), 'Linked to shop · fix-login: its worktree, PR and sessions show under the task');
+  assert.equal(linkedWhere({ repoName: 'shop', branch: 'main', sessionOnly: true }), 'Linked to this session only, since main is a long-lived branch');
+  assert.equal(linkedWhere({ repoName: 'shop', branch: null, sessionOnly: true }), 'Linked to this session only');
 });

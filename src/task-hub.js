@@ -9,7 +9,8 @@ import { hasControlCharacters } from './tmux.js';
  * day and links to its tickets in any tracker. They're kept in
  * ~/.config/switchyard/tasks.json, readable only by you. What a task's work
  * is doing (its worktree, PR and Claude session) isn't stored: it's found
- * from branches that name the task (see task-links.js).
+ * from branches that name the task, or from where it was saved as being when
+ * it was made from a session (see task-links.js).
  */
 
 const FILE = 'tasks.json';
@@ -128,14 +129,21 @@ export function createTaskHub({ file = createJsonFile(defaultStoreDir(), FILE), 
     /** Every task, newest first. */
     list: () => queue.then(read),
 
-    async create(body) {
+    /**
+     * A new task. `attached` says where its work already is, when it's made
+     * from a session: its repo and branch, or one session (see task-sources.js).
+     * Only the server sets it, never what the page sends.
+     */
+    async create(body, { attached = [] } = {}) {
       const fields = parseTaskFields(body);
       return change((tasks) => {
         const ids = new Set(tasks.map((t) => t.id));
         let id = newId();
         while (ids.has(id)) id = newId();
         const time = now();
-        const task = { id, ...fields, createdAt: time, updatedAt: time, closedAs: null, closedAt: null };
+        const task = {
+          id, ...fields, ...(attached.length > 0 ? { attached } : {}), createdAt: time, updatedAt: time, closedAs: null, closedAt: null,
+        };
         return { tasks: [task, ...tasks], result: task };
       });
     },

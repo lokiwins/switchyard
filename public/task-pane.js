@@ -74,8 +74,14 @@ function ticketCard(link) {
 
 const field = (label, control) => h('label', { class: 'pane-field' }, h('span', {}, label), control);
 
-/** Open the details pane for `task`. `save(fields)` resolves whether it worked; on success the pane closes. */
-export function openTaskPane(task, { save }) {
+/**
+ * Open the details pane for `task`. `save(fields)` resolves whether it worked;
+ * on success the pane closes. A task not made yet (no id) has its own
+ * `heading` and `sub` line, and a `submitLabel` for its button.
+ */
+export function openTaskPane(task, {
+  save, heading = task.title, sub = task.id, submitLabel = 'Save',
+}) {
   const title = h('input', { name: 'title', type: 'text', class: 'pane-input', required: true, maxlength: '200', value: task.title });
   const dueOn = h('input', { name: 'dueOn', type: 'date', class: 'pane-input', value: task.dueOn ?? '' });
   const notes = h('textarea', { name: 'notes', class: 'pane-input pane-textarea', rows: '6', maxlength: '10000' }, task.notes);
@@ -83,7 +89,7 @@ export function openTaskPane(task, { save }) {
   const close = () => dialog.close();
   const form = h('form', {
     class: 'pane-form',
-    id: `task-form-${task.id}`,
+    id: `task-form-${task.id ?? 'new'}`,
     onsubmit: async (event) => {
       event.preventDefault();
       const button = dialog.querySelector('button[type="submit"]');
@@ -104,12 +110,12 @@ export function openTaskPane(task, { save }) {
   field('Ticket links, one per line', links));
 
   const { label } = STATE_LABELS[task.state] ?? { label: '' };
-  const dialog = h('dialog', { class: 'glass-pane task-pane', 'aria-label': `Task: ${task.title}`, onclose: () => dialog.remove() },
+  const dialog = h('dialog', { class: 'glass-pane task-pane', 'aria-label': task.id ? `Task: ${task.title}` : heading, onclose: () => dialog.remove() },
     h('header', { class: 'pane-header' },
       h('span', { class: 'pane-dot', 'aria-hidden': 'true' }),
       h('div', { class: 'pane-heading' },
-        h('strong', {}, task.title),
-        h('span', { class: 'pane-sub' }, task.id)),
+        h('strong', {}, heading),
+        h('span', { class: 'pane-sub' }, sub)),
       label && h('span', { class: 'pane-pill' }, label),
       h('button', { type: 'button', class: 'pane-btn', title: 'Close without saving', onclick: close }, 'Close')),
     h('div', { class: 'review-body task-pane-body' },
@@ -119,7 +125,7 @@ export function openTaskPane(task, { save }) {
         task.links.map(ticketCard))),
     h('footer', { class: 'pane-footer' },
       h('span', { class: 'pane-note pane-footer-note' }, 'Esc closes without saving.'),
-      h('button', { type: 'submit', form: form.id, class: 'pane-btn is-primary' }, 'Save')));
+      h('button', { type: 'submit', form: form.id, class: 'pane-btn is-primary' }, submitLabel)));
   document.body.append(dialog);
   dialog.showModal();
   title.focus();

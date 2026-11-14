@@ -101,6 +101,16 @@ function renderTasks() {
   }));
 }
 
+/** Arriving from a session's "Task" link (/tasks#sy-…): open that task's details, once. */
+function openFromLink() {
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (!id) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  const task = ui.data.tasks.find((t) => t.id === id);
+  if (task) actions.open(task);
+  else toast('That task is not there any more');
+}
+
 async function loadTasks({ force = false } = {}) {
   ui.loads += 1;
   const load = ui.loads;
@@ -113,6 +123,7 @@ async function loadTasks({ force = false } = {}) {
     applyNav(data.nav);
     renderErrors([]);
     renderTasks();
+    openFromLink();
   } catch (error) {
     if (load === ui.loads) renderErrors([`Could not load your tasks: ${error.message}`]);
   }

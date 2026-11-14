@@ -6,6 +6,7 @@ import { approvalButtons, approvalDetail, approvalsFor, endMenu, graphLink, repl
 import { terminalButton } from './live-terminal.js';
 import { answerMenu, planButton } from './screen-answer.js';
 import { pendingText } from './pending-tasks.js';
+import { taskFromWork } from './make-task.js';
 
 function sessionTone(session) {
   if (session.status === 'busy') return 'green';
@@ -52,6 +53,7 @@ export function renderLiveRow(state, session, details = null) {
       pr && h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'small' }, `#${pr.number}`),
       terminalButton(session),
       jumpButton(session),
+      taskFromWork({ sessionId: session.sessionId }, session.hubTask),
       graphLink(session),
       endMenu(session),
       copyButton('cd', `cd ${shellQuote(session.cwd)}`),
