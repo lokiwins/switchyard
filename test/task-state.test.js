@@ -140,7 +140,7 @@ test('a task whose Claude quit before starting is paused, with why', () => {
 });
 
 test('linkedWhere says where a task made from a session will be linked', () => {
-  assert.equal(linkedWhere({ repoName: 'shop', branch: 'fix-login', sessionOnly: false }), 'Linked to shop · fix-login: its worktree, PR and sessions show under the task');
+  assert.equal(linkedWhere({ repoName: 'shop', branch: 'fix-login', sessionOnly: false }), 'Linked to shop · fix-login');
   assert.equal(linkedWhere({ repoName: 'shop', branch: 'main', sessionOnly: true }), 'Linked to this session only, since main is a long-lived branch');
   assert.equal(linkedWhere({ repoName: 'shop', branch: null, sessionOnly: true }), 'Linked to this session only');
 });

@@ -160,5 +160,5 @@ export function ticketLabel(link) {
 /** Where a task made from a session or worktree will be linked, in words, for its form. */
 export function linkedWhere({ repoName, branch, sessionOnly }) {
   if (sessionOnly) return branch ? `Linked to this session only, since ${branch} is a long-lived branch` : 'Linked to this session only';
-  return `Linked to ${repoName} · ${branch}: its worktree, PR and sessions show under the task`;
+  return `Linked to ${repoName} · ${branch}`;
 }
