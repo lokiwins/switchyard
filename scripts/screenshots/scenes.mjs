@@ -190,4 +190,15 @@ export const SCENES = [
       await page.locator('.picker-panel .picker-item').first().waitFor();
     },
   },
+  {
+    name: 'make-task',
+    title: 'Make task: a task from a running session, filled in from it and linked to its branch',
+    path: '/',
+    prepare: async (page) => {
+      await agentsLoaded(page);
+      await rowOf(page, 'Fix the login redirect on the settings page').getByRole('button', { name: 'Make task', exact: true }).click();
+      await page.locator('dialog.task-pane[open] textarea[name=notes]').waitFor();
+      await settle(page);
+    },
+  },
 ];

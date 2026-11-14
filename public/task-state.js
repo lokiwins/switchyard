@@ -156,3 +156,9 @@ export function ticketLabel(link) {
   if (!found) return 'link';
   return found.ticket ? found.ticket.label(found.key) : found.url.hostname.replace(/^www\./, '');
 }
+
+/** Where a task made from a session or worktree will be linked, in words, for its form. */
+export function linkedWhere({ repoName, branch, sessionOnly }) {
+  if (sessionOnly) return branch ? `Linked to this session only, since ${branch} is a long-lived branch` : 'Linked to this session only';
+  return `Linked to ${repoName} · ${branch}`;
+}

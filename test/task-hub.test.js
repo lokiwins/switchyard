@@ -116,3 +116,28 @@ test('a missing or damaged file reads as no tasks', async () => {
   const broken = createTaskHub({ file: { read: async () => ({ tasks: 'nope' }), write: async () => {} } });
   assert.deepEqual(await broken.list(), []);
 });
+
+test('create can save where the task\'s work already is: a branch, or one session', async () => {
+  const { hub } = setup();
+  const onBranch = await hub.create({ title: 'From a session' }, { attached: [{ repo: '/code/shop', branch: 'feat/receipts' }] });
+  assert.deepEqual(onBranch.attached, [{ repo: '/code/shop', branch: 'feat/receipts' }]);
+  const onMain = await hub.create({ title: 'From main' }, { attached: [{ sessionId: '0b6c3c1e-8a52-4a8e-9a43-0c5c1f3e2d11' }] });
+  assert.deepEqual(onMain.attached, [{ sessionId: '0b6c3c1e-8a52-4a8e-9a43-0c5c1f3e2d11' }]);
+  const plain = await hub.create({ title: 'Plain' });
+  assert.equal('attached' in plain, false, 'a task made on the Tasks page has none');
+});
+
+test('what the page sends can\'t set where a task is attached; only the server can', async () => {
+  const { hub } = setup();
+  const task = await hub.create({ title: 'Sneaky', attached: [{ repo: '/etc', branch: 'x' }] });
+  assert.equal('attached' in task, false);
+  const updated = await hub.update({ id: task.id, attached: [{ repo: '/etc', branch: 'x' }] });
+  assert.equal('attached' in updated, false);
+});
+
+test('an update keeps where the task is attached', async () => {
+  const { hub } = setup();
+  const task = await hub.create({ title: 'Keep' }, { attached: [{ repo: '/code/shop', branch: 'feat/a' }] });
+  const updated = await hub.update({ id: task.id, title: 'Kept' });
+  assert.deepEqual(updated.attached, [{ repo: '/code/shop', branch: 'feat/a' }]);
+});

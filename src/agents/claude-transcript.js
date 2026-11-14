@@ -1,10 +1,14 @@
+import { createReadStream } from 'node:fs';
 import { open } from 'node:fs/promises';
+import { createInterface } from 'node:readline';
 import { currentActivity, lastReply } from './claude-activity.js';
 
 const TAIL_BYTES = 256 * 1024;
 const SCAN_CHUNK_BYTES = 1024 * 1024;
 const MAX_PROMPT_SCAN_BYTES = 64 * 1024 * 1024;
 const PROMPT_PREVIEW_CHARS = 600;
+// How far into a transcript to look for its first prompt; it's normally in the first few lines.
+const FIRST_PROMPT_SCAN_BYTES = 8 * 1024 * 1024;
 const INTERRUPT_PREFIX = '[Request interrupted by user';
 const EXIT_COMMAND = /<command-name>\/(exit|quit)<\/command-name>/;
 const LOCAL_COMMAND = /^<(local-command-stdout|command-name)>/;
@@ -156,5 +160,24 @@ export async function summarizeFile(file) {
     };
   } finally {
     await handle.close();
+  }
+}
+
+/** The first thing you asked in a transcript, whole; null when there's none near the start or no file. */
+export async function firstPrompt(file) {
+  const stream = createReadStream(file, { encoding: 'utf8', end: FIRST_PROMPT_SCAN_BYTES - 1 });
+  const lines = createInterface({ input: stream, crlfDelay: Infinity });
+  try {
+    for await (const text of lines) {
+      const [entry] = parseLines([text]);
+      if (entry && isHumanPrompt(entry)) return promptText(entry.message.content);
+    }
+    return null;
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  } finally {
+    lines.close();
+    stream.destroy();
   }
 }

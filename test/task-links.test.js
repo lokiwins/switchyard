@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  branchNamesTask, linkHubTasks, linkTasks, tagWorktrees, taskForBranch, ticketKeys,
+  branchNamesTask, linkHubTasks, linkTasks, sessionHubTasks, tagWorktrees, taskForBranch, ticketKeys, worktreeHubTasks,
 } from '../src/task-links.js';
 
 const task = (overrides = {}) => ({ id: '86b1abc2d', customId: null, name: 'Email receipts', url: 'https://app.clickup.com/t/86b1abc2d', ...overrides });
@@ -123,4 +123,71 @@ test('linkHubTasks: a worktree is listed once even when several keys match it', 
   const task = hubTask({ links: ['https://app.clickup.com/t/86b1abc2d'] });
   const [linked] = linkHubTasks([task], repos(worktree({ branch: 'sy-k3x9q2-CU-86b1abc2d' })));
   assert.equal(linked.work.length, 1);
+});
+
+const SESSION_A = '0b6c3c1e-8a52-4a8e-9a43-0c5c1f3e2d11';
+const SESSION_B = '1c7d4d2f-9b63-4b9f-8b54-1d6d2f4f3e22';
+const shop = (...worktrees) => [{ name: 'shop', mainPath: '/code/shop', worktrees }];
+
+test('linkHubTasks finds a task\'s work by the repo and branch saved on it, whatever the branch is called', () => {
+  const task = hubTask({ attached: [{ repo: '/code/shop', branch: 'fix-login' }] });
+  const [linked] = linkHubTasks([task], [
+    ...shop(worktree({ path: '/code/shop-login', branch: 'fix-login', pr: { number: 7, url: 'u', state: 'OPEN' } })),
+    { name: 'other', mainPath: '/code/other', worktrees: [worktree({ path: '/code/other-login', branch: 'fix-login' })] },
+  ]);
+  assert.deepEqual(linked.work.map((w) => [w.path, w.pr?.number]), [['/code/shop-login', 7]], 'only that repo\'s branch, with its PR');
+});
+
+test('linkHubTasks: a task saved with one session on a long-lived branch shows only that session, and no PR', () => {
+  const live = { sessionId: SESSION_A, pid: 10 };
+  const other = { sessionId: SESSION_B, pid: 11 };
+  const recent = { sessionId: '2d8e5e3a-ac74-4caa-9c65-2e7e3a5a4f33' };
+  const main = worktree({ path: '/code/shop', branch: 'main', isMain: true, pr: { number: 1, url: 'u', state: 'OPEN' }, agents: { live: [live, other], last: null, recent: [recent] } });
+  const [linked] = linkHubTasks([hubTask({ attached: [{ sessionId: SESSION_A }] })], shop(main));
+  assert.equal(linked.work.length, 1);
+  assert.deepEqual(linked.work[0].live, [live]);
+  assert.deepEqual(linked.work[0].recent, []);
+  assert.equal(linked.work[0].pr, null);
+});
+
+test('linkHubTasks: a saved session that has ended is still found among a worktree\'s recent sessions', () => {
+  const ended = { sessionId: SESSION_A };
+  const main = worktree({ path: '/code/shop', branch: 'main', isMain: true, agents: { live: [], last: null, recent: [ended] } });
+  const [linked] = linkHubTasks([hubTask({ attached: [{ sessionId: SESSION_A }] })], shop(main));
+  assert.deepEqual(linked.work[0].recent, [ended]);
+});
+
+test('linkHubTasks: a saved session no worktree knows any more links nothing', () => {
+  const [linked] = linkHubTasks([hubTask({ attached: [{ sessionId: SESSION_A }] })], shop(worktree()));
+  assert.deepEqual(linked.work, []);
+});
+
+test('sessionHubTasks: each session\'s task, by its branch (id, ticket or saved) or by the session saved on it', () => {
+  const byId = hubTask({ id: 'sy-aaaaaa', title: 'By id' });
+  const bySaved = hubTask({ id: 'sy-bbbbbb', title: 'By saved branch', attached: [{ repo: '/code/shop', branch: 'fix-login' }] });
+  const bySession = hubTask({ id: 'sy-cccccc', title: 'By session', attached: [{ sessionId: SESSION_A }] });
+  const state = {
+    repos: shop(
+      worktree({ path: '/code/shop-a', branch: 'sy-aaaaaa-thing', agents: { live: [{ sessionId: '3e9f6f4b-bd85-4ddb-8d76-3f8f4b6b5a44' }], last: null, recent: [] } }),
+      worktree({ path: '/code/shop-login', branch: 'fix-login', agents: { live: [{ sessionId: SESSION_B }], last: null, recent: [] } }),
+      worktree({ path: '/code/shop', branch: 'main', isMain: true, agents: { live: [{ sessionId: SESSION_A }, { sessionId: '4fa07a5c-ce96-4eec-9e87-4a9a5c7c6b55' }], last: null, recent: [] } }),
+    ),
+    endedSessions: [{ sessionId: '5ab18b6d-dfa7-4ffd-afa8-5bab6d8d7c66', worktreePath: '/code/shop-login', branch: 'fix-login' }],
+  };
+  assert.deepEqual(sessionHubTasks([byId, bySaved, bySession], state), {
+    '3e9f6f4b-bd85-4ddb-8d76-3f8f4b6b5a44': { id: 'sy-aaaaaa', title: 'By id' },
+    [SESSION_B]: { id: 'sy-bbbbbb', title: 'By saved branch' },
+    [SESSION_A]: { id: 'sy-cccccc', title: 'By session' },
+    '5ab18b6d-dfa7-4ffd-afa8-5bab6d8d7c66': { id: 'sy-bbbbbb', title: 'By saved branch' },
+  });
+});
+
+test('worktreeHubTasks: each worktree\'s task by its branch, not by a session on it', () => {
+  const bySaved = hubTask({ id: 'sy-bbbbbb', title: 'Saved', attached: [{ repo: '/code/shop', branch: 'fix-login' }] });
+  const bySession = hubTask({ id: 'sy-cccccc', title: 'Session', attached: [{ sessionId: SESSION_A }] });
+  const tagged = worktreeHubTasks(shop(
+    worktree({ path: '/code/shop-login', branch: 'fix-login' }),
+    worktree({ path: '/code/shop', branch: 'main', agents: { live: [{ sessionId: SESSION_A }], last: null, recent: [] } }),
+  ), [bySaved, bySession]);
+  assert.deepEqual(tagged[0].worktrees.map((w) => w.hubTask), [{ id: 'sy-bbbbbb', title: 'Saved' }, null]);
 });

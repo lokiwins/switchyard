@@ -2,6 +2,7 @@ import { copyButton, h, shellQuote, shortPath, timeAgo, toast } from './dom.js';
 import { sessionDetail, sessionDot, sessionLabel, sessionSearchText, sessionTitle } from './session-text.js';
 import { announceChange, closeDropdown, dropdown, editorLink, openMenu, post, resumeButton } from './actions.js';
 import { endStateOf } from './ended-views.js';
+import { taskFromWork, taskLinkTo } from './make-task.js';
 
 const RECENT_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -66,6 +67,7 @@ function renderBranchCell(w) {
       h('span', { class: 'branch-name', title: w.branch ?? undefined },
         w.branch ?? (w.detached ? `detached @ ${w.head?.slice(0, 7)}` : '—')),
       w.isMain && h('span', { class: 'tag' }, 'main'),
+      w.hubTask && taskLinkTo(w.hubTask, 'tag task-tag'),
       w.locked && h('span', { class: 'pill amber' }, 'locked')),
     h('span', { class: 'secondary', title: `${w.path}${w.lastCommit?.subject ? `\n${w.lastCommit.subject}` : ''}` }, secondary)));
 }
@@ -218,6 +220,7 @@ function renderActionsCell(repo, w, caps) {
   return h('td', {}, h('div', { class: 'actions' },
     w.prunable ? null : openMenu(w.path, w.agents.recent ?? [], caps) ?? copyButton('cd', `cd ${shellQuote(w.path)}`),
     !w.prunable && editorLink(w.path, caps),
+    !w.prunable && !w.hubTask && w.canMakeTask && taskFromWork({ worktree: w.path }, null),
     w.flags.includes('cleanup') && cleanupMenu(repo, w)));
 }
 

@@ -25,6 +25,7 @@ export const STATIC_FILES = {
   '/ticket-import.js': 'ticket-import.js',
   '/hub-views.js': 'hub-views.js',
   '/task-pane.js': 'task-pane.js',
+  '/make-task.js': 'make-task.js',
   '/agents.js': 'agents.js',
   '/nav.js': 'nav.js',
   '/actions.js': 'actions.js',

@@ -27,7 +27,8 @@ import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
 import { createTicketDetails } from './ticket-details.js';
 import { createGithubIssues, repoChoices } from './github-issues.js';
-import { linkHubTasks, linkTasks, tagWorktrees, taskForBranch } from './task-links.js';
+import { linkHubTasks, linkTasks, sessionHubTasks, tagWorktrees, taskForBranch, worktreeHubTasks } from './task-links.js';
+import { createTaskSources } from './task-sources.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
 import { canReadScreen, createTerminal } from './terminal.js';
@@ -127,6 +128,12 @@ async function answerPrompt({ actions, agentFeed }, body) {
   return result;
 }
 
+/** A new task; made from a session or worktree (`from`), it's saved with where that work is, so it shows under it. */
+async function createHubTask({ taskHub, taskSources }, body) {
+  const attached = body?.from ? await taskSources.attach(body.from) : [];
+  return taskHub.create(body, { attached });
+}
+
 const POST_ROUTES = {
   '/api/prs/copilot-review': ({ prService }, body) => prService.copilotReview(body),
   '/api/approvals/decide': ({ approvals }, body) => approvals.decide(body),
@@ -145,7 +152,7 @@ const POST_ROUTES = {
   '/api/worktrees/cleanup': ({ cleanup }, body) => cleanup.cleanUpWorktree(body),
   '/api/terminal/resume': ({ actions }, body) => actions.resumeSession(body),
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
-  '/api/hub/tasks/create': ({ taskHub }, body) => taskHub.create(body),
+  '/api/hub/tasks/create': createHubTask,
   '/api/hub/tasks/update': ({ taskHub }, body) => taskHub.update(body),
   '/api/hub/tasks/close': ({ taskHub }, body) => taskHub.close(body),
   '/api/hub/tasks/reopen': ({ taskHub }, body) => taskHub.reopen(body),
@@ -231,10 +238,14 @@ async function agentsPayload(services, data) {
   services.approvals.reconcile(data);
   // Each session's ClickUp task, by its branch, from the tasks already fetched: never a wait on ClickUp.
   const tasks = services.taskTools.cachedTasks();
+  // Each session's own task (from the Tasks page); a row without one offers to make it.
+  const hubTasks = sessionHubTasks(await services.taskHub.list().catch(() => []), data);
+  const withHubTask = (session) => ({ ...session, hubTask: hubTasks[session.sessionId] ?? null });
   return {
     ...data,
     repos: tagWorktrees(data.repos, tasks),
-    endedSessions: data.endedSessions.map((session) => ({ ...session, task: taskForBranch(tasks, session.branch) })),
+    liveSessions: data.liveSessions.map(withHubTask),
+    endedSessions: data.endedSessions.map((session) => ({ ...withHubTask(session), task: taskForBranch(tasks, session.branch) })),
     approvals: services.approvals.pending(),
     // Tasks from New task whose session hasn't shown up: asking to trust the folder, or quit.
     taskStarts: services.taskStarts.list(data.liveSessions),
@@ -438,8 +449,12 @@ function createHandler(services) {
       const force = url.searchParams.get('refresh') === '1';
       if (url.pathname === '/api/state') {
         prService.markActive();
-        const data = await stateService.getState({ force });
-        return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services), capabilities: services.capabilities } });
+        const [data, hubTasks] = await Promise.all([stateService.getState({ force }), services.taskHub.list().catch(() => [])]);
+        // Each worktree's task, or whether one can be made from it (a long-lived branch needs a session to save).
+        const repos = worktreeHubTasks(data.repos, hubTasks).map((repo) => ({
+          ...repo, worktrees: repo.worktrees.map((w) => ({ ...w, canMakeTask: services.taskSources.canMake(w) })),
+        }));
+        return sendJson(res, 200, { success: true, data: { ...data, repos, nav: await navFor(services), capabilities: services.capabilities } });
       }
       if (url.pathname === '/api/agents') {
         return sendJson(res, 200, { success: true, data: await agentsPayload(services, await stateService.getSessions({ force })) });
@@ -470,6 +485,10 @@ function createHandler(services) {
           throw error;
         }
       }
+      if (url.pathname === '/api/hub/tasks/draft') {
+        const from = url.searchParams.has('session') ? { sessionId: url.searchParams.get('session') } : { worktree: url.searchParams.get('worktree') };
+        return sendJson(res, 200, { success: true, data: await services.taskSources.draft(from) });
+      }
       if (url.pathname === '/api/hub/tasks') {
         return sendJson(res, 200, { success: true, data: { ...(await hubPayload(services, { force })), nav: await navFor(services) } });
       }
@@ -491,6 +510,7 @@ function createHandler(services) {
       if (file) return await sendStatic(res, file);
       return sendJson(res, 404, { success: false, error: 'Not found' });
     } catch (error) {
+      if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
       process.stderr.write(`[switchyard] ${req.url}: ${error.stack ?? error}\n`);
       return sendJson(res, 500, { success: false, error: error.message });
     }
@@ -577,6 +597,9 @@ async function main() {
   const taskHub = createTaskHub();
   const ticketDetails = createTicketDetails({ taskTools, github: githubIssues });
   const hubStarter = createHubStarter({ taskHub, newTask: tasks, rediscover: stateService.rediscover });
+  const taskSources = createTaskSources({
+    claudeDir: config.claudeDir, getState: stateService.getSessions, isLongLivedBranch: (branch) => config.settings.git.isLongLivedBranch(branch),
+  });
   const settingsService = createSettingsService({
     store: createSettingsStore({ path: CONFIG_FILE }),
     live: config,
@@ -587,7 +610,7 @@ async function main() {
   });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
+    sessionGraphs, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({

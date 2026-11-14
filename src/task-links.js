@@ -72,20 +72,82 @@ export function ticketKeys(links = []) {
   });
 }
 
+const attachments = (task) => (Array.isArray(task.attached) ? task.attached : []);
+
+/** Whether a worktree's branch is the task's: it names the task's id or a ClickUp ticket it links to, or it's the branch saved on it. */
+function branchIsTasks(task, repo, worktree) {
+  if (!worktree.branch) return false;
+  if ([task.id, ...ticketKeys(task.links)].some((key) => mentions(worktree.branch, key))) return true;
+  return attachments(task).some((a) => a.repo === repo.mainPath && a.branch === worktree.branch);
+}
+
+const hasSession = (sessions, id) => (sessions ?? []).some((s) => s.sessionId === id);
+
+/**
+ * The work of a task saved with one session (one on a long-lived branch like
+ * main): that session's worktree, showing only that session, and no PR,
+ * since main's PR isn't the task's.
+ */
+function sessionLinks(task, worktrees) {
+  return attachments(task).filter((a) => a.sessionId).flatMap(({ sessionId }) => {
+    const found = worktrees.find(({ worktree }) => hasSession(worktree.agents?.live, sessionId) || hasSession(worktree.agents?.recent, sessionId));
+    if (!found) return [];
+    const link = linkOf(found.repo, found.worktree);
+    return [{
+      ...link, pr: null, live: link.live.filter((s) => s.sessionId === sessionId), recent: link.recent.filter((s) => s.sessionId === sessionId),
+    }];
+  });
+}
+
 /**
  * Your own tasks (see task-hub.js), each with `work`: the worktrees whose
- * branch names the task's id or a ClickUp ticket it links to, with their
- * PRs and sessions.
+ * branch is the task's (see branchIsTasks), with their PRs and sessions, and
+ * the session saved on it, if any.
  */
 export function linkHubTasks(tasks, repos) {
   const worktrees = repos.flatMap((repo) => repo.worktrees.map((worktree) => ({ repo, worktree })));
   return tasks.map((task) => {
-    const keys = [task.id, ...ticketKeys(task.links)];
+    const byBranch = worktrees.filter(({ repo, worktree }) => branchIsTasks(task, repo, worktree));
+    const paths = new Set(byBranch.map(({ worktree }) => worktree.path));
     return {
       ...task,
-      work: worktrees
-        .filter(({ worktree }) => keys.some((key) => worktree.branch && mentions(worktree.branch, key)))
-        .map(({ repo, worktree }) => linkOf(repo, worktree)),
+      work: [
+        ...byBranch.map(({ repo, worktree }) => linkOf(repo, worktree)),
+        ...sessionLinks(task, worktrees).filter((link) => !paths.has(link.path)),
+      ],
     };
   });
+}
+
+const brief = (task) => (task ? { id: task.id, title: task.title } : null);
+
+/** The repos, each worktree with `hubTask`: the task its branch is (see branchIsTasks), or null. */
+export function worktreeHubTasks(repos, tasks) {
+  return repos.map((repo) => ({
+    ...repo,
+    worktrees: repo.worktrees.map((worktree) => ({ ...worktree, hubTask: brief(tasks.find((t) => branchIsTasks(t, repo, worktree))) })),
+  }));
+}
+
+/**
+ * Each session's task, by session id, for the Agents page: the one saved
+ * with that session, else the one its worktree's branch is.
+ */
+export function sessionHubTasks(tasks, { repos = [], endedSessions = [] }) {
+  const bySession = new Map(tasks.flatMap((task) => attachments(task).filter((a) => a.sessionId).map((a) => [a.sessionId, task])));
+  const result = {};
+  const tag = (sessionId, repo, worktree) => {
+    const task = bySession.get(sessionId) ?? (worktree && tasks.find((t) => branchIsTasks(t, repo, worktree)));
+    if (task) result[sessionId] = brief(task);
+  };
+  for (const repo of repos) {
+    for (const worktree of repo.worktrees) {
+      for (const session of worktree.agents?.live ?? []) tag(session.sessionId, repo, worktree);
+    }
+  }
+  for (const session of endedSessions) {
+    const repo = repos.find((r) => r.worktrees.some((w) => w.path === session.worktreePath));
+    tag(session.sessionId, repo, repo?.worktrees.find((w) => w.path === session.worktreePath));
+  }
+  return result;
 }
