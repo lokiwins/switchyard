@@ -87,9 +87,9 @@ function render() {
   $('updated').replaceChildren(liveTime(state.generatedAt, 'Updated '));
   renderErrors(state.errors);
   $('tiles').replaceChildren(...renderTiles(summarize(state), ui.view, setView));
-  $('repos').replaceChildren(...renderRepos(state, {
+  renderRepos($('repos'), state, {
     view: ui.view, query: ui.query, collapsed: ui.collapsed, onToggle: toggleCollapsed, onShowAll: showAll,
-  }));
+  });
   $('orphans-panel').hidden = state.prsWithoutWorktree.length === 0;
   $('orphans').replaceChildren(...renderOrphanPrs(state.prsWithoutWorktree));
   ui.ageOutAt = nextAgeOut(state);

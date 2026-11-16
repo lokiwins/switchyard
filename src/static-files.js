@@ -54,5 +54,6 @@ export const STATIC_FILES = {
   '/dom.js': 'dom.js',
   '/views.js': 'views.js',
   '/worktree-age.js': 'worktree-age.js',
+  '/keyed.js': 'keyed.js',
   '/styles.css': 'styles.css',
 };

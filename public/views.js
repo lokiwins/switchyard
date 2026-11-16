@@ -4,6 +4,7 @@ import { announceChange, closeDropdown, dropdown, editorLink, openMenu, post, re
 import { endStateOf } from './ended-views.js';
 import { taskFromWork, taskLinkTo } from './make-task.js';
 import { isRecent } from './worktree-age.js';
+import { patchChildren } from './keyed.js';
 
 export const VIEWS = {
   active: { label: 'Active', test: (w) => isActive(w) },
@@ -249,6 +250,22 @@ const COLUMNS = [
   ['Agent', 'col-agent'], ['Activity', 'col-activity'], ['', 'col-actions'],
 ];
 
+/** A worktree's row, kept as it is while everything it is drawn from stays the same (see keyed.js). */
+const rowItem = (repo, w, caps) => ({
+  key: w.path,
+  // The row's buttons act on this data (and the repo's path), so any change in it builds the row again.
+  sig: JSON.stringify([repo.mainPath, caps, w]),
+  build: () => renderRow(repo, w, caps),
+});
+
+/** The repo's header counts and its rows, brought up to date in place. */
+function patchRepo(details, repo, rows, caps) {
+  const badges = repoBadges(repo, rows);
+  const shown = details.querySelector('.repo-meta');
+  if (shown.textContent !== badges.textContent) shown.replaceWith(badges);
+  patchChildren(details.querySelector('tbody'), rows.map((w) => rowItem(repo, w, caps)));
+}
+
 function renderRepo(repo, rows, { isCollapsed, onToggle, caps }) {
   const details = h('details', { class: 'repo', open: !isCollapsed },
     h('summary', {},
@@ -258,14 +275,21 @@ function renderRepo(repo, rows, { isCollapsed, onToggle, caps }) {
     h('div', { class: 'table-wrap' }, h('table', {},
       h('colgroup', {}, COLUMNS.map(([, col]) => h('col', { class: col }))),
       h('thead', {}, h('tr', {}, COLUMNS.map(([label]) => h('th', { scope: 'col' }, label)))),
-      h('tbody', {}, rows.map((w) => renderRow(repo, w, caps))))));
+      h('tbody', {}))));
+  patchChildren(details.querySelector('tbody'), rows.map((w) => rowItem(repo, w, caps)));
   details.addEventListener('toggle', () => onToggle(repo.mainPath, !details.open));
   return details;
 }
 
 const byActivity = (a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0);
 
-export function renderRepos(state, { view, query, collapsed, onToggle, onShowAll }) {
+/**
+ * Draw the repos and their worktrees into `container`, keeping every repo
+ * section and row that hasn't changed (so a selection, focus or open menu in
+ * one survives a poll that changed another). A kept section keeps whatever
+ * open or closed state it has.
+ */
+export function renderRepos(container, state, { view, query, collapsed, onToggle, onShowAll }) {
   const test = VIEWS[view]?.test ?? VIEWS.active.test;
   const groups = state.repos
     .map((repo) => ({ repo, rows: repo.worktrees.filter((w) => test(w) && matchesSearch(w, query)).sort(byActivity) }))
@@ -273,13 +297,19 @@ export function renderRepos(state, { view, query, collapsed, onToggle, onShowAll
     .sort((a, b) => byActivity(a.rows[0], b.rows[0]));
   if (groups.length === 0) {
     const narrowed = view !== 'all' || query;
-    return [h('div', { class: 'empty' },
+    container.replaceChildren(h('div', { class: 'empty' },
       h('p', {}, 'No worktrees match this view.'),
-      narrowed && h('button', { type: 'button', class: 'btn btn-secondary btn-sm', onclick: onShowAll }, 'Show all worktrees'))];
+      narrowed && h('button', { type: 'button', class: 'btn btn-secondary btn-sm', onclick: onShowAll }, 'Show all worktrees')));
+    return;
   }
-  return groups.map(({ repo, rows }) => renderRepo(repo, rows, {
-    isCollapsed: collapsed.has(repo.mainPath), onToggle, caps: state.capabilities,
-  }));
+  const caps = state.capabilities;
+  patchChildren(container, groups.map(({ repo, rows }) => ({
+    key: repo.mainPath,
+    // The header's name and link; its counts and rows are brought up to date in place.
+    sig: JSON.stringify([repo.name, repo.github]),
+    build: () => renderRepo(repo, rows, { isCollapsed: collapsed.has(repo.mainPath), onToggle, caps }),
+    update: (details) => patchRepo(details, repo, rows, caps),
+  })));
 }
 
 export function renderOrphanPrs(prs) {
