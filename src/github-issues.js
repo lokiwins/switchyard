@@ -1,4 +1,5 @@
 import { ActionError } from './errors.js';
+import { createSwrCache } from './cache.js';
 import { run } from './exec.js';
 
 /*
@@ -9,6 +10,8 @@ import { run } from './exec.js';
  */
 
 const TTL_MS = 60_000;
+// Your gh login rarely changes; it is checked again in the background after this.
+const LOGIN_TTL_MS = 5 * 60_000;
 // gh search answers at most this many; GitHub's search caps at 1000.
 const SEARCH_LIMIT = 200;
 const MAX_DESCRIPTION = 20_000;
@@ -48,38 +51,38 @@ export function repoChoices(tasks, localRepos, chosen) {
  * `issueRepos` gives the repos chosen in Settings now, so a change there applies at once.
  */
 export function createGithubIssues({ runGh = (args) => run('gh', args), now = Date.now, issueRepos = () => [] } = {}) {
-  let cache = null;
+  // Answers from the last good look at once and asks gh again in the background once it's old.
+  // A failure is never kept: the next look asks gh again.
+  const cache = createSwrCache({ now });
 
   const gh = (args) => runGh(args).catch((error) => {
     throw new ActionError(NOT_SIGNED_IN.test(error.message) ? 409 : 502, `GitHub: ${error.message.trim()}`);
   });
 
   async function fetchAssigned() {
+    const issues = JSON.parse(await gh(['search', 'issues', '--assignee=@me', '--state=open', '--limit', String(SEARCH_LIMIT), '--json', 'number,title,url,state,repository,updatedAt']));
+    const tasks = issues.map((issue) => ({
+      id: `${issue.repository.nameWithOwner}#${issue.number}`,
+      customId: null,
+      name: String(issue.title ?? ''),
+      status: { name: String(issue.state ?? 'open').toLowerCase(), color: null },
+      dueAt: null,
+      updatedAt: Date.parse(issue.updatedAt) || null,
+      url: issue.url,
+      // The id already says which repo.
+      where: null,
+    }));
+    return { connected: true, tasks };
+  }
+
+  /** Every open issue assigned to you, whatever Settings chose. `force` (Refresh) waits for GitHub. */
+  async function allAssigned({ force = false } = {}) {
     try {
-      const issues = JSON.parse(await gh(['search', 'issues', '--assignee=@me', '--state=open', '--limit', String(SEARCH_LIMIT), '--json', 'number,title,url,state,repository,updatedAt']));
-      const tasks = issues.map((issue) => ({
-        id: `${issue.repository.nameWithOwner}#${issue.number}`,
-        customId: null,
-        name: String(issue.title ?? ''),
-        status: { name: String(issue.state ?? 'open').toLowerCase(), color: null },
-        dueAt: null,
-        updatedAt: Date.parse(issue.updatedAt) || null,
-        url: issue.url,
-        // The id already says which repo.
-        where: null,
-      }));
-      cache = { result: { connected: true, tasks }, fetchedAt: now() };
-      return cache.result;
+      return await cache.get('assigned', TTL_MS, fetchAssigned, { force });
     } catch (error) {
       if (error.status === 409) return { connected: false, tasks: [] };
       return { connected: true, tasks: [], error: error.message };
     }
-  }
-
-  /** Every open issue assigned to you, whatever Settings chose. */
-  async function allAssigned({ force = false } = {}) {
-    if (!force && cache && now() - cache.fetchedAt < TTL_MS) return cache.result;
-    return fetchAssigned();
   }
 
   async function ticket({ repo, number, kind }, link) {
@@ -99,13 +102,14 @@ export function createGithubIssues({ runGh = (args) => run('gh', args), now = Da
     /** Whether gh is signed in, and as whom. */
     async connection() {
       try {
-        return { connected: true, user: { username: (await runGh(['api', 'user', '--jq', '.login'])).trim() } };
+        const username = await cache.get('login', LOGIN_TTL_MS, async () => (await runGh(['api', 'user', '--jq', '.login'])).trim());
+        return { connected: true, user: { username } };
       } catch {
         return { connected: false };
       }
     },
 
-    /** The open issues assigned to you in the repos chosen in Settings, from the cache when it's fresh. `force` (Refresh) asks GitHub. */
+    /** The open issues assigned to you in the repos chosen in Settings: the last list at once, refreshed in the background once old. `force` (Refresh) asks GitHub. */
     async assigned({ force = false } = {}) {
       return inChosenRepos(await allAssigned({ force }), issueRepos());
     },
@@ -120,7 +124,7 @@ export function createGithubIssues({ runGh = (args) => run('gh', args), now = Da
       const wanted = typeof status === 'string' ? status.trim().toLowerCase() : '';
       if (!ISSUE_STATUSES.some((s) => s.name === wanted)) throw new ActionError(400, 'An issue is open or closed');
       await gh(['issue', wanted === 'closed' ? 'close' : 'reopen', String(ref.number), '--repo', ref.repo]);
-      cache = null;
+      cache.invalidate('assigned');
       return ticket(ref, link);
     },
   };

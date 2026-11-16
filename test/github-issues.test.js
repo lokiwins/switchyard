@@ -52,6 +52,73 @@ test('assigned: cached for a while; Refresh asks again', async () => {
   assert.equal(calls.length, 2);
 });
 
+test('connection: the gh login is asked once, then reused, and checked again in the background once old', async () => {
+  let now = 0;
+  let login = 'dev\n';
+  const { runGh, calls } = fakeGh({ 'api user': () => login });
+  const issues = createGithubIssues({ runGh, now: () => now });
+  await issues.connection();
+  now = 60_000;
+  assert.deepEqual(await issues.connection(), { connected: true, user: { username: 'dev' } });
+  assert.equal(calls.length, 1);
+  now = 10 * 60_000;
+  login = 'other\n';
+  // Old: answered at once with what it was, while gh is asked again.
+  assert.deepEqual(await issues.connection(), { connected: true, user: { username: 'dev' } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(await issues.connection(), { connected: true, user: { username: 'other' } });
+  assert.equal(calls.length, 2);
+});
+
+test('connection: not signed in is not remembered, so signing in to gh shows at once', async () => {
+  let signedIn = false;
+  const { runGh, calls } = fakeGh({ 'api user': () => { if (!signedIn) throw new Error('gh auth login'); return 'dev\n'; } });
+  const issues = createGithubIssues({ runGh });
+  assert.deepEqual(await issues.connection(), { connected: false });
+  signedIn = true;
+  assert.deepEqual(await issues.connection(), { connected: true, user: { username: 'dev' } });
+  assert.equal(calls.length, 2);
+});
+
+test('assigned: an old list is answered at once while gh is asked again in the background', async () => {
+  let now = 0;
+  let found = [ISSUE];
+  const { runGh, calls } = fakeGh({ 'search issues': () => JSON.stringify(found) });
+  const issues = createGithubIssues({ runGh, now: () => now });
+  await issues.assigned();
+  now = 5 * 60_000;
+  found = [];
+  assert.equal((await issues.assigned()).tasks.length, 1);
+  assert.equal(calls.length, 2);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal((await issues.assigned()).tasks.length, 0);
+});
+
+test('assigned: a failure is not remembered; the next look asks gh again', async () => {
+  let fail = true;
+  const { runGh, calls } = fakeGh({ 'search issues': () => { if (fail) throw new Error('HTTP 502'); return JSON.stringify([ISSUE]); } });
+  const issues = createGithubIssues({ runGh });
+  assert.match((await issues.assigned()).error, /502/);
+  fail = false;
+  assert.equal((await issues.assigned()).tasks.length, 1);
+  assert.equal(calls.length, 2);
+});
+
+test('assigned: when a background look fails, the last good list stays', async () => {
+  let now = 0;
+  let fail = false;
+  const { runGh } = fakeGh({ 'search issues': () => { if (fail) throw new Error('HTTP 502'); return JSON.stringify([ISSUE]); } });
+  const issues = createGithubIssues({ runGh, now: () => now });
+  await issues.assigned();
+  now = 5 * 60_000;
+  fail = true;
+  await issues.assigned();
+  await new Promise((resolve) => setImmediate(resolve));
+  const result = await issues.assigned();
+  assert.equal(result.tasks.length, 1);
+  assert.equal(result.error, undefined);
+});
+
 test('assigned when gh is not signed in: not connected, not an error', async () => {
   const { runGh } = fakeGh({ 'search issues': new Error('gh: To get started with GitHub CLI, please run: gh auth login') });
   assert.deepEqual(await createGithubIssues({ runGh }).assigned(), { connected: false, tasks: [] });
