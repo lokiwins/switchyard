@@ -65,3 +65,19 @@ export function createProcessStarts({ list = getProcessStarts, now = Date.now, t
     return new Map([...known].map(([pid, { startedAt }]) => [pid, startedAt]));
   };
 }
+
+/** Parse `ps -o pid=,pgid=,lstart=` for one process into { pgid, startedAt }, or null. */
+export function parseProcessInfo(text) {
+  const match = text.trim().match(/^(\d+)\s+(\d+)\s+(.+)$/);
+  const startedAt = match ? Date.parse(match[3]) : NaN;
+  return match ? { pgid: Number(match[2]), startedAt: Number.isFinite(startedAt) ? startedAt : null } : null;
+}
+
+/** A process's group and start time, asked of ps now (never cached); null once it's gone. */
+export async function processInfo(pid) {
+  try {
+    return parseProcessInfo(await run('ps', ['-o', 'pid=,pgid=,lstart=', '-p', String(pid)]));
+  } catch {
+    return null; // ps exits non-zero for a pid that isn't running
+  }
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createProcessStarts, parseProcessStarts, startTimesMatch } from '../src/agents/process.js';
+import { createProcessStarts, parseProcessInfo, parseProcessStarts, startTimesMatch } from '../src/agents/process.js';
 
 test('parseProcessStarts reads pid and local start time from ps output', () => {
   const starts = parseProcessStarts('    1 Mon Oct 19 22:54:21 2026    \n17806 Tue Oct 20 09:30:08 2026\ngarbage\n');
@@ -71,4 +71,10 @@ test('createProcessStarts: nothing to look up, nothing asked', async () => {
   const { processStarts, asked } = startsSetup();
   assert.equal((await processStarts([])).size, 0);
   assert.deepEqual(asked, []);
+});
+
+test('parseProcessInfo reads one process\'s group and local start time; nothing for no process', () => {
+  assert.deepEqual(parseProcessInfo('92697 92697 Mon Nov 16 10:00:00 2026\n'), { pgid: 92697, startedAt: new Date('Mon Nov 16 10:00:00 2026').getTime() });
+  assert.deepEqual(parseProcessInfo('  42     7 garbled\n'), { pgid: 7, startedAt: null });
+  assert.equal(parseProcessInfo(''), null);
 });
