@@ -333,3 +333,10 @@ test('worktree lists: an event without a file name, or a failed watcher, marks t
   fs.fail(MAIN);
   assert.deepEqual([...tracker.takeWorktreeListChanges()], [MAIN]);
 });
+
+test('worktree lists: a config change (say, a new origin URL) marks its repo', async () => {
+  const { tracker, fs, scan } = setup();
+  await scan();
+  fs.fire(MAIN, '.git/config');
+  assert.deepEqual([...tracker.takeWorktreeListChanges()], [MAIN]);
+});

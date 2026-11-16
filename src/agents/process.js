@@ -1,6 +1,9 @@
 import { run } from '../exec.js';
 
 const START_TOLERANCE_MS = 2000;
+// A running process's start time doesn't change; each is looked up again this often anyway,
+// so a pid that ended and was reused by another process is caught.
+const START_RECHECK_MS = 60_000;
 
 export function isProcessAlive(pid) {
   try {
@@ -41,4 +44,24 @@ export async function getProcessStarts(pids) {
     // ps exits non-zero when some pids are gone; liveness is checked separately.
     return new Map();
   }
+}
+
+/**
+ * getProcessStarts, remembered: ps is asked only about pids not seen before,
+ * or last looked up more than `ttlMs` ago. Pids not asked about are forgotten
+ * (they ended, and the system may reuse them); so is any ps has no start for.
+ */
+export function createProcessStarts({ list = getProcessStarts, now = Date.now, ttlMs = START_RECHECK_MS } = {}) {
+  let known = new Map(); // pid -> { startedAt, checkedAt }
+  return async function processStarts(pids) {
+    const time = now();
+    const stale = pids.filter((pid) => !known.has(pid) || time - known.get(pid).checkedAt >= ttlMs);
+    const fresh = stale.length > 0 ? await list(stale) : new Map();
+    known = new Map(pids.flatMap((pid) => {
+      if (fresh.has(pid)) return [[pid, { startedAt: fresh.get(pid), checkedAt: time }]];
+      if (!stale.includes(pid) && known.has(pid)) return [[pid, known.get(pid)]];
+      return [];
+    }));
+    return new Map([...known].map(([pid, { startedAt }]) => [pid, startedAt]));
+  };
 }
