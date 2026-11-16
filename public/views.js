@@ -1,10 +1,9 @@
-import { copyButton, h, shellQuote, shortPath, timeAgo, toast } from './dom.js';
+import { copyButton, h, liveTime, shellQuote, shortPath, toast } from './dom.js';
 import { sessionDetail, sessionDot, sessionLabel, sessionSearchText, sessionTitle } from './session-text.js';
 import { announceChange, closeDropdown, dropdown, editorLink, openMenu, post, resumeButton } from './actions.js';
 import { endStateOf } from './ended-views.js';
 import { taskFromWork, taskLinkTo } from './make-task.js';
-
-const RECENT_MS = 3 * 24 * 60 * 60 * 1000;
+import { isRecent } from './worktree-age.js';
 
 export const VIEWS = {
   active: { label: 'Active', test: (w) => isActive(w) },
@@ -22,7 +21,7 @@ function isActive(w) {
     || w.flags.includes('dirty')
     || w.flags.includes('cleanup')
     || w.pr?.state === 'OPEN'
-    || (w.lastActivityAt && Date.now() - w.lastActivityAt < RECENT_MS);
+    || isRecent(w);
 }
 
 export function matchesSearch(w, query) {
@@ -161,8 +160,8 @@ function renderAgentCell(w, caps) {
   return h('td', {}, h('div', { class: 'cell-lines' },
     h('div', { class: 'line' },
       interrupted
-        ? h('span', { class: 'pill amber', title: ending.hint }, `Interrupted ${timeAgo(last.updatedAt)}`)
-        : h('span', { class: 'small muted', title: ending?.hint }, `Last session ${timeAgo(last.updatedAt)}`),
+        ? h('span', { class: 'pill amber', title: ending.hint }, liveTime(last.updatedAt, 'Interrupted '))
+        : h('span', { class: 'small muted', title: ending?.hint }, liveTime(last.updatedAt, 'Last session ')),
       resumeButton(last, caps) ?? copyButton('resume', last.resumeCommand)),
     h('span', { class: 'small strong' }, sessionTitle({ ...last, cwd: w.path })),
     detailLine(last)));
@@ -230,7 +229,7 @@ function renderRow(repo, w, caps) {
     renderLocalCell(w),
     renderPrCell(w),
     renderAgentCell(w, caps),
-    h('td', { class: 'cell-activity', title: w.lastActivityAt ? new Date(w.lastActivityAt).toLocaleString() : undefined }, timeAgo(w.lastActivityAt)),
+    h('td', { class: 'cell-activity' }, liveTime(w.lastActivityAt)),
     renderActionsCell(repo, w, caps));
 }
 
@@ -288,5 +287,5 @@ export function renderOrphanPrs(prs) {
     h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'mono' }, `${pr.repository.nameWithOwner}#${pr.number}`),
     pr.isDraft && pill(['Draft', '']),
     h('span', {}, pr.title),
-    h('span', { class: 'small muted' }, `updated ${timeAgo(Date.parse(pr.updatedAt))}`)));
+    liveTime(Date.parse(pr.updatedAt), 'updated ', { class: 'small muted' })));
 }

@@ -32,6 +32,7 @@ import { createTaskSources } from './task-sources.js';
 import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
 import { canReadScreen, createTerminal } from './terminal.js';
+import { conditionalState } from './state-etag.js';
 import { STATIC_FILES, STYLE_NONCE_PAGES } from './static-files.js';
 import { createTmux } from './tmux.js';
 
@@ -63,6 +64,13 @@ const CONTENT_TYPES = {
 function sendJson(res, status, body) {
   res.writeHead(status, { ...SECURITY_HEADERS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(body));
+}
+
+/** A 200 with its JSON body, or a 304 with none; both with the version headers. */
+function sendConditional(res, { status, headers, body }) {
+  const contentType = body === undefined ? {} : { 'Content-Type': 'application/json' };
+  res.writeHead(status, { ...SECURITY_HEADERS, ...contentType, 'Cache-Control': 'no-store', ...headers });
+  res.end(body);
 }
 
 async function sendStatic(res, file) {
@@ -454,7 +462,9 @@ function createHandler(services) {
         const repos = worktreeHubTasks(data.repos, hubTasks).map((repo) => ({
           ...repo, worktrees: repo.worktrees.map((w) => ({ ...w, canMakeTask: services.taskSources.canMake(w) })),
         }));
-        return sendJson(res, 200, { success: true, data: { ...data, repos, nav: await navFor(services), capabilities: services.capabilities } });
+        // A page that already has this version is told so, not sent it all again (see state-etag.js).
+        const answer = conditionalState(req.headers['if-none-match'], { ...data, repos, nav: await navFor(services), capabilities: services.capabilities });
+        return sendConditional(res, answer);
       }
       if (url.pathname === '/api/agents') {
         return sendJson(res, 200, { success: true, data: await agentsPayload(services, await stateService.getSessions({ force })) });

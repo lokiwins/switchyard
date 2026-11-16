@@ -53,5 +53,6 @@ export const STATIC_FILES = {
   '/vendor/xterm/xterm.css': 'vendor/xterm/xterm.css',
   '/dom.js': 'dom.js',
   '/views.js': 'views.js',
+  '/worktree-age.js': 'worktree-age.js',
   '/styles.css': 'styles.css',
 };
