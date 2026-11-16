@@ -1,5 +1,5 @@
 import { mapLimit, run } from './exec.js';
-import { discoverRepos, getRemoteUrl } from './git.js';
+import { discoverRepos, getRemoteUrl, listWorktrees } from './git.js';
 import { fetchBranchPrs, fetchPrDetails, parseGithubRemote } from './github.js';
 import { DEFAULT_SETTINGS } from './settings.js';
 import { createStatusTracker } from './status-tracker.js';
@@ -251,13 +251,35 @@ export function createStateService({
   }
 
   /**
+   * The repos and their worktrees, from the cache, with the worktree list of
+   * any repo where a branch was switched or a worktree added or removed (the
+   * status tracker sees those) read again now, and kept in the cache, rather
+   * than when the cache next expires. If that fails, everything is found again.
+   */
+  async function currentRepos(force) {
+    const discovered = await cache.get('repos', REPOS_TTL_MS, () => discoverWithRemotes(), { force });
+    const changed = [...statusTracker.takeWorktreeListChanges()].filter((path) => discovered.repos.some((r) => r.mainPath === path));
+    if (changed.length === 0) return discovered;
+    return cache.reload('repos', async () => {
+      // A discovery may have finished meanwhile: start from the newest list.
+      const base = cache.peek('repos') ?? discovered;
+      try {
+        const lists = new Map(await mapLimit(changed, REPO_CONCURRENCY, async (path) => [path, await listWorktrees(path)]));
+        return { ...base, repos: base.repos.map((repo) => (lists.has(repo.mainPath) ? { ...repo, worktrees: lists.get(repo.mainPath) } : repo)) };
+      } catch {
+        return discoverWithRemotes();
+      }
+    });
+  }
+
+  /**
    * The whole board. `github: false` uses only PR data a full scan already
    * cached; `git: false` also skips git status, leaving just sessions.
    */
   async function build({ force = false, github = true, git = true } = {}) {
     const scan = { force, github, git };
     const errors = [];
-    const discovered = await cache.get('repos', REPOS_TTL_MS, () => discoverWithRemotes(), { force });
+    const discovered = await currentRepos(force);
     errors.push(...discovered.errors);
     // Watching is what lets a scan skip git status, and reading branches, where nothing changed.
     await statusTracker.track(discovered.repos);

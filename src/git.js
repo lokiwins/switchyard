@@ -81,7 +81,8 @@ async function listCandidateRepos(roots) {
   return perRoot.flat();
 }
 
-async function listWorktrees(dir) {
+/** The worktrees git knows of for the repo at `dir` (main first), each with its branch. */
+export async function listWorktrees(dir) {
   const output = await run('git', ['-C', dir, 'worktree', 'list', '--porcelain']);
   return parseWorktreePorcelain(output);
 }
