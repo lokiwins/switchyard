@@ -13,6 +13,8 @@ const REFS_CONCURRENCY = 4;
 const REPO_WIDE_GIT_PATHS = /^(refs\/.*|packed-refs|config)$/; // branch tips and upstreams: every worktree's ahead/behind
 const WORKTREE_GIT_FILES = /^(index|HEAD)$/;
 const LINKED_GIT_PATH = /^worktrees\/([^/]+)\/(.+)$/;
+// What git worktree list reports: each worktree's HEAD (its branch), and the worktrees git knows of.
+const WORKTREE_LIST_PATHS = /^(HEAD|worktrees(\/[^/]+(\/(HEAD|gitdir))?)?)$/;
 // Watchman's sync files, written into watched folders every minute or so.
 const IGNORED_FILES = /(^|\/)\.watchman-cookie-[^/]*$/;
 
@@ -44,6 +46,8 @@ export function createStatusTracker({
   const changedAt = new Map(); // worktree path -> number of the last relevant event
   const refReads = new Map(); // repo main path -> { refs, readAt, seenEvent }
   const refsChangedAt = new Map(); // repo main path -> number of the last event that can move its branches
+  // Repos whose worktree list (which worktrees, on which branch) may have changed since it was last taken.
+  const listsChanged = new Set();
   let eventCount = 0;
   let layout = { repos: [], worktrees: [], gitDirs: new Map(), roots: [] };
 
@@ -76,20 +80,28 @@ export function createStatusTracker({
     return owner ? [owner] : [];
   }
 
-  /** The repo whose branches an event at `absPath` can change (a ref or packed-refs under its .git), or null. */
-  function refsRepo(absPath) {
+  /** The repo whose .git an event at `absPath` is in, and the path inside that .git; or nothing. */
+  function inGitDir(absPath) {
     const repo = layout.repos.find((r) => isInside(absPath, join(r.mainPath, '.git')));
-    return repo && REPO_WIDE_GIT_PATHS.test(absPath.slice(join(repo.mainPath, '.git').length + 1)) ? repo.mainPath : null;
+    return repo ? { mainPath: repo.mainPath, rel: absPath.slice(join(repo.mainPath, '.git').length + 1) } : {};
+  }
+
+  /** Anything about the repo under `root` may have changed: rescan it, read its branches and list its worktrees again. */
+  function markAllChanged(root) {
+    const repo = repoOf(root);
+    markChanged(repoWorktrees(repo), repo?.mainPath);
+    if (repo) listsChanged.add(repo.mainPath);
   }
 
   function onEvent(root, filename) {
     if (!filename) {
-      const repo = repoOf(root);
-      markChanged(repoWorktrees(repo), repo?.mainPath);
+      markAllChanged(root);
       return;
     }
     const absPath = resolve(root, filename.toString());
-    markChanged(affected(absPath), refsRepo(absPath));
+    const { mainPath, rel } = inGitDir(absPath);
+    markChanged(affected(absPath), mainPath && REPO_WIDE_GIT_PATHS.test(rel) ? mainPath : null);
+    if (mainPath && WORKTREE_LIST_PATHS.test(rel)) listsChanged.add(mainPath);
   }
 
   function startWatching(root) {
@@ -98,8 +110,7 @@ export function createStatusTracker({
       watcher.on('error', () => {
         watcher.close();
         watchers.delete(root);
-        const repo = repoOf(root);
-        markChanged(repoWorktrees(repo), repo?.mainPath);
+        markAllChanged(root);
       });
       watcher.unref?.();
       watchers.set(root, watcher);
@@ -206,10 +217,17 @@ export function createStatusTracker({
     return repos.map((repo) => refReads.get(repo.mainPath)?.refs ?? new Map());
   }
 
+  /** The repos whose worktree list may have changed since the last call (a branch switch, a worktree added or removed). */
+  function takeWorktreeListChanges() {
+    const taken = new Set(listsChanged);
+    listsChanged.clear();
+    return taken;
+  }
+
   function close() {
     watchers.forEach((watcher) => watcher.close());
     watchers.clear();
   }
 
-  return { track, statuses, branchRefs, close };
+  return { track, statuses, branchRefs, takeWorktreeListChanges, close };
 }

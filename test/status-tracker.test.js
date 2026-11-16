@@ -291,3 +291,45 @@ test('branchRefs: a ref change while refs are being read is picked up next time'
   await tracker.branchRefs(one);
   assert.deepEqual(read, [OTHER, OTHER]);
 });
+
+test('worktree lists: a HEAD change (a switch or checkout) in any worktree marks its repo, once', async () => {
+  const { tracker, fs, scan } = setup();
+  await scan();
+  assert.deepEqual([...tracker.takeWorktreeListChanges()], []);
+  fs.fire(MAIN, '.git/HEAD');
+  assert.deepEqual([...tracker.takeWorktreeListChanges()], [MAIN]);
+  assert.deepEqual([...tracker.takeWorktreeListChanges()], []);
+  fs.fire(MAIN, '.git/worktrees/app-feat/HEAD');
+  assert.deepEqual([...tracker.takeWorktreeListChanges()], [MAIN]);
+});
+
+test('worktree lists: a worktree added or removed marks its repo', async () => {
+  const { tracker, fs, scan } = setup();
+  await scan();
+  for (const file of ['.git/worktrees/app-new', '.git/worktrees/app-new/gitdir', '.git/worktrees']) {
+    fs.fire(MAIN, file);
+    assert.deepEqual([...tracker.takeWorktreeListChanges()], [MAIN], file);
+  }
+});
+
+test('worktree lists: commits, the index, refs, logs and edits do not', async () => {
+  const { tracker, fs, scan } = setup();
+  await scan();
+  fs.fire(MAIN, '.git/index');
+  fs.fire(MAIN, '.git/refs/heads/main');
+  fs.fire(MAIN, '.git/packed-refs');
+  fs.fire(MAIN, '.git/logs/HEAD');
+  fs.fire(MAIN, '.git/ORIG_HEAD');
+  fs.fire(MAIN, '.git/worktrees/app-feat/index');
+  fs.fire(FEAT, 'src/index.js');
+  assert.deepEqual([...tracker.takeWorktreeListChanges()], []);
+});
+
+test('worktree lists: an event without a file name, or a failed watcher, marks that repo', async () => {
+  const { tracker, fs, scan } = setup();
+  await scan();
+  fs.fire(OTHER, null);
+  assert.deepEqual([...tracker.takeWorktreeListChanges()], [OTHER]);
+  fs.fail(MAIN);
+  assert.deepEqual([...tracker.takeWorktreeListChanges()], [MAIN]);
+});
