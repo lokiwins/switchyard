@@ -133,6 +133,8 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
       ...readStatus(entry.status),
       kind: entry.kind ?? null,
       startedAt: entry.startedAt ?? null,
+      // When its process started, as Claude recorded it: End checks the pid is still this session's before signalling it.
+      procStart: entry.procStart ?? null,
       statusUpdatedAt: entry.statusUpdatedAt ?? entry.updatedAt ?? null,
       // Which app (iTerm, VS Code…) or tmux session it runs in, so Jump and Reply know how to get there.
       host: hosts.get(entry.pid) ?? null,

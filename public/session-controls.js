@@ -75,22 +75,33 @@ export function stopButton(session) {
   }, 'btn btn-sm btn-secondary');
 }
 
+/** Where a session outside tmux runs, for End: "iTerm tab", "VS Code terminal", or just "terminal". */
+function hostPlace(host) {
+  if (host?.kind === 'terminal') return `${host.label} tab`;
+  if (host?.kind === 'editor') return `${host.label} terminal`;
+  return 'terminal';
+}
+
 /**
- * End a task's session: Claude ends and its tmux window closes. Two clicks,
- * since the window's scrollback goes with it; the session can be resumed.
+ * End a session: Claude ends, and it can be resumed. In tmux its window closes
+ * too; anywhere else Claude is hung up and its tab stays open at your shell.
+ * Two clicks, since what's on screen goes with it.
  */
 export function endMenu(session) {
-  if (!inTmux(session)) return null;
+  const tmux = inTmux(session);
+  const place = tmux ? `tmux window ${tmuxPlace(session.host)}` : hostPlace(session.host);
   return dropdown({
     key: `end:${session.sessionId}`,
     label: 'End ▾',
-    title: 'End this Claude session and close its tmux window',
+    title: tmux ? 'End this Claude session and close its tmux window' : `End this Claude session; its ${place} stays open`,
     className: 'btn btn-sm btn-secondary',
     panelClass: 'end-panel',
     focusInput: false,
   },
-  h('p', { class: 'reply-hint' }, `Ends Claude and closes tmux window ${tmuxPlace(session.host)}. You can resume the session from Recently ended.`),
-  actionButton('End session', 'End Claude and close its tmux window', async (button) => {
+  h('p', { class: 'reply-hint' }, tmux
+    ? `Ends Claude and closes ${place}. You can resume the session from Recently ended.`
+    : `Ends Claude, as closing its ${place} would, with anything it's running; the ${place} stays open at your shell. You can resume the session from Recently ended.`),
+  actionButton('End session', tmux ? 'End Claude and close its tmux window' : 'End Claude', async (button) => {
     await post('/api/terminal/end', { sessionId: session.sessionId });
     closeDropdown(button);
     return 'Session ended. Resume it from Recently ended.';

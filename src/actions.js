@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
-import { isProcessAlive } from './agents/process.js';
+import { isProcessAlive, processInfo as readProcessInfo, startTimesMatch } from './agents/process.js';
 import { parseScreenPrompt } from './agents/screen-prompt.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
@@ -20,6 +20,10 @@ const CONTROL_CHARACTERS = /[\0-\x1f\x7f-\x9f\u2028\u2029]/;
 const TEXT_FIELD_DELAY_MS = 100;
 const TEXT_FIELD_WAIT_MS = 1_000;
 const SCREEN_POLL_MS = 50;
+// Ending a session outside tmux: how long Claude gets to exit after a hang-up, then after SIGTERM.
+const HANGUP_WAIT_MS = 3_000;
+const TERM_WAIT_MS = 2_000;
+const EXIT_POLL_MS = 100;
 
 /** Editors open a folder (and focus the window that already has it) via <scheme>://file/<path>. */
 export function editorUrl(scheme, path) {
@@ -94,6 +98,9 @@ export function createActionService({
   terminalFor = (app) => createTerminal({ app }),
   lookupTty = ttyOf,
   isAlive = isProcessAlive,
+  processInfo = readProcessInfo,
+  signal = (target, name) => process.kill(target, name),
+  sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); }),
   launcher = macLauncher,
   platform = process.platform,
   textFieldDelayMs = TEXT_FIELD_DELAY_MS,
@@ -272,14 +279,49 @@ export function createActionService({
     return { interrupted: true };
   }
 
+  /** Whether `pid` has exited within `ms`, looking every EXIT_POLL_MS. */
+  async function exitsWithin(pid, ms) {
+    for (let waited = 0; waited < ms; waited += EXIT_POLL_MS) {
+      if (!isAlive(pid)) return true;
+      await sleep(EXIT_POLL_MS);
+    }
+    return !isAlive(pid);
+  }
+
   /**
-   * End a task: close the tmux window its Claude session runs in, which ends
-   * the session (it can be resumed from Recently ended). Only its pane closes
-   * when you've split the window, so your other panes stay.
+   * End a session that isn't in tmux (iTerm, Terminal, an editor's terminal, or
+   * one whose terminal wasn't recognized): hang up Claude, as closing its
+   * terminal would. It's checked first that the pid is still this session's
+   * (a pid can be reused once a process ends). Claude leads its own process
+   * group, so the group is signalled: Claude and the commands and MCP servers
+   * it started end, and the shell behind it, with the tab, stays.
+   */
+  async function hangUp(session) {
+    const info = await processInfo(session.pid);
+    if (!info || !startTimesMatch(session.procStart, info.startedAt ?? NaN)) {
+      throw new ActionError(409, "That session isn't running any more");
+    }
+    const target = info.pgid === session.pid ? -session.pid : session.pid;
+    for (const [name, waitMs] of [['SIGHUP', HANGUP_WAIT_MS], ['SIGTERM', TERM_WAIT_MS]]) {
+      try {
+        signal(target, name);
+      } catch (error) {
+        if (error.code === 'ESRCH') return { ended: true, where: session.host?.label ?? null };
+        throw error;
+      }
+      if (await exitsWithin(session.pid, waitMs)) return { ended: true, where: session.host?.label ?? null };
+    }
+    throw new ActionError(500, "Claude didn't end. Try /exit in its terminal");
+  }
+
+  /**
+   * End a session; it can be resumed from Recently ended. In tmux: close the
+   * tmux window its Claude session runs in (only its pane, when you've split
+   * the window, so your other panes stay). Anywhere else: hang Claude up.
    */
   async function endSession(body) {
     const session = await liveSession(parseSessionId(body));
-    if (session.host?.kind !== 'tmux') throw new ActionError(501, 'Ending a session from switchyard works for sessions running in tmux');
+    if (session.host?.kind !== 'tmux') return hangUp(session);
     const pane = await currentTmuxPane(session);
     const panes = [...(await tmux.listPanes()).values()];
     const { window, windowName, session: tmuxSession } = panes.find((p) => p.pane === pane);

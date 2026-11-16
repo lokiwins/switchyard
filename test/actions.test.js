@@ -8,15 +8,19 @@ const iterm = { kind: 'terminal', label: 'iTerm', app: 'iTerm', appName: 'iTerm'
 const vscode = { kind: 'editor', label: 'VS Code', scheme: 'vscode', appName: 'Visual Studio Code' };
 const inTmux = { kind: 'tmux', label: 'tmux', session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' };
 const chatgpt = { kind: 'app', label: 'ChatGPT', appName: 'ChatGPT' };
+// How the session registry records when Claude's process started.
+const PROC_START = 'Mon Nov 16 10:00:00 2026';
 
 function setup({
   host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004',
   useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'], screen = '',
   integrated = [], paneShown = false, sessionUp = true, otherPanes = [],
+  proc = { pgid: 42, startedAt: Date.parse(PROC_START) }, exitsOn = ['SIGHUP'],
 } = {}) {
   const calls = [];
+  let running = alive;
   const fullState = {
-    liveSessions: [{ sessionId: ID, pid: 42, cwd: '/w/my repo', host, status: 'idle', needsYou: false, resumeCommand: `cd '/w/my repo' && claude --resume ${ID}`, ...session }],
+    liveSessions: [{ sessionId: ID, pid: 42, procStart: PROC_START, cwd: '/w/my repo', host, status: 'idle', needsYou: false, resumeCommand: `cd '/w/my repo' && claude --resume ${ID}`, ...session }],
     endedSessions: [{ sessionId: 'ended-session-1', cwd: '/w/old', resumeCommand: "cd '/w/old' && claude --resume ended-session-1" }],
     repos: [{ worktrees: [{ path: '/w/feat', agents: { live: [], last: null, recent: [{ sessionId: 'recent-session-1', resumeCommand: "cd /w/feat && claude --resume recent-session-1" }] } }, { path: '/w/gone', prunable: true, agents: { live: [] } }] }],
     ...state,
@@ -60,7 +64,10 @@ function setup({
     tmux,
     terminalFor: () => terminal,
     lookupTty: async () => tty,
-    isAlive: () => alive,
+    isAlive: () => running,
+    processInfo: async (pid) => { calls.push(['ps', pid]); return running ? proc : null; },
+    signal: (target, name) => { calls.push(['signal', target, name]); if (exitsOn.includes(name)) running = false; },
+    sleep: async () => {},
     launcher: {
       openUrl: async (url) => calls.push(['url', url]),
       activateApp: async (app) => calls.push(['app', app]),
@@ -497,8 +504,37 @@ test('End refuses, closing nothing, when Claude no longer runs in that pane', as
   }
 });
 
-test('End works only for sessions in tmux, and only running ones', async () => {
-  await rejectsWith(setup({ host: { ...iterm, tty: '/dev/ttys004' } }).actions.endSession({ sessionId: ID }), 501);
+test('End outside tmux hangs up Claude\'s process group (as closing its terminal would); the tab stays open', async () => {
+  for (const host of [{ ...iterm, tty: '/dev/ttys004' }, vscode, null]) {
+    const { actions, calls } = setup({ host });
+    assert.deepEqual(await actions.endSession({ sessionId: ID }), { ended: true, where: host?.label ?? null });
+    assert.deepEqual(calls, [['ps', 42], ['signal', -42, 'SIGHUP']], host?.label ?? 'no host');
+  }
+});
+
+test('End outside tmux signals only Claude\'s own process when it doesn\'t lead its process group', async () => {
+  const { actions, calls } = setup({ host: vscode, proc: { pgid: 7, startedAt: Date.parse(PROC_START) } });
+  await actions.endSession({ sessionId: ID });
+  assert.deepEqual(calls.filter((c) => c[0] === 'signal'), [['signal', 42, 'SIGHUP']]);
+});
+
+test('End outside tmux refuses, signalling nothing, when that pid is no longer this Claude session', async () => {
+  for (const options of [{ alive: false }, { proc: { pgid: 42, startedAt: Date.parse('Mon Nov 16 11:30:00 2026') } }]) {
+    const { actions, calls } = setup({ host: iterm, ...options });
+    await rejectsWith(actions.endSession({ sessionId: ID }), 409);
+    assert.deepEqual(calls.filter((c) => c[0] === 'signal'), []);
+  }
+});
+
+test('End outside tmux follows up with SIGTERM if Claude is still running, and says so if even that fails', async () => {
+  const stubborn = setup({ host: iterm, exitsOn: ['SIGTERM'] });
+  assert.equal((await stubborn.actions.endSession({ sessionId: ID })).ended, true);
+  assert.deepEqual(stubborn.calls.filter((c) => c[0] === 'signal').map((c) => c[2]), ['SIGHUP', 'SIGTERM']);
+  const stuck = setup({ host: iterm, exitsOn: [] });
+  await rejectsWith(stuck.actions.endSession({ sessionId: ID }), 500);
+});
+
+test('End works only for running sessions', async () => {
   await rejectsWith(setup({ host: inTmux }).actions.endSession({ sessionId: 'ffffffff-0000' }), 404);
   await rejectsWith(setup({ host: inTmux }).actions.endSession({ sessionId: '$(rm -rf ~)' }), 400);
 });
