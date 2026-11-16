@@ -1,4 +1,4 @@
-import { h, timeAgo, toast } from './dom.js';
+import { h, liveTime, toast } from './dom.js';
 
 const EDITOR_LABELS = { vscode: 'VS Code', 'vscode-insiders': 'VS Code Insiders', cursor: 'Cursor', windsurf: 'Windsurf' };
 
@@ -181,7 +181,7 @@ export function openMenu(path, sessions, caps) {
     sessions.length > 0 && h('div', { class: 'menu-label' }, 'Resume'),
     sessions.map((session) => choice([
       h('span', { class: 'menu-title' }, sessionLabel(session)),
-      h('span', { class: 'menu-meta' }, timeAgo(session.updatedAt)),
+      liveTime(session.updatedAt, '', { class: 'menu-meta' }),
     ], { sessionId: session.sessionId }, caps.tmux ? `Resume in ${resumeWhere(caps)}` : session.transcript?.lastPrompt ?? undefined)));
 }
 

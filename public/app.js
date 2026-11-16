@@ -1,11 +1,14 @@
-import { h, readPref, shortPath, timeAgo, writePref } from './dom.js';
+import { h, liveTime, readPref, refreshLiveTimes, shortPath, writePref } from './dom.js';
 import {
   SEGMENTED_VIEWS, VIEWS, renderOrphanPrs, renderRepos, renderTiles, summarize,
 } from './views.js';
 import { applyNav, startNavBadges } from './nav.js';
+import { nextAgeOut } from './worktree-age.js';
 
 // Rebuilds reuse git status where nothing changed and cached GitHub data, so this can poll often.
 const POLL_MS = 5_000;
+// "3m ago" and the like are brought up to date this often, without drawing the list again.
+const CLOCK_MS = 5_000;
 const VIEW_PREF = 'switchyard.view';
 const COLLAPSED_PREF = 'switchyard.collapsed';
 
@@ -24,6 +27,10 @@ const ui = {
   query: '',
   collapsed: readCollapsed(),
   loading: false,
+  // The version of ui.state (its ETag): a poll that finds it unchanged leaves the list alone.
+  etag: null,
+  // When a worktree next stops counting as recent (Active view and tiles), which needs a fresh draw.
+  ageOutAt: Infinity,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -77,7 +84,7 @@ function render() {
   const { state } = ui;
   if (!state) return;
   $('roots').textContent = `Scanning ${state.roots.map(shortPath).join(', ')}`;
-  $('updated').textContent = `Updated ${timeAgo(state.generatedAt)}`;
+  $('updated').replaceChildren(liveTime(state.generatedAt, 'Updated '));
   renderErrors(state.errors);
   $('tiles').replaceChildren(...renderTiles(summarize(state), ui.view, setView));
   $('repos').replaceChildren(...renderRepos(state, {
@@ -85,6 +92,30 @@ function render() {
   }));
   $('orphans-panel').hidden = state.prsWithoutWorktree.length === 0;
   $('orphans').replaceChildren(...renderOrphanPrs(state.prsWithoutWorktree));
+  ui.ageOutAt = nextAgeOut(state);
+}
+
+/** The server's answer to a poll: the new state, or that the page already has it (304). */
+async function fetchState(force) {
+  // Refresh always gets everything, and draws it, so it visibly did something.
+  const ask = ui.state && ui.etag && !force ? { 'If-None-Match': ui.etag } : {};
+  const res = await fetch(`/api/state${force ? '?refresh=1' : ''}`, { cache: 'no-store', headers: ask });
+  if (res.status === 304) {
+    const built = Number(res.headers.get('X-Generated-At'));
+    return { unchanged: true, generatedAt: Number.isFinite(built) && built > 0 ? built : Date.now() };
+  }
+  const body = await res.json();
+  if (!body.success) throw new Error(body.error ?? `HTTP ${res.status}`);
+  return { unchanged: false, state: body.data, etag: res.headers.get('ETag') };
+}
+
+/** Nothing changed: only when it was checked, and any error from a failed poll, are drawn again. */
+function showUnchanged(generatedAt) {
+  ui.state = { ...ui.state, generatedAt };
+  // The list's Active view and tiles judge "recent" by this clock; past an age-out they're redrawn.
+  if (Date.now() >= ui.ageOutAt) return render();
+  $('updated').replaceChildren(liveTime(generatedAt, 'Updated '));
+  return renderErrors(ui.state.errors);
 }
 
 async function load({ force = false } = {}) {
@@ -93,13 +124,18 @@ async function load({ force = false } = {}) {
   $('refresh').disabled = true;
   if (!ui.state) $('repos').replaceChildren(h('div', { class: 'empty' }, 'Scanning worktrees, PRs and agent sessions…'));
   try {
-    const res = await fetch(`/api/state${force ? '?refresh=1' : ''}`);
-    const body = await res.json();
-    if (!body.success) throw new Error(body.error ?? `HTTP ${res.status}`);
-    ui.state = body.data;
-    applyNav(body.data.nav);
-    render();
+    const answer = await fetchState(force);
+    if (answer.unchanged) {
+      showUnchanged(answer.generatedAt);
+    } else {
+      ui.state = answer.state;
+      ui.etag = answer.etag;
+      applyNav(answer.state.nav);
+      render();
+    }
   } catch (error) {
+    // The next poll gets everything, which draws the list and clears this error.
+    ui.etag = null;
     renderErrors([{ source: 'monitor', message: `Could not load state: ${error.message}` }]);
   } finally {
     ui.loading = false;
@@ -119,6 +155,9 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => {
   if (!document.hidden) load();
 }, POLL_MS);
+setInterval(() => {
+  if (!document.hidden) refreshLiveTimes();
+}, CLOCK_MS);
 
 startNavBadges();
 renderViews();
