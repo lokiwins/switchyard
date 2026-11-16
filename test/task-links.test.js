@@ -119,6 +119,23 @@ test('linkHubTasks also finds worktrees by a linked ClickUp ticket, as CU-<id> o
   assert.deepEqual(linked.work.map((w) => w.path), ['/code/a', '/code/b']);
 });
 
+test('linkHubTasks keeps a started task\'s worktree when Claude switches it to another branch: its folder still names the task', () => {
+  // Start makes <repo>-<branch>; reviewing a PR, Claude checks out the PR's branch in it.
+  const [linked] = linkHubTasks([hubTask()], repos(
+    worktree({ path: '/code/shop-sy-k3x9q2-review-pr', branch: 'pr-1234', pr: { number: 1234, url: 'u', state: 'OPEN' } }),
+    worktree({ path: '/code/shop-sy-k3x9q2x-other', branch: 'other' }),
+    worktree({ path: '/code/sy-k3x9q2/shop', branch: 'main' }),
+  ));
+  assert.deepEqual(linked.work.map((w) => [w.path, w.pr?.number]), [['/code/shop-sy-k3x9q2-review-pr', 1234]], 'the folder\'s own name, the id whole');
+  const [tagged] = worktreeHubTasks(repos(worktree({ path: '/code/shop-sy-k3x9q2-review-pr', branch: 'pr-1234' })), [hubTask()]);
+  assert.equal(tagged.worktrees[0].hubTask?.id, 'sy-k3x9q2');
+});
+
+test('linkHubTasks: a worktree with no branch (detached) is found by its folder too', () => {
+  const [linked] = linkHubTasks([hubTask()], repos(worktree({ path: '/code/shop-sy-k3x9q2-review-pr', branch: null })));
+  assert.equal(linked.work.length, 1);
+});
+
 test('linkHubTasks: a worktree is listed once even when several keys match it', () => {
   const task = hubTask({ links: ['https://app.clickup.com/t/86b1abc2d'] });
   const [linked] = linkHubTasks([task], repos(worktree({ branch: 'sy-k3x9q2-CU-86b1abc2d' })));

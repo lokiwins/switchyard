@@ -74,11 +74,20 @@ export function ticketKeys(links = []) {
 
 const attachments = (task) => (Array.isArray(task.attached) ? task.attached : []);
 
-/** Whether a worktree's branch is the task's: it names the task's id or a ClickUp ticket it links to, or it's the branch saved on it. */
+const folderName = (path) => String(path ?? '').replace(/\/+$/, '').split('/').pop();
+
+/**
+ * Whether a worktree is the task's: its branch or its folder names the task's
+ * id or a ClickUp ticket it links to, or it's on the branch saved on it. The
+ * folder counts because Start names it after the branch (<repo>-<branch>) and
+ * it stays put when Claude moves the worktree to another branch, as it does
+ * checking out a PR to review it.
+ */
 function branchIsTasks(task, repo, worktree) {
-  if (!worktree.branch) return false;
-  if ([task.id, ...ticketKeys(task.links)].some((key) => mentions(worktree.branch, key))) return true;
-  return attachments(task).some((a) => a.repo === repo.mainPath && a.branch === worktree.branch);
+  const keys = [task.id, ...ticketKeys(task.links)];
+  const folder = folderName(worktree.path);
+  if (keys.some((key) => mentions(folder, key) || (worktree.branch && mentions(worktree.branch, key)))) return true;
+  return Boolean(worktree.branch) && attachments(task).some((a) => a.repo === repo.mainPath && a.branch === worktree.branch);
 }
 
 const hasSession = (sessions, id) => (sessions ?? []).some((s) => s.sessionId === id);
