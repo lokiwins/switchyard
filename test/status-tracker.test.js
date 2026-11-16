@@ -36,8 +36,13 @@ function setup({ recheckMs = 60_000 } = {}) {
   const fs = fakeFs();
   let time = 1000;
   const scanned = [];
+  const refsRead = [];
   const tracker = createStatusTracker({
     watch: fs.watch,
+    getBranchRefs: async (mainPath) => {
+      refsRead.push(mainPath);
+      return new Map([[`${mainPath}-branch`, { at: time }]]);
+    },
     readGitFile: async (path) => {
       if (path === `${FEAT}/.git`) return `gitdir: ${MAIN}/.git/worktrees/app-feat\n`;
       throw new Error('EISDIR');
@@ -55,7 +60,13 @@ function setup({ recheckMs = 60_000 } = {}) {
     const statuses = await tracker.statuses(allWorktrees);
     return { statuses, scanned: [...scanned] };
   };
-  return { tracker, fs, scan, advance: (ms) => { time += ms; } };
+  const readRefs = async () => {
+    refsRead.length = 0;
+    await tracker.track(repos);
+    const refs = await tracker.branchRefs(repos);
+    return { refs, read: [...refsRead] };
+  };
+  return { tracker, fs, scan, readRefs, advance: (ms) => { time += ms; } };
 }
 
 test('the first scan runs git status everywhere and watches each worktree', async () => {
@@ -181,4 +192,102 @@ test('an event without a file name rescans everything under that watcher', async
   await scan();
   fs.fire(MAIN, null);
   assert.deepEqual((await scan()).scanned, [MAIN, FEAT]);
+});
+
+test('branchRefs: read for every repo the first time, then reused while nothing changes', async () => {
+  const { readRefs, advance } = setup();
+  const first = await readRefs();
+  assert.deepEqual(first.read, [MAIN, OTHER]);
+  assert.equal(first.refs.length, 2);
+  assert.ok(first.refs[0] instanceof Map);
+  advance(5000);
+  const second = await readRefs();
+  assert.deepEqual(second.read, []);
+  assert.deepEqual(second.refs, first.refs);
+});
+
+test('branchRefs: a ref change (a commit, a new branch, packed refs, a fetch) reads that repo again, only', async () => {
+  const { fs, readRefs } = setup();
+  await readRefs();
+  for (const file of ['.git/refs/heads/feat', '.git/packed-refs', '.git/refs/remotes/origin/feat']) {
+    fs.fire(MAIN, file);
+    assert.deepEqual((await readRefs()).read, [MAIN], file);
+  }
+  assert.deepEqual((await readRefs()).read, []);
+});
+
+test('branchRefs: edits, the index, HEAD and watchman cookies never read refs again', async () => {
+  const { fs, readRefs } = setup();
+  await readRefs();
+  fs.fire(FEAT, 'src/index.js');
+  fs.fire(MAIN, '.git/index');
+  fs.fire(MAIN, '.git/worktrees/app-feat/HEAD');
+  fs.fire(OTHER, '.watchman-cookie-x');
+  assert.deepEqual((await readRefs()).read, []);
+});
+
+test('branchRefs: read again once older than the recheck interval', async () => {
+  const { readRefs, advance } = setup({ recheckMs: 60_000 });
+  await readRefs();
+  advance(61_000);
+  assert.deepEqual((await readRefs()).read, [MAIN, OTHER]);
+});
+
+test('branchRefs: an event without a file name, or a failed watcher, reads that repo again', async () => {
+  const { fs, readRefs } = setup();
+  await readRefs();
+  fs.fire(OTHER, null);
+  assert.deepEqual((await readRefs()).read, [OTHER]);
+  fs.fail(MAIN);
+  assert.deepEqual((await readRefs()).read, [MAIN]);
+});
+
+test('branchRefs: a repo whose .git cannot be watched is read every time', async () => {
+  const fs = fakeFs();
+  const read = [];
+  const tracker = createStatusTracker({
+    watch: fs.watch,
+    readGitFile: async () => { throw new Error('ENOENT'); },
+    getBranchRefs: async (path) => { read.push(path); return new Map(); },
+  });
+  const missing = [{ mainPath: '/w/missing', worktrees: [{ path: '/w/missing' }] }];
+  await tracker.track(missing);
+  await tracker.branchRefs(missing);
+  await tracker.branchRefs(missing);
+  assert.deepEqual(read, ['/w/missing', '/w/missing']);
+});
+
+test('branchRefs: a failed read gives no branches and is tried again next time', async () => {
+  const fs = fakeFs();
+  let fail = true;
+  const read = [];
+  const tracker = createStatusTracker({
+    watch: fs.watch,
+    readGitFile: async () => { throw new Error('EISDIR'); },
+    getBranchRefs: async (path) => { read.push(path); if (fail) throw new Error('git failed'); return new Map([['main', {}]]); },
+  });
+  const one = [{ mainPath: OTHER, worktrees: [{ path: OTHER }] }];
+  await tracker.track(one);
+  assert.deepEqual(await tracker.branchRefs(one), [new Map()]);
+  fail = false;
+  assert.deepEqual(await tracker.branchRefs(one), [new Map([['main', {}]])]);
+  assert.deepEqual(await tracker.branchRefs(one), [new Map([['main', {}]])]);
+  assert.deepEqual(read, [OTHER, OTHER]);
+});
+
+test('branchRefs: a ref change while refs are being read is picked up next time', async () => {
+  const fs = fakeFs();
+  const read = [];
+  let during = null;
+  const tracker = createStatusTracker({
+    watch: fs.watch,
+    readGitFile: async () => { throw new Error('EISDIR'); },
+    getBranchRefs: async (path) => { read.push(path); during?.(); return new Map(); },
+  });
+  const one = [{ mainPath: OTHER, worktrees: [{ path: OTHER }] }];
+  await tracker.track(one);
+  during = () => { during = null; fs.fire(OTHER, '.git/refs/heads/main'); };
+  await tracker.branchRefs(one);
+  await tracker.branchRefs(one);
+  assert.deepEqual(read, [OTHER, OTHER]);
 });

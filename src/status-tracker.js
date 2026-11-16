@@ -1,10 +1,13 @@
 import { watch as fsWatch } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve, sep } from 'node:path';
-import { getStatuses as gitStatuses } from './git.js';
+import { mapLimit } from './exec.js';
+import { getBranchRefs as gitBranchRefs, getStatuses as gitStatuses } from './git.js';
 
 // Even with no file events, rerun git status this often, in case an event was missed.
 const RECHECK_MS = 5 * 60_000;
+// Repos whose branches are read at once (a first scan reads them all).
+const REFS_CONCURRENCY = 4;
 // The only files under .git that change what git status reports; tools write plenty of
 // others (objects, logs, locks, watchman cookies), which the periodic recheck covers anyway.
 const REPO_WIDE_GIT_PATHS = /^(refs\/.*|packed-refs|config)$/; // branch tips and upstreams: every worktree's ahead/behind
@@ -16,17 +19,20 @@ const IGNORED_FILES = /(^|\/)\.watchman-cookie-[^/]*$/;
 const isInside = (path, dir) => path === dir || path.startsWith(dir.endsWith(sep) ? dir : `${dir}${sep}`);
 
 /**
- * Runs git status only where something changed. Each worktree is watched with
+ * Runs git status, and reads each repo's branches (git for-each-ref), only
+ * where something changed. Each worktree is watched with
  * a recursive fs.watch (FSEvents on macOS); a worktree is rescanned when a file
  * in it changes, when its git data does, or when its last status is older than
  * `recheckMs`. Anything that can't be watched is simply scanned every time.
  *
  * A linked worktree keeps its index and HEAD under <main>/.git/worktrees/<name>,
  * so events there are routed back to that worktree. A ref change can move any
- * worktree's ahead/behind count, so it rescans the whole repo.
+ * worktree's ahead/behind count, so it rescans the whole repo; it is also
+ * the only thing that changes a repo's branches, so those are read again then.
  */
 export function createStatusTracker({
   getStatuses = gitStatuses,
+  getBranchRefs = gitBranchRefs,
   watch = fsWatch,
   readGitFile = (path) => readFile(path, 'utf8'),
   now = Date.now,
@@ -36,12 +42,15 @@ export function createStatusTracker({
   const scans = new Map(); // worktree path -> { status, scannedAt, seenEvent }
   // Events are ordered by a counter, not the clock: a change and a scan can share a millisecond.
   const changedAt = new Map(); // worktree path -> number of the last relevant event
+  const refReads = new Map(); // repo main path -> { refs, readAt, seenEvent }
+  const refsChangedAt = new Map(); // repo main path -> number of the last event that can move its branches
   let eventCount = 0;
   let layout = { repos: [], worktrees: [], gitDirs: new Map(), roots: [] };
 
-  const markChanged = (paths) => {
+  const markChanged = (paths, refsOf = null) => {
     eventCount += 1;
     paths.forEach((path) => changedAt.set(path, eventCount));
+    if (refsOf) refsChangedAt.set(refsOf, eventCount);
   };
 
   const repoOf = (path) => layout.repos.find((repo) => repo.worktrees.some((w) => w.path === path));
@@ -67,12 +76,20 @@ export function createStatusTracker({
     return owner ? [owner] : [];
   }
 
+  /** The repo whose branches an event at `absPath` can change (a ref or packed-refs under its .git), or null. */
+  function refsRepo(absPath) {
+    const repo = layout.repos.find((r) => isInside(absPath, join(r.mainPath, '.git')));
+    return repo && REPO_WIDE_GIT_PATHS.test(absPath.slice(join(repo.mainPath, '.git').length + 1)) ? repo.mainPath : null;
+  }
+
   function onEvent(root, filename) {
     if (!filename) {
-      markChanged(repoWorktrees(repoOf(root)));
+      const repo = repoOf(root);
+      markChanged(repoWorktrees(repo), repo?.mainPath);
       return;
     }
-    markChanged(affected(resolve(root, filename.toString())));
+    const absPath = resolve(root, filename.toString());
+    markChanged(affected(absPath), refsRepo(absPath));
   }
 
   function startWatching(root) {
@@ -81,7 +98,8 @@ export function createStatusTracker({
       watcher.on('error', () => {
         watcher.close();
         watchers.delete(root);
-        markChanged(repoWorktrees(repoOf(root)));
+        const repo = repoOf(root);
+        markChanged(repoWorktrees(repo), repo?.mainPath);
       });
       watcher.unref?.();
       watchers.set(root, watcher);
@@ -130,12 +148,19 @@ export function createStatusTracker({
       scans.delete(path);
       changedAt.delete(path);
     });
+    const knownRepos = new Set(live.map((repo) => repo.mainPath));
+    [...refReads.keys()].filter((path) => !knownRepos.has(path)).forEach((path) => {
+      refReads.delete(path);
+      refsChangedAt.delete(path);
+    });
   }
+
+  const isWatched = (path) => layout.roots.some((root) => watchers.has(root) && isInside(path, root));
 
   function isDirty(path, time) {
     const scan = scans.get(path);
     if (!scan) return true;
-    if (!layout.roots.some((root) => watchers.has(root) && isInside(path, root))) return true;
+    if (!isWatched(path)) return true;
     if (time - scan.scannedAt >= recheckMs) return true;
     // Changed after the last scan started (including during it, which may have missed it).
     return (changedAt.get(path) ?? 0) > scan.seenEvent;
@@ -153,10 +178,38 @@ export function createStatusTracker({
     return worktrees.map((w) => scans.get(w.path)?.status ?? null);
   }
 
+  function refsAreStale(mainPath, time) {
+    const read = refReads.get(mainPath);
+    if (!read) return true;
+    if (!isWatched(join(mainPath, '.git'))) return true;
+    if (time - read.readAt >= recheckMs) return true;
+    return (refsChangedAt.get(mainPath) ?? 0) > read.seenEvent;
+  }
+
+  /**
+   * Each repo's branches (name → tip date and subject), in order: kept from the
+   * last read until a ref changes, read again otherwise. A failed read gives no
+   * branches and isn't kept, so it's tried again next time.
+   */
+  async function branchRefs(repos) {
+    const startedAt = now();
+    const seenEvent = eventCount;
+    const stale = repos.filter((repo) => refsAreStale(repo.mainPath, startedAt));
+    await mapLimit(stale, REFS_CONCURRENCY, async (repo) => {
+      try {
+        refReads.set(repo.mainPath, { refs: await getBranchRefs(repo.mainPath), readAt: startedAt, seenEvent });
+      } catch {
+        refReads.delete(repo.mainPath);
+      }
+    });
+    layout.roots.filter((root) => !watchers.has(root)).forEach(startWatching);
+    return repos.map((repo) => refReads.get(repo.mainPath)?.refs ?? new Map());
+  }
+
   function close() {
     watchers.forEach((watcher) => watcher.close());
     watchers.clear();
   }
 
-  return { track, statuses, close };
+  return { track, statuses, branchRefs, close };
 }
