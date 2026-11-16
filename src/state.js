@@ -1,5 +1,5 @@
 import { mapLimit, run } from './exec.js';
-import { discoverRepos, getBranchRefs, getRemoteUrl } from './git.js';
+import { discoverRepos, getRemoteUrl } from './git.js';
 import { fetchBranchPrs, fetchPrDetails, parseGithubRemote } from './github.js';
 import { DEFAULT_SETTINGS } from './settings.js';
 import { createStatusTracker } from './status-tracker.js';
@@ -181,12 +181,9 @@ export function createStateService({
     };
   }
 
-  async function buildRepo({ repo, github: remote }, { sessionsByWorktree, branchPrs, scan, sync }) {
-    const [statuses, refs] = await Promise.all([
-      // git status is the slow part of a local scan; the sessions view leaves it out.
-      scan.git ? statusTracker.statuses(repo.worktrees) : repo.worktrees.map(() => null),
-      getBranchRefs(repo.mainPath).catch(() => new Map()),
-    ]);
+  async function buildRepo({ repo, github: remote, refs }, { sessionsByWorktree, branchPrs, scan, sync }) {
+    // git status is the slow part of a local scan; the sessions view leaves it out.
+    const statuses = scan.git ? await statusTracker.statuses(repo.worktrees) : repo.worktrees.map(() => null);
     const worktrees = await Promise.all(repo.worktrees.map((worktree, i) => buildWorktree({
       repo, remote, worktree, refs, scan, sync,
       status: statuses[i],
@@ -262,8 +259,9 @@ export function createStateService({
     const errors = [];
     const discovered = await cache.get('repos', REPOS_TTL_MS, () => discoverWithRemotes(), { force });
     errors.push(...discovered.errors);
-    // Watching is what lets a scan skip git status in worktrees where nothing changed.
-    if (git) await statusTracker.track(discovered.repos);
+    // Watching is what lets a scan skip git status, and reading branches, where nothing changed.
+    await statusTracker.track(discovered.repos);
+    const branchRefs = await statusTracker.branchRefs(discovered.repos);
 
     const worktreePaths = discovered.repos.flatMap((r) => r.worktrees.map((w) => w.path));
     const now = Date.now();
@@ -279,7 +277,7 @@ export function createStateService({
       errors.push({ source: 'github', message: error.message });
       return [];
     });
-    const reposWithRemote = discovered.repos.map((repo, i) => ({ repo, github: parseGithubRemote(discovered.remotes[i]) }));
+    const reposWithRemote = discovered.repos.map((repo, i) => ({ repo, github: parseGithubRemote(discovered.remotes[i]), refs: branchRefs[i] }));
     const prRepos = relevantGithubRepos(reposWithRemote, myOpenPrs, byWorktree);
 
     const branchPrs = await loadBranchPrs(branchRequests(reposWithRemote, prRepos), scan);
