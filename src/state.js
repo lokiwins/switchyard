@@ -1,3 +1,4 @@
+import { watch as fsWatch } from 'node:fs';
 import { mapLimit, run } from './exec.js';
 import { discoverRepos, getRemoteUrl, listWorktrees } from './git.js';
 import { fetchBranchPrs, fetchPrDetails, parseGithubRemote } from './github.js';
@@ -12,7 +13,13 @@ const SESSIONS_TTL_MS = 2_000;
 const LOCAL_TTL_MS = 3_000;
 // The sessions view shows PR links from the last full scan; rescan in the background when it gets this old.
 const FULL_SCAN_STALE_MS = 5 * 60_000;
-const REPOS_TTL_MS = 60_000;
+// The repos under the roots are found again when a root folder changes (a clone, a new worktree beside
+// the others); this is the safety net. A root that can't be watched is looked through every minute.
+const REPOS_TTL_MS = 10 * 60_000;
+const UNWATCHED_REPOS_TTL_MS = 60_000;
+// After a root folder changes, the repos are looked for on every build for this long, so a clone
+// still creating its .git when the folder appeared is found once it has.
+const ROOTS_SETTLE_MS = 30_000;
 const PR_TTL_MS = 60_000;
 const CHECKS_TTL_MS = 90_000;
 const REPO_CONCURRENCY = 4;
@@ -96,12 +103,17 @@ function latestOf(...timestamps) {
  * @param {object} deps
  * @param {() => object|null} [deps.prSnapshot] The PR page's live sync (see pr-sync.js), whose
  *   details for your open PRs are reused here instead of being fetched a second time.
+ * @param {(dir: string, listener: () => void) => object} [deps.watchRoot] Watches a root folder
+ *   (fs.watch, not recursive), so a repo added or removed there is found without a periodic look.
+ * @param {() => number} [deps.now] The clock, for how recently a root folder changed.
  */
 export function createStateService({
   config, claude, cache,
   statusTracker = createStatusTracker(),
   github = { fetchBranchPrs, fetchPrDetails },
   prSnapshot = () => null,
+  watchRoot = (dir, listener) => fsWatch(dir, { persistent: false }, listener),
+  now = Date.now,
 }) {
   const settings = config.settings ?? DEFAULT_SETTINGS;
 
@@ -250,24 +262,78 @@ export function createStateService({
     return { ...discovered, remotes };
   }
 
+  const rootWatchers = new Map(); // root folder -> FSWatcher
+  let rootsChangedAt = -Infinity;
+  // Root changes are ordered by a counter, not the clock: a change and a look can share a millisecond.
+  let rootChanges = 0;
+  let rootChangesSeen = 0;
+
+  /** Watch each root folder (not what's inside its repos) for folders added, removed or renamed. */
+  function watchRoots(roots) {
+    for (const [root, watcher] of rootWatchers) {
+      if (!roots.includes(root)) {
+        watcher.close();
+        rootWatchers.delete(root);
+      }
+    }
+    for (const root of roots.filter((r) => !rootWatchers.has(r))) {
+      try {
+        const watcher = watchRoot(root, () => {
+          rootsChangedAt = now();
+          rootChanges += 1;
+        });
+        watcher.on('error', () => {
+          watcher.close();
+          rootWatchers.delete(root);
+        });
+        watcher.unref?.();
+        rootWatchers.set(root, watcher);
+      } catch {
+        // Unwatchable (missing, permissions): found again every minute instead.
+      }
+    }
+  }
+
+  /** How old the repo list may be: any age is too old right after a root folder changed; longer while every root is watched. */
+  function reposTtl() {
+    if (now() - rootsChangedAt < ROOTS_SETTLE_MS) return -1;
+    return config.roots.every((root) => rootWatchers.has(root)) ? REPOS_TTL_MS : UNWATCHED_REPOS_TTL_MS;
+  }
+
+  /** Find the repos, noting which root changes this look has seen. */
+  function lookForRepos() {
+    rootChangesSeen = rootChanges;
+    return discoverWithRemotes();
+  }
+
   /**
-   * The repos and their worktrees, from the cache, with the worktree list of
-   * any repo where a branch was switched or a worktree added or removed (the
-   * status tracker sees those) read again now, and kept in the cache, rather
-   * than when the cache next expires. If that fails, everything is found again.
+   * The repos and their worktrees, from the cache, with the worktree list (and
+   * origin) of any repo where a branch was switched, a worktree added or
+   * removed, or its config changed (the status tracker sees those) read again
+   * now, and kept in the cache, rather than when the cache next expires. If
+   * that fails, everything is found again.
    */
   async function currentRepos(force) {
-    const discovered = await cache.get('repos', REPOS_TTL_MS, () => discoverWithRemotes(), { force });
+    watchRoots(config.roots);
+    // A root changed since the last look: look now (builds run in the background, so no page waits on it).
+    const discovered = rootChanges > rootChangesSeen
+      ? await cache.reload('repos', lookForRepos)
+      : await cache.get('repos', reposTtl(), lookForRepos, { force });
     const changed = [...statusTracker.takeWorktreeListChanges()].filter((path) => discovered.repos.some((r) => r.mainPath === path));
     if (changed.length === 0) return discovered;
     return cache.reload('repos', async () => {
       // A discovery may have finished meanwhile: start from the newest list.
       const base = cache.peek('repos') ?? discovered;
       try {
-        const lists = new Map(await mapLimit(changed, REPO_CONCURRENCY, async (path) => [path, await listWorktrees(path)]));
-        return { ...base, repos: base.repos.map((repo) => (lists.has(repo.mainPath) ? { ...repo, worktrees: lists.get(repo.mainPath) } : repo)) };
+        const fresh = new Map(await mapLimit(changed, REPO_CONCURRENCY, async (path) => (
+          [path, { worktrees: await listWorktrees(path), remote: await getRemoteUrl(path) }])));
+        return {
+          ...base,
+          repos: base.repos.map((repo) => (fresh.has(repo.mainPath) ? { ...repo, worktrees: fresh.get(repo.mainPath).worktrees } : repo)),
+          remotes: base.repos.map((repo, i) => (fresh.has(repo.mainPath) ? fresh.get(repo.mainPath).remote : base.remotes[i])),
+        };
       } catch {
-        return discoverWithRemotes();
+        return lookForRepos();
       }
     });
   }
@@ -346,10 +412,10 @@ export function createStateService({
       return cache.get('sessions', SESSIONS_TTL_MS, () => build({ force, github: false, git: false }), { force });
     },
     /** Find the repos and their worktrees again now, say after New task added one. */
-    rediscover: () => cache.reload('repos', () => discoverWithRemotes()),
+    rediscover: () => cache.reload('repos', lookForRepos),
     /** Settings changed: find the repos again (the roots may have), and build every view afresh with the new settings. */
     settingsChanged: async () => {
-      await cache.reload('repos', () => discoverWithRemotes());
+      await cache.reload('repos', lookForRepos);
       for (const key of ['state', 'local', 'sessions']) cache.invalidate(key);
     },
     /** The sessions view rebuilt now, for a session that just changed; the repo list stays cached. */

@@ -5,7 +5,7 @@ import { mapLimit } from '../exec.js';
 import { shellQuote } from '../shell.js';
 import { summarizeFile, transcriptDirName } from './claude-transcript.js';
 import { createHostDetector } from './host.js';
-import { getProcessStarts, isProcessAlive, startTimesMatch } from './process.js';
+import { createProcessStarts, isProcessAlive, startTimesMatch } from './process.js';
 import { parseScreenPrompt } from './screen-prompt.js';
 
 export { summarizeTranscript, transcriptDirName } from './claude-transcript.js';
@@ -78,6 +78,8 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
   const plansDir = join(claudeDir, 'plans');
 
   const detectHosts = createHostDetector({ listTmuxPanes });
+  // Each session's process start time, asked of ps only for new pids (see process.js).
+  const processStarts = createProcessStarts();
   const transcriptPath = (cwd, sessionId) => join(projectsDir, transcriptDirName(cwd), `${sessionId}.jsonl`);
 
   // Transcripts are append-only, so size identifies a summary's freshness.
@@ -112,7 +114,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
     const files = (await readdir(sessionsDir).catch(() => [])).filter((f) => f.endsWith('.json'));
     const alive = (await Promise.all(files.map(readRegistryEntry)))
       .filter((entry) => entry?.pid && entry.sessionId && entry.cwd && isProcessAlive(entry.pid));
-    const starts = await getProcessStarts(alive.map((entry) => entry.pid));
+    const starts = await processStarts(alive.map((entry) => entry.pid));
     return alive.filter((entry) => startTimesMatch(entry.procStart, starts.get(entry.pid)));
   }
 

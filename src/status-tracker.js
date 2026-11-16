@@ -13,8 +13,9 @@ const REFS_CONCURRENCY = 4;
 const REPO_WIDE_GIT_PATHS = /^(refs\/.*|packed-refs|config)$/; // branch tips and upstreams: every worktree's ahead/behind
 const WORKTREE_GIT_FILES = /^(index|HEAD)$/;
 const LINKED_GIT_PATH = /^worktrees\/([^/]+)\/(.+)$/;
-// What git worktree list reports: each worktree's HEAD (its branch), and the worktrees git knows of.
-const WORKTREE_LIST_PATHS = /^(HEAD|worktrees(\/[^/]+(\/(HEAD|gitdir))?)?)$/;
+// What git worktree list reports (each worktree's HEAD, so its branch, and the worktrees git knows
+// of), and the config that holds the repo's origin.
+const WORKTREE_LIST_PATHS = /^(HEAD|config|worktrees(\/[^/]+(\/(HEAD|gitdir))?)?)$/;
 // Watchman's sync files, written into watched folders every minute or so.
 const IGNORED_FILES = /(^|\/)\.watchman-cookie-[^/]*$/;
 
@@ -217,7 +218,7 @@ export function createStatusTracker({
     return repos.map((repo) => refReads.get(repo.mainPath)?.refs ?? new Map());
   }
 
-  /** The repos whose worktree list may have changed since the last call (a branch switch, a worktree added or removed). */
+  /** The repos whose worktree list or origin may have changed since the last call (a branch switch, a worktree added or removed, a config change). */
   function takeWorktreeListChanges() {
     const taken = new Set(listsChanged);
     listsChanged.clear();

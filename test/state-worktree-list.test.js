@@ -58,3 +58,16 @@ test('a worktree added to a repo shows on the next build once its repo is marked
   assert.equal(before.includes(added), false);
   assert.equal(after.includes(added), true);
 });
+
+test('a changed origin URL shows on the next build once its repo is marked changed', async () => {
+  const { service, changed } = setup();
+  const web = join(root, 'web');
+  git(web, 'remote', 'add', 'origin', 'git@github.com:acme/web.git');
+  changed.add(web);
+  const githubOf = async () => (await service.refreshSessions()).repos.find((r) => r.mainPath === web).github;
+  assert.equal(await githubOf(), 'acme/web');
+  git(web, 'remote', 'set-url', 'origin', 'git@github.com:acme/storefront.git');
+  assert.equal(await githubOf(), 'acme/web', 'not marked yet: the cached origin');
+  changed.add(web);
+  assert.equal(await githubOf(), 'acme/storefront');
+});
