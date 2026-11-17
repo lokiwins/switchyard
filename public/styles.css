@@ -46,6 +46,8 @@
   --gray-200: #d9e2ec;
   --accent: #3366cc;
   --accent-soft: #e8effc;
+  /* A primary button's fill: the accent, or a gradient in a theme that has one (its ends, for the contrast test). */
+  --accent-fill: var(--accent);
   /* Text on a filled accent or danger color. */
   --on-accent: #fff;
   --on-red: #fff;
@@ -164,7 +166,7 @@ main {
   font: inherit; font-size: var(--text-xs); font-weight: 600; line-height: var(--leading-xs);
   padding: 5px 10px;
   border: 0; border-radius: var(--radius-sm);
-  background: var(--accent); color: var(--on-accent);
+  background: var(--accent-fill); color: var(--on-accent);
   box-shadow: var(--shadow-sm);
   cursor: pointer; white-space: nowrap;
   transition: transform 120ms ease, filter 120ms ease;
@@ -191,7 +193,7 @@ main {
 .menu { position: relative; display: inline-block; }
 .menu > summary { list-style: none; cursor: pointer; }
 .menu > summary::-webkit-details-marker { display: none; }
-.menu[open] > summary { background: var(--accent); color: var(--on-accent); }
+.menu[open] > summary { background: var(--accent-fill); color: var(--on-accent); }
 .menu-panel {
   position: fixed; z-index: 20;
   display: flex; flex-direction: column;

@@ -14,7 +14,8 @@ const PAGES = ['agents.html', 'worktrees.html', 'prs.html', 'tasks.html', 'setti
 /** The color tokens Classic defines in styles.css's :root, which every other theme must define too. */
 function colorTokens() {
   const root = read('styles.css').match(/:root\s*\{([^}]*)\}/)[1];
-  const layout = /^(space|text|leading|radius|mono|font)/;
+  // Layout tokens, and --accent-fill, which falls back to the accent for a theme with no gradient.
+  const layout = /^(space|text|leading|radius|mono|font|accent-fill)/;
   return [...root.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1]).filter((name) => !layout.test(name));
 }
 
@@ -26,7 +27,7 @@ function tokensIn(css, selector) {
 }
 
 test('the themes: Classic first, each with an id and a name; modes are light, dark and system', () => {
-  assert.deepEqual(THEMES.map((t) => t.id), ['classic', 'signal', 'ember', 'dusk', 'graphite']);
+  assert.deepEqual(THEMES.map((t) => t.id), ['classic', 'signal', 'ember', 'dusk', 'graphite', 'coast', 'heatwave']);
   assert.ok(THEMES.every((t) => typeof t.label === 'string' && t.label));
   assert.deepEqual(MODES.map((m) => m.id), ['system', 'light', 'dark']);
 });

@@ -63,6 +63,20 @@ export const TERMINAL_PALETTES = Object.freeze({
     ['#111111', '#c22525', '#1a7a3c', '#7a5b00', '#1f5fd1', '#8a3fc4', '#127a80', '#666666',
       '#444444', '#9e1b1b', '#13602f', '#5e4600', '#174aa6', '#6e2f9e', '#0e5f63', '#8a8a8a']),
 
+  'coast-dark': palette({ background: '#1e1029', foreground: '#f6e9f1', cursor: '#ff5fa8', selection: '#ff5fa8' },
+    ['#2a1838', '#ff6b7f', '#3fe0c5', '#ffc46b', '#6aa8ff', '#ff5fa8', '#56d6f0', '#d9c6d6',
+      '#6a4e72', '#ff8e9c', '#7aeed8', '#ffd696', '#93c0ff', '#ff8cc3', '#86e4f5', '#ffffff']),
+  'coast-light': palette({ light: true, background: '#fff6ef', foreground: '#3a1a3e', cursor: '#c2185b', selection: '#c2185b' },
+    ['#3a1a3e', '#c62839', '#0f7a6c', '#9a5b00', '#2958c6', '#b5177a', '#0f7a91', '#7d6478',
+      '#5b3f5c', '#a01c2c', '#0b6156', '#7a4800', '#1f45a0', '#921262', '#0b6273', '#a08a9c']),
+
+  'heatwave-dark': palette({ background: '#1a0631', foreground: '#fff4e6', cursor: '#FF9B55', selection: '#C9349B', accent: '#F36A78' },
+    ['#2a0e4c', '#F87572', '#4fe3c8', '#FFB458', '#9a8cff', '#C9349B', '#5fd4f0', '#e8cfe4',
+      '#6b3d8f', '#ff9a96', '#86eed9', '#ffcb85', '#bbb0ff', '#e66bc0', '#8ae3f5', '#ffffff']),
+  'heatwave-light': palette({ light: true, background: '#fff1df', foreground: '#2a0d4e', cursor: '#C9349B', selection: '#C9349B', accent: '#a8287f' },
+    ['#2a0d4e', '#c42a3d', '#0f7468', '#9a4a00', '#3b4fc4', '#a8287f', '#0f6f8a', '#7a5a8a',
+      '#4f2475', '#9e1f30', '#0b5a50', '#7a3a00', '#2d3d9e', '#861f66', '#0b576d', '#9a7aa8']),
+
   // Named schemes.
   dracula: palette({ background: '#282a36', foreground: '#f8f8f2', cursor: '#f8f8f2', selection: '#6272a4', accent: '#bd93f9' },
     ['#21222c', '#ff5555', '#50fa7b', '#f1fa8c', '#bd93f9', '#ff79c6', '#8be9fd', '#f8f8f2',

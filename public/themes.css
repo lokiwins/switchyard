@@ -3,12 +3,13 @@
  * sets <html data-theme data-scheme>; each theme sets every color token for
  * light, then again for dark. The list of themes is public/themes.js.
  *
- * Fonts: Manrope, JetBrains Mono and Fraunces, under the SIL Open Font
+ * Fonts: Manrope, JetBrains Mono, Fraunces and Anton, under the SIL Open Font
  * License (public/vendor/fonts/OFL-*.txt), Latin subset. A browser only
  * downloads them when a theme that uses them is on.
  */
 @font-face { font-family: "Manrope"; font-style: normal; font-weight: 400 700; font-display: swap; src: url(/vendor/fonts/manrope.woff2) format("woff2"); }
 @font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400 600; font-display: swap; src: url(/vendor/fonts/jetbrains-mono.woff2) format("woff2"); }
+@font-face { font-family: "Anton"; font-style: normal; font-weight: 400; font-display: swap; src: url(/vendor/fonts/anton.woff2) format("woff2"); }
 @font-face { font-family: "Fraunces"; font-style: normal; font-weight: 300 400; font-display: swap; src: url(/vendor/fonts/fraunces.woff2) format("woff2"); }
 
 
@@ -287,3 +288,185 @@
   --on-red: oklch(10% 0 0);
   color-scheme: dark;
 }
+
+/* Coast: a sunset drive along the water. Dark is the night: deep purple, a hot-pink accent, sea teal and
+   sunset gold. Light is the late afternoon: warm peach paper, magenta, teal. */
+:root[data-theme="coast"] {
+  --bg: oklch(96.5% .016 55);
+  --surface: oklch(99.4% .007 60);
+  --surface-raised: oklch(99.4% .007 60);
+  --highlight: oklch(100% 0 0 / 0);
+  --surface-sunken: oklch(97.8% .012 55);
+  --hover: oklch(95% .02 40);
+  --divider: oklch(91% .02 30);
+  --hairline: oklch(28% .06 320 / .1);
+  --gray-900: oklch(23% .05 320);
+  --gray-700: oklch(37% .055 320);
+  --gray-500: oklch(50% .05 322);
+  --gray-400: oklch(61% .045 325);
+  --gray-200: oklch(88% .025 330);
+  --accent: oklch(52% .2 355);
+  --accent-soft: oklch(95% .035 355);
+  --green: oklch(48% .1 185);
+  --green-soft: oklch(95.5% .035 185);
+  --amber: oklch(52% .13 62);
+  --amber-soft: oklch(96% .05 75);
+  --red: oklch(51% .2 28);
+  --red-soft: oklch(95.5% .03 28);
+  --purple: oklch(48% .18 298);
+  --purple-soft: oklch(95.5% .035 298);
+  --neutral-soft: oklch(94.5% .015 40);
+  --shadow-sm: 0 1px 2px oklch(28% .06 320 / .06);
+  --shadow-md: 0 1px 2px oklch(28% .06 320 / .06), 0 8px 22px -6px oklch(45% .15 355 / .14);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(52% .2 355) 35%, transparent);
+  --on-red: oklch(100% 0 0);
+  --on-accent: oklch(100% 0 0);
+  --radius: 10px;
+  --radius-sm: 7px;
+  color-scheme: light;
+}
+:root[data-theme="coast"][data-scheme="dark"] {
+  --bg: oklch(15% .045 315);
+  --surface: oklch(19.5% .05 315);
+  --surface-raised: oklch(24% .055 315);
+  --highlight: oklch(100% 0 0 / .08);
+  --surface-sunken: oklch(17% .048 315);
+  --hover: oklch(23% .055 318);
+  --divider: oklch(27% .055 318);
+  --hairline: oklch(100% 0 0 / .08);
+  --gray-900: oklch(95% .02 340);
+  --gray-700: oklch(83% .035 335);
+  --gray-500: oklch(68% .05 330);
+  --gray-400: oklch(56% .055 325);
+  --gray-200: oklch(31% .055 318);
+  --accent: oklch(72% .19 355);
+  --accent-soft: color-mix(in oklab, oklch(72% .19 355) 18%, transparent);
+  --green: oklch(82% .13 180);
+  --green-soft: color-mix(in oklab, oklch(82% .13 180) 14%, transparent);
+  --amber: oklch(84% .14 70);
+  --amber-soft: color-mix(in oklab, oklch(84% .14 70) 14%, transparent);
+  --red: oklch(72% .18 28);
+  --red-soft: color-mix(in oklab, oklch(72% .18 28) 16%, transparent);
+  --purple: oklch(77% .14 298);
+  --purple-soft: color-mix(in oklab, oklch(77% .14 298) 16%, transparent);
+  --neutral-soft: oklch(23% .05 318);
+  --shadow-sm: 0 1px 2px oklch(5% .04 315 / .5);
+  --shadow-md: 0 1px 2px oklch(5% .04 315 / .5), 0 10px 26px oklch(5% .04 315 / .4);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(72% .19 355) 42%, transparent);
+  --on-accent: oklch(15% .045 315);
+  --on-red: oklch(15% .045 315);
+  color-scheme: dark;
+}
+/* Coast's sunset: a soft pink-to-gold glow across the top of the page, fading out before the content.
+   Cards, menus and text keep their flat colours, so contrast is the same as without it. */
+:root[data-theme="coast"] body {
+  background:
+    radial-gradient(120% 420px at 50% -60px, oklch(80% .14 355 / .22), oklch(85% .13 55 / .12) 55%, transparent 100%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
+:root[data-theme="coast"][data-scheme="dark"] body {
+  background:
+    radial-gradient(120% 420px at 50% -60px, oklch(62% .2 355 / .28), oklch(68% .16 50 / .12) 55%, transparent 100%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
+
+/* Heatwave: the whole sunset in one stripe, deep violet through purple, magenta, coral, orange and warm
+   yellow (#3B146B #7B208F #C9349B #F36A78 #F87572 #FF9B55 #FFB458). Dark is the neon night over deep violet;
+   light is the hot afternoon. Primary buttons are a sunset gradient; the stripe runs under the top bar. */
+:root[data-theme="heatwave"] {
+  --bg: #fff1df;
+  --surface: #fffaf3;
+  --surface-raised: #fffaf3;
+  --highlight: oklch(100% 0 0 / 0);
+  --surface-sunken: #fff5e8;
+  --hover: #ffeedd;
+  --divider: #f6dccb;
+  --hairline: rgb(59 20 107 / 0.1);
+  --gray-900: #2a0d4e;
+  --gray-700: #4f2475;
+  --gray-500: #74488f;
+  --gray-400: #9271a6;
+  --gray-200: #ecd5e2;
+  --accent: #a8287f;
+  --accent-soft: #fbe3ef;
+  --accent-fill: linear-gradient(100deg, #7B208F, #C9349B);
+  --accent-fill-from: #7B208F;
+  --accent-fill-to: #C9349B;
+  --green: #0f7468;
+  --green-soft: #ddf4ef;
+  --amber: #a14e00;
+  --amber-soft: #ffeccd;
+  --red: #c42a3d;
+  --red-soft: #fde4e6;
+  --purple: #7B208F;
+  --purple-soft: #f3e2f7;
+  --neutral-soft: #fbe9de;
+  --shadow-sm: 0 1px 2px rgb(59 20 107 / 0.07);
+  --shadow-md: 0 1px 2px rgb(59 20 107 / 0.07), 0 10px 24px -8px rgb(201 52 155 / 0.22);
+  --ring: 0 0 0 3px rgb(201 52 155 / 0.35);
+  --on-accent: #ffffff;
+  --on-red: #ffffff;
+  --radius: 10px;
+  --radius-sm: 7px;
+  /* A poster's condensed type for the brand and the tiles' numbers. */
+  --font-display: "Anton", var(--font-sans);
+  --font-display-weight: 400;
+  color-scheme: light;
+}
+:root[data-theme="heatwave"][data-scheme="dark"] {
+  --bg: #1a0631;
+  --surface: #2a0e4c;
+  --surface-raised: #3B146B;
+  --highlight: oklch(100% 0 0 / .1);
+  --surface-sunken: #220a40;
+  --hover: #331259;
+  --divider: #43196f;
+  --hairline: rgb(255 180 88 / 0.12);
+  --gray-900: #fff4e6;
+  --gray-700: #f6d9ec;
+  --gray-500: #d0abd9;
+  --gray-400: #a681bb;
+  --gray-200: #4a1d78;
+  --accent: #F36A78;
+  --accent-soft: color-mix(in oklab, #F36A78 13%, transparent);
+  --accent-fill: linear-gradient(100deg, #F36A78, #FF9B55);
+  --accent-fill-from: #F36A78;
+  --accent-fill-to: #FF9B55;
+  --green: #4fe3c8;
+  --green-soft: color-mix(in oklab, #4fe3c8 14%, transparent);
+  --amber: #FFB458;
+  --amber-soft: color-mix(in oklab, #FFB458 15%, transparent);
+  --red: #F87572;
+  --red-soft: color-mix(in oklab, #F87572 17%, transparent);
+  --purple: #e3a3f5;
+  --purple-soft: color-mix(in oklab, #C9349B 26%, transparent);
+  --neutral-soft: #331259;
+  --shadow-sm: 0 1px 2px rgb(10 2 20 / 0.5);
+  --shadow-md: 0 1px 2px rgb(10 2 20 / 0.5), 0 12px 30px -6px rgb(201 52 155 / 0.28);
+  --ring: 0 0 0 3px rgb(243 106 120 / 0.45);
+  --on-accent: #1f0838;
+  --on-red: #1f0838;
+  color-scheme: dark;
+}
+/* The sky: a warm glow at the top by day; a magenta-to-violet dusk by night. */
+:root[data-theme="heatwave"] body {
+  background:
+    radial-gradient(130% 460px at 50% -80px, rgb(255 155 85 / 0.30), rgb(243 106 120 / 0.16) 50%, transparent 100%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
+:root[data-theme="heatwave"][data-scheme="dark"] body {
+  background:
+    radial-gradient(130% 480px at 50% -80px, rgb(201 52 155 / 0.40), rgb(123 32 143 / 0.22) 50%, transparent 100%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
+/* The palette's stripe along the bottom of the top bar. */
+:root[data-theme="heatwave"] .topbar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; pointer-events: none;
+  background: linear-gradient(90deg, #3B146B, #7B208F, #C9349B, #F36A78, #F87572, #FF9B55, #FFB458);
+}
+:root[data-theme="heatwave"] .brand h1 { font-size: 20px; letter-spacing: 0.02em; text-transform: uppercase; }
+:root[data-theme="heatwave"] .tile .value { font-size: 28px; }

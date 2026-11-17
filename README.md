@@ -64,13 +64,13 @@ A hub for the work you're tracking, and for picking what to do next. The tasks a
 
 ### Themes
 
-Every page comes in five themes, each with a light and a dark version: **Classic** (the original look), **Signal** (near-black and cyan, with its own type), **Ember** (warm paper and copper), **Dusk** (indigo and violet) and **Graphite** (monochrome, high-contrast). Light or dark can follow the system, as it does by default, or be pinned.
+Every page comes in seven themes, each with a light and a dark version: **Classic** (the original look), **Signal** (near-black and cyan, with its own type), **Ember** (warm paper and copper), **Dusk** (indigo and violet), **Graphite** (monochrome, high-contrast) and **Coast** (a sunset drive: hot pink, sea teal and gold, over deep purple at night or warm peach by day, with a soft sunset glow across the top of the page) and **Heatwave** (the whole sunset, deep violet through purple, magenta, coral, orange and warm yellow: sunset-gradient buttons, the palette as a stripe under the top bar, a dusk sky, and poster type for the brand and tile numbers). Light or dark can follow the system, as it does by default, or be pinned.
 
 The default for every browser is set on the **Settings** page, under *Appearance*, and saved to `config.json`. Each browser can also choose its own from the **◐** menu in the top bar, theme and light/dark separately. That choice is kept in the browser and wins over the default until you pick *Settings default* again. A choice applies at once, in every open tab, and is set before a page draws, so it never flashes another theme first.
 
 Every theme's text meets WCAG AA contrast in light and dark (4.5:1, or 3:1 for the tiles' large numbers), checked by a test for each pairing of text and background. In dark mode, menus and popovers sit on a slightly lighter surface with a lit top edge rather than under a heavier shadow.
 
-Signal uses Manrope, JetBrains Mono and Fraunces, bundled in `public/vendor/fonts` under the SIL Open Font License; a browser only downloads them while Signal is on.
+Signal uses Manrope, JetBrains Mono and Fraunces, and Heatwave uses Anton, all bundled in `public/vendor/fonts` under the SIL Open Font License; a browser only downloads them while their theme is on.
 
 The live terminal has colours of its own, chosen in the same places (the ◐ menu's *Terminal* section, and *Terminal colours* on the Settings page). *Match page theme*, the default, uses a palette made for each theme, in its light or dark. Or pick a named scheme: Dracula, Solarized Dark or Light, Nord, Gruvbox Dark, Tokyo Night, Catppuccin Mocha or Latte, or One Dark. The glass panes (the terminal, a prompt's review, a task's details) take its colours too, and an open terminal changes at once. The terminal pane covers the top bar, so it has the same choice in its own header, beside Close; it changes this browser's choice, like the ◐ menu, and gives the keyboard back to the terminal. On a light terminal, switchyard keeps all text at a 4.5:1 contrast at least, because Claude Code may be drawing colours meant for a dark one.
 
@@ -158,7 +158,7 @@ Everything works without a config file. The **Settings** page (in the top bar) c
 | `ci.stripPrefixes` | `ci/circleci: ` | Prefixes removed from check names when displayed. The full name stays in the tooltip. |
 | `git.longLivedBranches` | `main`, `master`, `develop`, `dev`, `trunk` | Branches never matched to a PR by name, because PRs from forks often reuse them. `*` is a wildcard, e.g. `release/*`. |
 | `github.copilotReviewer` | `copilot-pull-request-reviewer[bot]` | Reviewer login used by the Copilot review button and to recognise Copilot's reviews. |
-| `appearance.theme` | `classic` | The theme every browser starts with: `classic`, `signal`, `ember`, `dusk` or `graphite`. Each browser can choose its own from the ◐ menu in the top bar. |
+| `appearance.theme` | `classic` | The theme every browser starts with: `classic`, `signal`, `ember`, `dusk`, `graphite`, `coast` or `heatwave`. Each browser can choose its own from the ◐ menu in the top bar. |
 | `appearance.mode` | `system` | Light or dark for every browser: `system` (follow the OS), `light` or `dark`. |
 | `appearance.terminal` | `match` | The live terminal's colours for every browser: `match` (the page theme's own), or `dracula`, `solarized-dark`, `solarized-light`, `nord`, `gruvbox-dark`, `tokyo-night`, `catppuccin-mocha`, `catppuccin-latte`, `one-dark`. |
 | `terminal.app` | `auto` | Terminal used by **Resume** and **Terminal** buttons: `iTerm`, `Terminal`, or `none` to hide them. `auto` picks iTerm when switchyard was started from iTerm, otherwise Terminal. |
