@@ -198,6 +198,7 @@ export function createLiveTerminals({
       }
     }
 
+    await keepCurrentWindowSize(session);
     open.set(token, { client, pane, window: first.window, flow, followResize });
     // Quoted: an unquoted # starts a comment in tmux's command syntax.
     client.command(`refresh-client -B '${SIZE_SUBSCRIPTION}:${pane}:#{pane_width}x#{pane_height}'`);
@@ -207,6 +208,18 @@ export function createLiveTerminals({
       client.close();
       throw error;
     }
+    /**
+     * A control client counts as 80x24 until it's told a size, and asking for
+     * one window's size makes tmux size the session's current window (another
+     * task's, often) to the client. So the client takes that window's size
+     * first: it stays as it is, rather than shrinking, its program redrawing
+     * for 80 columns, and redrawing again when it's next opened.
+     */
+    async function keepCurrentWindowSize(name) {
+      const size = await tmux.currentWindowSize(name).catch(() => null);
+      if (size && inRange(size.cols, COLS) && inRange(size.rows, ROWS)) client.command(`refresh-client -C ${size.cols}x${size.rows}`);
+    }
+
     /**
      * The size to send the first screen at. Asked for the page's size, the
      * window takes it before the screen is copied, so the page draws once, at

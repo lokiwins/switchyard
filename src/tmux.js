@@ -185,6 +185,13 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       return { window, cols, rows, cursorX, cursorY };
     },
 
+    /** The size of a session's current window (the one its clients are showing). */
+    async currentWindowSize(session) {
+      const [cols, rows] = (await tmux(['display-message', '-p', '-t', `=${session}:`, '#{window_width} #{window_height}']))
+        .trim().split(' ').map(Number);
+      return { cols, rows };
+    },
+
     /** What a pane shows right now, as text with its colours (a dialog's active tab is shown only by colour). */
     async screenText(pane) {
       return tmux(['capture-pane', '-p', '-e', '-t', pane]);

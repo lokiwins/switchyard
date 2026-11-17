@@ -244,3 +244,9 @@ test('killPane closes one pane by id', async () => {
   assert.deepEqual(calls[0], ['tmux', 'kill-pane', '-t', '%3']);
   for (const pane of ['3', '@3', '%3; x']) await rejectsWith(createTmux({ exec }).killPane(pane), 400);
 });
+
+test('currentWindowSize reads the size of the window a session is showing', async () => {
+  const { exec, calls } = fakeExec({ 'display-message': '137 39\n' });
+  assert.deepEqual(await tmuxWith(exec).currentWindowSize('switchyard'), { cols: 137, rows: 39 });
+  assert.deepEqual(calls[0], ['tmux', 'display-message', '-p', '-t', '=switchyard:', '#{window_width} #{window_height}']);
+});
