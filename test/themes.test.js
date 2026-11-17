@@ -26,7 +26,7 @@ function tokensIn(css, selector) {
 }
 
 test('the themes: Classic first, each with an id and a name; modes are light, dark and system', () => {
-  assert.deepEqual(THEMES.map((t) => t.id), ['classic', 'signal', 'ember', 'dusk', 'graphite']);
+  assert.deepEqual(THEMES.map((t) => t.id), ['classic', 'signal', 'ember', 'dusk', 'graphite', 'coast']);
   assert.ok(THEMES.every((t) => typeof t.label === 'string' && t.label));
   assert.deepEqual(MODES.map((m) => m.id), ['system', 'light', 'dark']);
 });

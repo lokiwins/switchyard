@@ -10,6 +10,7 @@ export const THEMES = Object.freeze([
   Object.freeze({ id: 'ember', label: 'Ember' }),
   Object.freeze({ id: 'dusk', label: 'Dusk' }),
   Object.freeze({ id: 'graphite', label: 'Graphite' }),
+  Object.freeze({ id: 'coast', label: 'Coast' }),
 ]);
 
 export const MODES = Object.freeze([

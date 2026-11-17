@@ -64,7 +64,7 @@ A hub for the work you're tracking, and for picking what to do next. The tasks a
 
 ### Themes
 
-Every page comes in five themes, each with a light and a dark version: **Classic** (the original look), **Signal** (near-black and cyan, with its own type), **Ember** (warm paper and copper), **Dusk** (indigo and violet) and **Graphite** (monochrome, high-contrast). Light or dark can follow the system, as it does by default, or be pinned.
+Every page comes in six themes, each with a light and a dark version: **Classic** (the original look), **Signal** (near-black and cyan, with its own type), **Ember** (warm paper and copper), **Dusk** (indigo and violet), **Graphite** (monochrome, high-contrast) and **Coast** (a sunset drive: hot pink, sea teal and gold, over deep purple at night or warm peach by day, with a soft sunset glow across the top of the page). Light or dark can follow the system, as it does by default, or be pinned.
 
 The default for every browser is set on the **Settings** page, under *Appearance*, and saved to `config.json`. Each browser can also choose its own from the **◐** menu in the top bar, theme and light/dark separately. That choice is kept in the browser and wins over the default until you pick *Settings default* again. A choice applies at once, in every open tab, and is set before a page draws, so it never flashes another theme first.
 
@@ -158,7 +158,7 @@ Everything works without a config file. The **Settings** page (in the top bar) c
 | `ci.stripPrefixes` | `ci/circleci: ` | Prefixes removed from check names when displayed. The full name stays in the tooltip. |
 | `git.longLivedBranches` | `main`, `master`, `develop`, `dev`, `trunk` | Branches never matched to a PR by name, because PRs from forks often reuse them. `*` is a wildcard, e.g. `release/*`. |
 | `github.copilotReviewer` | `copilot-pull-request-reviewer[bot]` | Reviewer login used by the Copilot review button and to recognise Copilot's reviews. |
-| `appearance.theme` | `classic` | The theme every browser starts with: `classic`, `signal`, `ember`, `dusk` or `graphite`. Each browser can choose its own from the ◐ menu in the top bar. |
+| `appearance.theme` | `classic` | The theme every browser starts with: `classic`, `signal`, `ember`, `dusk`, `graphite` or `coast`. Each browser can choose its own from the ◐ menu in the top bar. |
 | `appearance.mode` | `system` | Light or dark for every browser: `system` (follow the OS), `light` or `dark`. |
 | `appearance.terminal` | `match` | The live terminal's colours for every browser: `match` (the page theme's own), or `dracula`, `solarized-dark`, `solarized-light`, `nord`, `gruvbox-dark`, `tokyo-night`, `catppuccin-mocha`, `catppuccin-latte`, `one-dark`. |
 | `terminal.app` | `auto` | Terminal used by **Resume** and **Terminal** buttons: `iTerm`, `Terminal`, or `none` to hide them. `auto` picks iTerm when switchyard was started from iTerm, otherwise Terminal. |

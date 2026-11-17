@@ -55,6 +55,8 @@ export const SCENES = [
   { name: 'theme-ember', title: 'Ember theme, light: warm paper with a copper accent', path: '/', prepare: inTheme('ember', 'light') },
   { name: 'theme-dusk', title: 'Dusk theme, dark: indigo with a violet accent', path: '/', prepare: inTheme('dusk', 'dark') },
   { name: 'theme-graphite', title: 'Graphite theme, light: monochrome and high-contrast', path: '/', prepare: inTheme('graphite', 'light') },
+  { name: 'theme-coast', title: 'Coast theme, dark: a sunset drive, hot pink and sea teal over deep purple', path: '/', prepare: inTheme('coast', 'dark') },
+  { name: 'theme-coast-light', title: 'Coast theme, light: warm peach, magenta and teal, with a sunset glow', path: '/', prepare: inTheme('coast', 'light') },
   {
     name: 'terminal-theme-dracula',
     title: 'Terminal colours: the glass panes in Dracula (the live terminal uses the same palette)',

@@ -287,3 +287,86 @@
   --on-red: oklch(10% 0 0);
   color-scheme: dark;
 }
+
+/* Coast: a sunset drive along the water. Dark is the night: deep purple, a hot-pink accent, sea teal and
+   sunset gold. Light is the late afternoon: warm peach paper, magenta, teal. */
+:root[data-theme="coast"] {
+  --bg: oklch(96.5% .016 55);
+  --surface: oklch(99.4% .007 60);
+  --surface-raised: oklch(99.4% .007 60);
+  --highlight: oklch(100% 0 0 / 0);
+  --surface-sunken: oklch(97.8% .012 55);
+  --hover: oklch(95% .02 40);
+  --divider: oklch(91% .02 30);
+  --hairline: oklch(28% .06 320 / .1);
+  --gray-900: oklch(23% .05 320);
+  --gray-700: oklch(37% .055 320);
+  --gray-500: oklch(50% .05 322);
+  --gray-400: oklch(61% .045 325);
+  --gray-200: oklch(88% .025 330);
+  --accent: oklch(52% .2 355);
+  --accent-soft: oklch(95% .035 355);
+  --green: oklch(48% .1 185);
+  --green-soft: oklch(95.5% .035 185);
+  --amber: oklch(52% .13 62);
+  --amber-soft: oklch(96% .05 75);
+  --red: oklch(51% .2 28);
+  --red-soft: oklch(95.5% .03 28);
+  --purple: oklch(48% .18 298);
+  --purple-soft: oklch(95.5% .035 298);
+  --neutral-soft: oklch(94.5% .015 40);
+  --shadow-sm: 0 1px 2px oklch(28% .06 320 / .06);
+  --shadow-md: 0 1px 2px oklch(28% .06 320 / .06), 0 8px 22px -6px oklch(45% .15 355 / .14);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(52% .2 355) 35%, transparent);
+  --on-red: oklch(100% 0 0);
+  --on-accent: oklch(100% 0 0);
+  --radius: 10px;
+  --radius-sm: 7px;
+  color-scheme: light;
+}
+:root[data-theme="coast"][data-scheme="dark"] {
+  --bg: oklch(15% .045 315);
+  --surface: oklch(19.5% .05 315);
+  --surface-raised: oklch(24% .055 315);
+  --highlight: oklch(100% 0 0 / .08);
+  --surface-sunken: oklch(17% .048 315);
+  --hover: oklch(23% .055 318);
+  --divider: oklch(27% .055 318);
+  --hairline: oklch(100% 0 0 / .08);
+  --gray-900: oklch(95% .02 340);
+  --gray-700: oklch(83% .035 335);
+  --gray-500: oklch(68% .05 330);
+  --gray-400: oklch(56% .055 325);
+  --gray-200: oklch(31% .055 318);
+  --accent: oklch(72% .19 355);
+  --accent-soft: color-mix(in oklab, oklch(72% .19 355) 18%, transparent);
+  --green: oklch(82% .13 180);
+  --green-soft: color-mix(in oklab, oklch(82% .13 180) 14%, transparent);
+  --amber: oklch(84% .14 70);
+  --amber-soft: color-mix(in oklab, oklch(84% .14 70) 14%, transparent);
+  --red: oklch(72% .18 28);
+  --red-soft: color-mix(in oklab, oklch(72% .18 28) 16%, transparent);
+  --purple: oklch(77% .14 298);
+  --purple-soft: color-mix(in oklab, oklch(77% .14 298) 16%, transparent);
+  --neutral-soft: oklch(23% .05 318);
+  --shadow-sm: 0 1px 2px oklch(5% .04 315 / .5);
+  --shadow-md: 0 1px 2px oklch(5% .04 315 / .5), 0 10px 26px oklch(5% .04 315 / .4);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(72% .19 355) 42%, transparent);
+  --on-accent: oklch(15% .045 315);
+  --on-red: oklch(15% .045 315);
+  color-scheme: dark;
+}
+/* Coast's sunset: a soft pink-to-gold glow across the top of the page, fading out before the content.
+   Cards, menus and text keep their flat colours, so contrast is the same as without it. */
+:root[data-theme="coast"] body {
+  background:
+    radial-gradient(120% 420px at 50% -60px, oklch(80% .14 355 / .22), oklch(85% .13 55 / .12) 55%, transparent 100%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
+:root[data-theme="coast"][data-scheme="dark"] body {
+  background:
+    radial-gradient(120% 420px at 50% -60px, oklch(62% .2 355 / .28), oklch(68% .16 50 / .12) 55%, transparent 100%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
