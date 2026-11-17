@@ -3,12 +3,13 @@
  * sets <html data-theme data-scheme>; each theme sets every color token for
  * light, then again for dark. The list of themes is public/themes.js.
  *
- * Fonts: Manrope, JetBrains Mono and Fraunces, under the SIL Open Font
+ * Fonts: Manrope, JetBrains Mono, Fraunces and Anton, under the SIL Open Font
  * License (public/vendor/fonts/OFL-*.txt), Latin subset. A browser only
  * downloads them when a theme that uses them is on.
  */
 @font-face { font-family: "Manrope"; font-style: normal; font-weight: 400 700; font-display: swap; src: url(/vendor/fonts/manrope.woff2) format("woff2"); }
 @font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400 600; font-display: swap; src: url(/vendor/fonts/jetbrains-mono.woff2) format("woff2"); }
+@font-face { font-family: "Anton"; font-style: normal; font-weight: 400; font-display: swap; src: url(/vendor/fonts/anton.woff2) format("woff2"); }
 @font-face { font-family: "Fraunces"; font-style: normal; font-weight: 300 400; font-display: swap; src: url(/vendor/fonts/fraunces.woff2) format("woff2"); }
 
 
@@ -370,3 +371,102 @@
     var(--bg);
   background-repeat: no-repeat;
 }
+
+/* Heatwave: the whole sunset in one stripe, deep violet through purple, magenta, coral, orange and warm
+   yellow (#3B146B #7B208F #C9349B #F36A78 #F87572 #FF9B55 #FFB458). Dark is the neon night over deep violet;
+   light is the hot afternoon. Primary buttons are a sunset gradient; the stripe runs under the top bar. */
+:root[data-theme="heatwave"] {
+  --bg: #fff1df;
+  --surface: #fffaf3;
+  --surface-raised: #fffaf3;
+  --highlight: oklch(100% 0 0 / 0);
+  --surface-sunken: #fff5e8;
+  --hover: #ffeedd;
+  --divider: #f6dccb;
+  --hairline: rgb(59 20 107 / 0.1);
+  --gray-900: #2a0d4e;
+  --gray-700: #4f2475;
+  --gray-500: #74488f;
+  --gray-400: #9271a6;
+  --gray-200: #ecd5e2;
+  --accent: #a8287f;
+  --accent-soft: #fbe3ef;
+  --accent-fill: linear-gradient(100deg, #7B208F, #C9349B);
+  --accent-fill-from: #7B208F;
+  --accent-fill-to: #C9349B;
+  --green: #0f7468;
+  --green-soft: #ddf4ef;
+  --amber: #a14e00;
+  --amber-soft: #ffeccd;
+  --red: #c42a3d;
+  --red-soft: #fde4e6;
+  --purple: #7B208F;
+  --purple-soft: #f3e2f7;
+  --neutral-soft: #fbe9de;
+  --shadow-sm: 0 1px 2px rgb(59 20 107 / 0.07);
+  --shadow-md: 0 1px 2px rgb(59 20 107 / 0.07), 0 10px 24px -8px rgb(201 52 155 / 0.22);
+  --ring: 0 0 0 3px rgb(201 52 155 / 0.35);
+  --on-accent: #ffffff;
+  --on-red: #ffffff;
+  --radius: 10px;
+  --radius-sm: 7px;
+  /* A poster's condensed type for the brand and the tiles' numbers. */
+  --font-display: "Anton", var(--font-sans);
+  --font-display-weight: 400;
+  color-scheme: light;
+}
+:root[data-theme="heatwave"][data-scheme="dark"] {
+  --bg: #1a0631;
+  --surface: #2a0e4c;
+  --surface-raised: #3B146B;
+  --highlight: oklch(100% 0 0 / .1);
+  --surface-sunken: #220a40;
+  --hover: #331259;
+  --divider: #43196f;
+  --hairline: rgb(255 180 88 / 0.12);
+  --gray-900: #fff4e6;
+  --gray-700: #f6d9ec;
+  --gray-500: #d0abd9;
+  --gray-400: #a681bb;
+  --gray-200: #4a1d78;
+  --accent: #F36A78;
+  --accent-soft: color-mix(in oklab, #F36A78 13%, transparent);
+  --accent-fill: linear-gradient(100deg, #F36A78, #FF9B55);
+  --accent-fill-from: #F36A78;
+  --accent-fill-to: #FF9B55;
+  --green: #4fe3c8;
+  --green-soft: color-mix(in oklab, #4fe3c8 14%, transparent);
+  --amber: #FFB458;
+  --amber-soft: color-mix(in oklab, #FFB458 15%, transparent);
+  --red: #F87572;
+  --red-soft: color-mix(in oklab, #F87572 17%, transparent);
+  --purple: #e3a3f5;
+  --purple-soft: color-mix(in oklab, #C9349B 26%, transparent);
+  --neutral-soft: #331259;
+  --shadow-sm: 0 1px 2px rgb(10 2 20 / 0.5);
+  --shadow-md: 0 1px 2px rgb(10 2 20 / 0.5), 0 12px 30px -6px rgb(201 52 155 / 0.28);
+  --ring: 0 0 0 3px rgb(243 106 120 / 0.45);
+  --on-accent: #1f0838;
+  --on-red: #1f0838;
+  color-scheme: dark;
+}
+/* The sky: a warm glow at the top by day; a magenta-to-violet dusk by night. */
+:root[data-theme="heatwave"] body {
+  background:
+    radial-gradient(130% 460px at 50% -80px, rgb(255 155 85 / 0.30), rgb(243 106 120 / 0.16) 50%, transparent 100%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
+:root[data-theme="heatwave"][data-scheme="dark"] body {
+  background:
+    radial-gradient(130% 480px at 50% -80px, rgb(201 52 155 / 0.40), rgb(123 32 143 / 0.22) 50%, transparent 100%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
+/* The palette's stripe along the bottom of the top bar. */
+:root[data-theme="heatwave"] .topbar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; pointer-events: none;
+  background: linear-gradient(90deg, #3B146B, #7B208F, #C9349B, #F36A78, #F87572, #FF9B55, #FFB458);
+}
+:root[data-theme="heatwave"] .brand h1 { font-size: 20px; letter-spacing: 0.02em; text-transform: uppercase; }
+:root[data-theme="heatwave"] .tile .value { font-size: 28px; }

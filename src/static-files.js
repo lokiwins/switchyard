@@ -66,4 +66,5 @@ export const STATIC_FILES = {
   '/vendor/fonts/manrope.woff2': 'vendor/fonts/manrope.woff2',
   '/vendor/fonts/jetbrains-mono.woff2': 'vendor/fonts/jetbrains-mono.woff2',
   '/vendor/fonts/fraunces.woff2': 'vendor/fonts/fraunces.woff2',
+  '/vendor/fonts/anton.woff2': 'vendor/fonts/anton.woff2',
 };

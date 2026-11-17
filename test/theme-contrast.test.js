@@ -23,7 +23,9 @@ for (const theme of THEME_IDS) {
   for (const scheme of ['light', 'dark']) {
     test(`${theme} ${scheme}: text meets WCAG AA contrast`, () => {
       const tokens = themeTokens(theme, scheme);
-      const low = PAIRS
+      // A gradient button: its text has to read at both ends.
+      const fills = ['accent-fill-from', 'accent-fill-to'].filter((name) => tokens[name]).map((name) => ['on-accent', name, 4.5]);
+      const low = [...PAIRS, ...fills]
         .map(([fg, bg, min]) => ({ pair: `${fg} on ${bg}`, ratio: contrastOf(tokens, fg, bg), min }))
         .filter(({ ratio, min }) => ratio < min)
         .map(({ pair, ratio, min }) => `${pair} is ${ratio.toFixed(2)}:1, needs ${min}:1`);

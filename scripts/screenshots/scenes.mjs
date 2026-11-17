@@ -56,6 +56,8 @@ export const SCENES = [
   { name: 'theme-dusk', title: 'Dusk theme, dark: indigo with a violet accent', path: '/', prepare: inTheme('dusk', 'dark') },
   { name: 'theme-graphite', title: 'Graphite theme, light: monochrome and high-contrast', path: '/', prepare: inTheme('graphite', 'light') },
   { name: 'theme-coast', title: 'Coast theme, dark: a sunset drive, hot pink and sea teal over deep purple', path: '/', prepare: inTheme('coast', 'dark') },
+  { name: 'theme-heatwave', title: 'Heatwave theme, dark: the whole sunset over deep violet, gradient buttons and the stripe', path: '/', prepare: inTheme('heatwave', 'dark') },
+  { name: 'theme-heatwave-light', title: 'Heatwave theme, light: the hot afternoon', path: '/', prepare: inTheme('heatwave', 'light') },
   { name: 'theme-coast-light', title: 'Coast theme, light: warm peach, magenta and teal, with a sunset glow', path: '/', prepare: inTheme('coast', 'light') },
   {
     name: 'terminal-theme-dracula',
