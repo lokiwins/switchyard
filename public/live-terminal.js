@@ -158,23 +158,83 @@ function createFitter(fit, getToken) {
   };
 }
 
+// What a terminal is drawn with; the same for every one, so a parked terminal fits any session.
+const TERMINAL_OPTIONS = {
+  allowTransparency: true,
+  fontSize: 13,
+  lineHeight: 1.15,
+  scrollback: 5000,
+  cursorBlink: true,
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+};
+
+/** A terminal with its fit and WebGL renderers, drawn once into `screen` (so WebGL compiles its shaders now). */
+function buildTerminal({ Terminal, WebglAddon, FitAddon }, screen) {
+  const terminal = new Terminal({ ...TERMINAL_OPTIONS, ...currentXtermOptions() });
+  const fit = new FitAddon();
+  terminal.loadAddon(fit);
+  terminal.open(screen);
+  const webgl = useWebgl(terminal, WebglAddon);
+  terminal.write(' ');
+  return { terminal, fit, screen, webgl };
+}
+
+/*
+ * One terminal is kept between panes. Setting up xterm's WebGL renderer (a GPU
+ * context, its shaders, the first draw) blocks the page for a moment, which
+ * made opening the pane stutter; so it's built once, ahead of time where it
+ * can be, and parked out of sight while no pane shows it. Each pane connects
+ * it to its session afresh.
+ */
+let shared = null;
+let sharedInUse = false;
+
+/** Where the shared terminal waits, laid out (so WebGL can draw) but out of sight. */
+function parking() {
+  let lot = document.getElementById('term-parking');
+  if (!lot) {
+    lot = h('div', { id: 'term-parking', class: 'term-parking', 'aria-hidden': 'true' });
+    document.body.append(lot);
+  }
+  return lot;
+}
+
+function sharedTerminal() {
+  shared ??= loadXterm().then((xterm) => {
+    const screen = h('div', { class: 'term-screen' });
+    parking().append(screen);
+    return buildTerminal(xterm, screen);
+  });
+  shared.catch(() => { shared = null; });
+  return shared;
+}
+
+/** Get the terminal ready before it's wanted (say, when a Terminal button is pointed at), so opening is quick. */
+export function prewarmTerminal() {
+  sharedTerminal().catch(() => {});
+}
+
+/** The shared terminal for a pane, or, when another pane has it, one of its own. */
+async function terminalForPane() {
+  if (!sharedInUse) {
+    const ready = await sharedTerminal();
+    if (!sharedInUse) {
+      sharedInUse = true;
+      return { ...ready, release: () => { sharedInUse = false; } };
+    }
+  }
+  const own = buildTerminal(await loadXterm(), h('div', { class: 'term-screen' }));
+  return { ...own, release: () => own.terminal.dispose() };
+}
+
 async function openTerminal(session) {
-  const { Terminal, WebglAddon, FitAddon } = await loadXterm();
-  const screen = h('div', { class: 'term-screen' });
+  const { terminal, fit, screen, webgl, release } = await terminalForPane();
+  // A terminal kept from an earlier pane starts this one clean, in the colours chosen now.
+  terminal.reset();
+  Object.assign(terminal.options, currentXtermOptions());
   const status = h('span', { class: 'pane-pill' }, 'Connecting…');
   let source = null;
   let token = null;
-  const terminal = new Terminal({
-    allowTransparency: true,
-    // The terminal theme's colours (see terminal-themes.js); its cells are transparent so the glass shows through.
-    ...currentXtermOptions(),
-    fontSize: 13,
-    lineHeight: 1.15,
-    scrollback: 5000,
-    cursorBlink: true,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-  });
-  const fit = new FitAddon();
   const fitter = createFitter(fit, () => token);
   const acker = createAcker(() => token);
   const watchSize = new ResizeObserver(() => fitter.soon());
@@ -185,14 +245,21 @@ async function openTerminal(session) {
   document.addEventListener('switchyard:theme', recolor);
   // The ◐ menu is behind the pane, so the pane has its own picker for the terminal colours.
   const picker = terminalThemePicker({ afterPick: () => terminal.focus() });
+  const hooks = [];
   const close = () => {
     document.removeEventListener('switchyard:theme', recolor);
     picker.dispose();
     source?.close();
+    token = null;
     watchSize.disconnect();
     fitter.stop();
     acker.stop();
-    terminal.dispose();
+    // Unhook this session from the terminal, clear it, and park it for the next pane.
+    hooks.forEach((hook) => hook.dispose());
+    terminal.attachCustomKeyEventHandler(() => true);
+    terminal.reset();
+    parking().append(screen);
+    release();
     dialog.close();
     dialog.remove();
   };
@@ -217,14 +284,12 @@ async function openTerminal(session) {
   document.body.append(dialog);
   dialog.showModal();
 
-  terminal.loadAddon(fit);
-  terminal.open(screen);
-  if (!useWebgl(terminal, WebglAddon)) {
+  if (!webgl) {
     status.textContent = "Can't draw: WebGL is unavailable";
     return;
   }
   const type = createTypist(() => token);
-  terminal.onData(type);
+  hooks.push(terminal.onData(type));
   // Keys xterm.js would send as something Claude doesn't expect, e.g. Shift+Enter as Enter.
   terminal.attachCustomKeyEventHandler((event) => {
     const handled = keyInput(event);
@@ -282,13 +347,25 @@ async function openTerminal(session) {
   connect();
 }
 
-/** Open the session's tmux pane here, live. */
+// When the page first shows a Terminal button, the terminal is got ready while the page is idle.
+let idleWarmup = false;
+function warmUpWhenIdle() {
+  if (idleWarmup) return;
+  idleWarmup = true;
+  const idle = window.requestIdleCallback ?? ((fn) => setTimeout(fn, 1000));
+  idle(prewarmTerminal, { timeout: 3000 });
+}
+
+/** Open the session's tmux pane here, live. Pointing at the button gets the terminal ready. */
 export function terminalButton(session) {
   if (session.host?.kind !== 'tmux') return null;
+  warmUpWhenIdle();
   return h('button', {
     type: 'button',
     class: 'btn btn-action',
     title: `Open tmux window ${tmuxPlace(session.host)} here, live, and type into it`,
+    onpointerenter: prewarmTerminal,
+    onfocus: prewarmTerminal,
     onclick: () => openTerminal(session).catch((error) => toast(error.message)),
   }, 'Terminal');
 }

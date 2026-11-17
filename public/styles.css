@@ -881,6 +881,9 @@ html:has(.glass-pane[open]) { overflow: hidden; }
   background: color-mix(in srgb, var(--pane-shade) 25%, transparent); color: var(--pane-text); font-size: 12px; color-scheme: var(--pane-scheme);
 }
 .pane-link { font-size: 12px; color: var(--pane-accent); }
+/* Where the live terminal waits between panes: laid out at a pane's size, so WebGL can draw, but out of sight. */
+.term-parking { position: fixed; left: -10000px; top: 0; width: 720px; height: 480px; overflow: hidden; pointer-events: none; opacity: 0; }
+.term-parking .term-screen { height: 100%; }
 /* The terminal pane's own picker for its colours, beside Close. */
 .term-theme { flex: none; max-width: 15em; }
 .pane-footer-note { margin: 0 auto 0 0; }
