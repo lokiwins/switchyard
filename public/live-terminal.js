@@ -3,7 +3,7 @@ import { post, tmuxPlace } from './actions.js';
 import { sessionTitle } from './session-text.js';
 import { keyInput } from './terminal-keys.js';
 import { resizeHandle } from './pane-resize.js';
-import { currentXtermOptions } from './terminal-look.js';
+import { currentXtermOptions, terminalThemePicker } from './terminal-look.js';
 
 /*
  * "Terminal": a session's tmux pane, live in a dialog. The server streams what
@@ -183,8 +183,11 @@ async function openTerminal(session) {
   // A new terminal theme, or page theme it matches, recolours the open terminal.
   const recolor = () => { Object.assign(terminal.options, currentXtermOptions()); };
   document.addEventListener('switchyard:theme', recolor);
+  // The ◐ menu is behind the pane, so the pane has its own picker for the terminal colours.
+  const picker = terminalThemePicker({ afterPick: () => terminal.focus() });
   const close = () => {
     document.removeEventListener('switchyard:theme', recolor);
+    picker.dispose();
     source?.close();
     watchSize.disconnect();
     fitter.stop();
@@ -205,6 +208,7 @@ async function openTerminal(session) {
       h('strong', {}, sessionTitle(session)),
       h('span', { class: 'pane-sub' }, tmuxPlace(session.host))),
     status,
+    picker.element,
     reconnect,
     h('button', { type: 'button', class: 'pane-btn', title: 'Close the terminal (the session keeps running)', onclick: close }, 'Close')),
   screen);

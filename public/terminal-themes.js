@@ -108,6 +108,22 @@ export const TERMINAL_CHOICES = Object.freeze([
 
 export const TERMINAL_IDS = TERMINAL_CHOICES.map((choice) => choice.id);
 
+/**
+ * The terminal pane's own picker, from theme-boot.js's current(): the Settings
+ * default (named), then every choice, with this browser's choice selected
+ * ('' when it uses the default).
+ */
+export function terminalPicker({ own, defaults }) {
+  const label = (id) => TERMINAL_CHOICES.find((choice) => choice.id === id)?.label ?? id;
+  return {
+    selected: own.terminal ?? '',
+    options: [
+      { value: '', label: `Settings default (${label(defaults.terminal)})` },
+      ...TERMINAL_CHOICES.map((choice) => ({ value: choice.id, label: choice.label })),
+    ],
+  };
+}
+
 /** The palette for a terminal choice, on a page in `theme` and `scheme` (light or dark). */
 export function terminalPalette(choice, theme, scheme) {
   if (choice !== 'match' && TERMINAL_PALETTES[choice]) return TERMINAL_PALETTES[choice];
