@@ -68,6 +68,8 @@ Every page comes in five themes, each with a light and a dark version: **Classic
 
 The default for every browser is set on the **Settings** page, under *Appearance*, and saved to `config.json`. Each browser can also choose its own from the **◐** menu in the top bar, theme and light/dark separately. That choice is kept in the browser and wins over the default until you pick *Settings default* again. A choice applies at once, in every open tab, and is set before a page draws, so it never flashes another theme first.
 
+Every theme's text meets WCAG AA contrast in light and dark (4.5:1, or 3:1 for the tiles' large numbers), checked by a test for each pairing of text and background. In dark mode, menus and popovers sit on a slightly lighter surface with a lit top edge rather than under a heavier shadow.
+
 Signal uses Manrope, JetBrains Mono and Fraunces, bundled in `public/vendor/fonts` under the SIL Open Font License; a browser only downloads them while Signal is on.
 
 The live terminal has colours of its own, chosen in the same places (the ◐ menu's *Terminal* section, and *Terminal colours* on the Settings page). *Match page theme*, the default, uses a palette made for each theme, in its light or dark. Or pick a named scheme: Dracula, Solarized Dark or Light, Nord, Gruvbox Dark, Tokyo Night, Catppuccin Mocha or Latte, or One Dark. The glass panes (the terminal, a prompt's review, a task's details) take its colours too, and an open terminal changes at once. On a light terminal, switchyard keeps all text at a 4.5:1 contrast at least, because Claude Code may be drawing colours meant for a dark one.

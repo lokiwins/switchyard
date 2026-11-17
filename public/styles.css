@@ -32,16 +32,19 @@
 
   --bg: #f4f6f9;
   --surface: #ffffff;
+  /* Menus and popovers. In dark mode they're lighter than the card under them, with a lit top edge, instead of a heavier shadow. */
+  --surface-raised: #ffffff;
+  --highlight: oklch(100% 0 0 / 0);
   --surface-sunken: #f7f9fb;
   --hover: #f1f4f8;
   --divider: #e9edf2;
   --hairline: rgb(16 42 67 / 0.08);
   --gray-900: #102a43;
   --gray-700: #334e68;
-  --gray-500: #627d98;
-  --gray-400: #829ab1;
+  --gray-500: #56708a;
+  --gray-400: #7a92aa;
   --gray-200: #d9e2ec;
-  --accent: #3b6fd8;
+  --accent: #3366cc;
   --accent-soft: #e8effc;
   /* Text on a filled accent or danger color. */
   --on-accent: #fff;
@@ -57,7 +60,7 @@
   --neutral-soft: #f1f4f8;
   --shadow-sm: 0 1px 2px rgb(16 42 67 / 0.05);
   --shadow-md: 0 1px 2px rgb(16 42 67 / 0.05), 0 4px 12px rgb(16 42 67 / 0.07);
-  --ring: 0 0 0 3px rgb(59 111 216 / 0.35);
+  --ring: 0 0 0 3px rgb(51 102 204 / 0.35);
   color-scheme: light;
 }
 
@@ -65,6 +68,8 @@
 :root[data-scheme="dark"] {
   --bg: #0b0f14;
   --surface: #12171d;
+  --surface-raised: #1a212a;
+  --highlight: oklch(100% 0 0 / 0.07);
   --surface-sunken: #0f141a;
   --hover: #171d24;
   --divider: #1d242d;
@@ -76,6 +81,9 @@
   --gray-200: #2a3441;
   --accent: #7aa5ff;
   --accent-soft: #1a2640;
+  /* The dark accent and red are light, so the text on them is dark. */
+  --on-accent: #0b0f14;
+  --on-red: #0b0f14;
   --green: #56d389;
   --green-soft: #10251a;
   --amber: #f2c14e;
@@ -191,8 +199,8 @@ main {
   min-width: min(var(--panel-min, 220px), calc(100vw - 16px));
   max-width: min(var(--panel-max, 340px), calc(100vw - 16px));
   padding: var(--space-1);
-  border-radius: var(--radius-sm); background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--hairline), var(--shadow-md);
+  border-radius: var(--radius-sm); background: var(--surface-raised);
+  box-shadow: inset 0 1px 0 var(--highlight), inset 0 0 0 1px var(--hairline), var(--shadow-md);
 }
 .menu-item {
   display: flex; align-items: baseline; gap: var(--space-2);
