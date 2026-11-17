@@ -741,6 +741,7 @@ fieldset.setting > legend { padding: 0; margin-bottom: var(--space-1); }
   --pane-shade: #000000;
   --pane-shine: #ffffff;
   --pane-lift: #ffffff;
+  /* The page behind an open pane is dimmed the same whatever the terminal theme: it's the page's, not the pane's. */
   --pane-backdrop: rgb(4 8 16 / 0.18);
   --pane-drop: rgb(0 0 0 / 0.55);
   --pane-scheme: dark;

@@ -146,11 +146,15 @@ export function xtermOptions(p) {
   return { theme: xtermTheme(p), minimumContrastRatio: p.light ? LIGHT_MIN_CONTRAST : 1 };
 }
 
-/** The glass pane's tokens (see .glass-pane in styles.css). */
+/**
+ * The glass pane's tokens (see .glass-pane in styles.css). Only the pane: the
+ * dimming of the page behind it (--pane-backdrop) stays the same whatever the
+ * terminal, so a terminal theme never changes how the page itself looks.
+ */
 export const PANE_TOKENS = Object.freeze([
   '--pane-bg', '--pane-tint-a', '--pane-tint-b', '--pane-edge', '--pane-glow', '--pane-text', '--pane-dim',
   '--pane-accent', '--pane-accent-strong', '--pane-ok', '--pane-wait', '--pane-bad', '--pane-add-text', '--pane-del-text',
-  '--pane-shade', '--pane-shine', '--pane-lift', '--pane-backdrop', '--pane-drop', '--pane-scheme',
+  '--pane-shade', '--pane-shine', '--pane-lift', '--pane-drop', '--pane-scheme',
 ]);
 
 /** The glass pane's tokens for a palette: tinted by its background and accent, light glass for a light scheme. */
@@ -179,7 +183,6 @@ export function paneVars(p) {
     '--pane-shade': light ? '#64748b' : '#000000',
     '--pane-shine': '#ffffff',
     '--pane-lift': light ? '#000000' : '#ffffff',
-    '--pane-backdrop': light ? 'rgb(255 255 255 / 0.18)' : 'rgb(4 8 16 / 0.18)',
     '--pane-drop': light ? 'rgb(15 23 42 / 0.25)' : 'rgb(0 0 0 / 0.55)',
     '--pane-scheme': light ? 'light' : 'dark',
   };

@@ -80,6 +80,8 @@ test('the glass panes draw only from the pane tokens, so a terminal theme recolo
     .filter((line) => !line.includes('var(--pane-backdrop'))
     .filter((line) => /#[0-9a-f]{3,8}\b|rgb\(|rgba\(|(?<![\w-])(white|black)(?![\w-])/i.test(line.replace(/\/\*.*?\*\//g, '')));
   assert.deepEqual(literals, []);
+  // The page behind an open pane is dimmed the same in every terminal theme, so none of them sets it.
+  assert.ok(Object.values(TERMINAL_PALETTES).every((p) => !('--pane-backdrop' in paneVars(p))));
   // Today's look before any script runs: Classic dark's pane tokens are the defaults on :root.
   const defaults = css.match(/:root \{\s*\/\* The glass pane[^}]*\}/)?.[0] ?? '';
   for (const [name, value] of Object.entries(paneVars(TERMINAL_PALETTES['classic-dark']))) {
