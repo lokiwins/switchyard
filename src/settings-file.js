@@ -13,6 +13,7 @@ import { DEFAULTS, SettingsError, parseSettings } from './settings.js';
 export const EDITABLE = {
   terminal: ['app'],
   editor: ['urlScheme'],
+  appearance: ['theme', 'mode'],
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
   github: ['copilotReviewer', 'issueRepos'],
   git: ['longLivedBranches'],

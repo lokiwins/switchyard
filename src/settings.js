@@ -1,3 +1,5 @@
+import { MODE_IDS, THEME_IDS } from '../public/themes.js';
+
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
@@ -29,6 +31,11 @@ export const DEFAULTS = Object.freeze({
     // Folder links open as <scheme>://file/<path>: "vscode", "cursor", "vscode-insiders", or "none".
     urlScheme: 'vscode',
   }),
+  appearance: Object.freeze({
+    // The theme and light/dark mode every browser starts with; each browser can choose its own in the top bar.
+    theme: 'classic',
+    mode: 'system',
+  }),
   agents: Object.freeze({
     parkedAfterHours: 24,
     endedHistoryDays: 7,
@@ -42,6 +49,7 @@ const SECTION_KEYS = {
   github: ['copilotReviewer', 'issueRepos'],
   terminal: ['app'],
   editor: ['urlScheme'],
+  appearance: ['theme', 'mode'],
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
 };
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];
@@ -126,12 +134,15 @@ export function parseSettings(file = {}) {
   const agents = section(file, 'agents');
   const terminal = section(file, 'terminal');
   const editor = section(file, 'editor');
+  const appearance = section(file, 'appearance');
 
   if (!TERMINAL_CHOICES.includes(terminal.app)) fail('terminal.app', `must be one of: ${TERMINAL_CHOICES.join(', ')}`);
   if (typeof editor.urlScheme !== 'string' || !/^(none|[a-z][a-z0-9+.-]*)$/.test(editor.urlScheme)) {
     fail('editor.urlScheme', 'must be a URL scheme such as "vscode" or "cursor", or "none"');
   }
 
+  if (!THEME_IDS.includes(appearance.theme)) fail('appearance.theme', `must be one of: ${THEME_IDS.join(', ')}`);
+  if (!MODE_IDS.includes(appearance.mode)) fail('appearance.mode', `must be one of: ${MODE_IDS.join(', ')}`);
   if (typeof github.copilotReviewer !== 'string' || github.copilotReviewer === '') {
     fail('github.copilotReviewer', 'must be a non-empty string');
   }
@@ -148,6 +159,7 @@ export function parseSettings(file = {}) {
     github: { copilotReviewer: github.copilotReviewer, issueRepos: [...issueRepos] },
     terminal: { app: terminal.app },
     editor: { urlScheme: editor.urlScheme === 'none' ? null : editor.urlScheme },
+    appearance: { theme: appearance.theme, mode: appearance.mode },
     agents: {
       parkedAfterMs: positiveNumber(agents.parkedAfterHours, 'agents.parkedAfterHours') * HOUR_MS,
       endedHistoryMs: positiveNumber(agents.endedHistoryDays, 'agents.endedHistoryDays') * DAY_MS,

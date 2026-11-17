@@ -10,7 +10,7 @@ const UNTRIMMED = new Set(['ci.stripPrefixes']);
 
 /** Every field the form has, by name. */
 export const FIELD_NAMES = [
-  'roots', 'terminal.app', 'editor.urlScheme',
+  'roots', 'appearance.theme', 'appearance.mode', 'terminal.app', 'editor.urlScheme',
   'agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays',
   'github.copilotReviewer', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
 ];

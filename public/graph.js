@@ -18,17 +18,30 @@ const ui = { graph: null, elements: [], selected: null, updatedAt: null, hidden:
 
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
+// Cytoscape only reads hex, rgb() and hsl() colours, and themes use oklch(): a one-pixel canvas converts them.
+const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+
+/** A colour token as rgb() or rgba(), whatever syntax the theme wrote it in. */
+function rgbOf(name) {
+  probe.clearRect(0, 0, 1, 1);
+  probe.fillStyle = '#000';
+  probe.fillStyle = css(name);
+  probe.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = probe.getImageData(0, 0, 1, 1).data;
+  return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
+}
+
 /** Cytoscape draws on a canvas, so its colours are read from the page's tokens (and again when the theme changes). */
 function graphStyle() {
-  const kindStyles = Object.entries(KINDS).map(([kind, { color }]) => ({ selector: `node.${kind}`, style: { 'background-color': css(color) } }));
+  const kindStyles = Object.entries(KINDS).map(([kind, { color }]) => ({ selector: `node.${kind}`, style: { 'background-color': rgbOf(color) } }));
   return [
     {
       selector: 'node',
       style: {
         width: 'data(size)', height: 'data(size)', label: 'data(label)',
-        'font-size': 10, 'min-zoomed-font-size': 7, color: css('--gray-700'),
+        'font-size': 10, 'min-zoomed-font-size': 7, color: rgbOf('--gray-700'),
         'text-valign': 'bottom', 'text-margin-y': 4, 'text-wrap': 'ellipsis', 'text-max-width': 160,
-        'border-width': 1, 'border-color': css('--surface'),
+        'border-width': 1, 'border-color': rgbOf('--surface'),
       },
     },
     ...kindStyles,
@@ -38,15 +51,15 @@ function graphStyle() {
     { selector: 'node.out-of-context', style: { opacity: 0.35 } },
     {
       selector: 'edge',
-      style: { width: 'mapData(count, 1, 20, 1, 4)', 'line-color': css('--gray-200'), 'curve-style': 'haystack', opacity: 0.8 },
+      style: { width: 'mapData(count, 1, 20, 1, 4)', 'line-color': rgbOf('--gray-200'), 'curve-style': 'haystack', opacity: 0.8 },
     },
     {
       selector: 'edge.next',
-      style: { width: 2, 'line-color': css('--graph-prompt'), 'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'target-arrow-color': css('--graph-prompt') },
+      style: { width: 2, 'line-color': rgbOf('--graph-prompt'), 'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'target-arrow-color': rgbOf('--graph-prompt') },
     },
-    { selector: 'edge.edit, edge.write', style: { 'line-color': css('--graph-file') } },
+    { selector: 'edge.edit, edge.write', style: { 'line-color': rgbOf('--graph-file') } },
     { selector: '.faded', style: { opacity: 0.12 } },
-    { selector: 'node:selected', style: { 'border-width': 3, 'border-color': css('--accent') } },
+    { selector: 'node:selected', style: { 'border-width': 3, 'border-color': rgbOf('--accent') } },
     { selector: '.kind-hidden', style: { display: 'none' } },
   ];
 }
@@ -358,7 +371,8 @@ function closeGraph() {
   }, CLOSE_WAIT_MS);
 }
 $('close').addEventListener('click', closeGraph);
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => cy.style(graphStyle()));
+// A new theme or light/dark (from theme-boot.js) redraws the graph in its colors.
+document.addEventListener('switchyard:theme', () => cy?.style(graphStyle()));
 
 document.addEventListener('visibilitychange', () => {
   if (!sessionId) return;

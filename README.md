@@ -62,6 +62,14 @@ A hub for the work you're tracking, and for picking what to do next. The tasks a
   - Linear, Jira and Azure DevOps are coming soon.
 - **Connections ▾** in the header shows which trackers are connected, with a card each. **ClickUp** connects with a personal API token: in ClickUp, open **Settings › Apps** and generate one (it starts with `pk_`), then paste it there. switchyard checks it with ClickUp before keeping it, in `~/.config/switchyard/task-tools.json`, readable only by you. **Disconnect** deletes it. If the token can see several workspaces, pick one there. **GitHub** uses your GitHub CLI login: if it says to, run `gh auth login`, then Refresh. On the Agents page, a session on a branch naming a ClickUp task links back to it.
 
+### Themes
+
+Every page comes in five themes, each with a light and a dark version: **Classic** (the original look), **Signal** (near-black and cyan, with its own type), **Ember** (warm paper and copper), **Dusk** (indigo and violet) and **Graphite** (monochrome, high-contrast). Light or dark can follow the system, as it does by default, or be pinned.
+
+The default for every browser is set on the **Settings** page, under *Appearance*, and saved to `config.json`. Each browser can also choose its own from the **◐** menu in the top bar, theme and light/dark separately. That choice is kept in the browser and wins over the default until you pick *Settings default* again. A choice applies at once, in every open tab, and is set before a page draws, so it never flashes another theme first.
+
+Signal uses Manrope, JetBrains Mono and Fraunces, bundled in `public/vendor/fonts` under the SIL Open Font License; a browser only downloads them while Signal is on.
+
 ## Acting from the dashboard (macOS)
 
 A web page can't touch your terminal, but the switchyard server runs on your machine, so the buttons ask it to. What each one can do depends on where the session runs:
@@ -146,6 +154,8 @@ Everything works without a config file. The **Settings** page (in the top bar) c
 | `ci.stripPrefixes` | `ci/circleci: ` | Prefixes removed from check names when displayed. The full name stays in the tooltip. |
 | `git.longLivedBranches` | `main`, `master`, `develop`, `dev`, `trunk` | Branches never matched to a PR by name, because PRs from forks often reuse them. `*` is a wildcard, e.g. `release/*`. |
 | `github.copilotReviewer` | `copilot-pull-request-reviewer[bot]` | Reviewer login used by the Copilot review button and to recognise Copilot's reviews. |
+| `appearance.theme` | `classic` | The theme every browser starts with: `classic`, `signal`, `ember`, `dusk` or `graphite`. Each browser can choose its own from the ◐ menu in the top bar. |
+| `appearance.mode` | `system` | Light or dark for every browser: `system` (follow the OS), `light` or `dark`. |
 | `terminal.app` | `auto` | Terminal used by **Resume** and **Terminal** buttons: `iTerm`, `Terminal`, or `none` to hide them. `auto` picks iTerm when switchyard was started from iTerm, otherwise Terminal. |
 | `editor.urlScheme` | `vscode` | Editor opened by **Code** buttons, as a URL scheme: `vscode`, `cursor`, `vscode-insiders`, `windsurf`, or `none`. |
 | `agents.parkedAfterHours` | `24` | An idle session untouched this long is *parked* rather than *waiting on you*. |

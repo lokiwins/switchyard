@@ -1,0 +1,22 @@
+/*
+ * The themes switchyard can be drawn in, each in light and dark, and the
+ * modes that choose between those. The colors are in styles.css (Classic)
+ * and themes.css (the rest); the server checks settings against these ids.
+ */
+
+export const THEMES = Object.freeze([
+  Object.freeze({ id: 'classic', label: 'Classic' }),
+  Object.freeze({ id: 'signal', label: 'Signal' }),
+  Object.freeze({ id: 'ember', label: 'Ember' }),
+  Object.freeze({ id: 'dusk', label: 'Dusk' }),
+  Object.freeze({ id: 'graphite', label: 'Graphite' }),
+]);
+
+export const MODES = Object.freeze([
+  Object.freeze({ id: 'system', label: 'System' }),
+  Object.freeze({ id: 'light', label: 'Light' }),
+  Object.freeze({ id: 'dark', label: 'Dark' }),
+]);
+
+export const THEME_IDS = THEMES.map((theme) => theme.id);
+export const MODE_IDS = MODES.map((mode) => mode.id);

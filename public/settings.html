@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Settings · Switchyard</title>
+  <script src="/theme-boot.js"></script>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/themes.css">
 </head>
 <body>
   <header class="topbar">
@@ -34,6 +36,19 @@
           <textarea name="roots" rows="3" spellcheck="false" placeholder="~/work"></textarea>
           <span class="setting-hint">One folder per line. Leave empty to use ~/work, ~/code, ~/src, ~/projects and ~/dev, whichever exist.</span>
           <span class="setting-hint" id="roots-now"></span>
+        </label>
+      </section>
+
+      <section class="panel" aria-labelledby="appearance-title">
+        <div class="panel-head"><h2 id="appearance-title">Appearance</h2></div>
+        <label class="setting">
+          <span class="setting-label">Theme</span>
+          <select name="appearance.theme"></select>
+        </label>
+        <label class="setting">
+          <span class="setting-label">Light or dark</span>
+          <select name="appearance.mode"></select>
+          <span class="setting-hint">What every browser starts with. Each browser can also choose its own from the theme menu in the top bar, which wins over this.</span>
         </label>
       </section>
 
