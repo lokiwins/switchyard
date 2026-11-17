@@ -56,4 +56,12 @@ export const STATIC_FILES = {
   '/worktree-age.js': 'worktree-age.js',
   '/keyed.js': 'keyed.js',
   '/styles.css': 'styles.css',
+  '/themes.css': 'themes.css',
+  // Sent with the Settings default filled in (see theme-boot.js), not as it is on disk.
+  '/theme-boot.js': 'theme-boot.js',
+  '/themes.js': 'themes.js',
+  '/theme-menu.js': 'theme-menu.js',
+  '/vendor/fonts/manrope.woff2': 'vendor/fonts/manrope.woff2',
+  '/vendor/fonts/jetbrains-mono.woff2': 'vendor/fonts/jetbrains-mono.woff2',
+  '/vendor/fonts/fraunces.woff2': 'vendor/fonts/fraunces.woff2',
 };

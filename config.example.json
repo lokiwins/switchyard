@@ -29,6 +29,10 @@
   "editor": {
     "urlScheme": "vscode"
   },
+  "appearance": {
+    "theme": "classic",
+    "mode": "system"
+  },
   "agents": {
     "parkedAfterHours": 24,
     "endedHistoryDays": 7,

@@ -1,0 +1,273 @@
+/*
+ * The themes besides Classic (whose colors are in styles.css). theme-boot.js
+ * sets <html data-theme data-scheme>; each theme sets every color token for
+ * light, then again for dark. The list of themes is public/themes.js.
+ *
+ * Fonts: Manrope, JetBrains Mono and Fraunces, under the SIL Open Font
+ * License (public/vendor/fonts/OFL-*.txt), Latin subset. A browser only
+ * downloads them when a theme that uses them is on.
+ */
+@font-face { font-family: "Manrope"; font-style: normal; font-weight: 400 700; font-display: swap; src: url(/vendor/fonts/manrope.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400 600; font-display: swap; src: url(/vendor/fonts/jetbrains-mono.woff2) format("woff2"); }
+@font-face { font-family: "Fraunces"; font-style: normal; font-weight: 300 400; font-display: swap; src: url(/vendor/fonts/fraunces.woff2) format("woff2"); }
+
+
+/* Signal: Near-black and cool, with a cyan accent; sharp corners and its own type (Manrope, JetBrains Mono, Fraunces). */
+:root[data-theme="signal"] {
+  --bg: oklch(97.5% .004 230);
+  --surface: oklch(100% 0 0);
+  --surface-sunken: oklch(98.6% .003 230);
+  --hover: oklch(96% .006 225);
+  --divider: oklch(92.5% .006 230);
+  --hairline: oklch(22% .02 240 / .09);
+  --gray-900: oklch(19% .012 240);
+  --gray-700: oklch(36% .015 235);
+  --gray-500: oklch(51% .014 230);
+  --gray-400: oklch(63% .012 230);
+  --gray-200: oklch(88% .008 230);
+  --accent: oklch(52% .1 215);
+  --accent-soft: oklch(95% .03 205);
+  --green: oklch(50% .13 155);
+  --green-soft: oklch(96% .04 155);
+  --amber: oklch(56% .13 70);
+  --amber-soft: oklch(96.5% .045 85);
+  --red: oklch(53% .19 25);
+  --red-soft: oklch(96% .025 25);
+  --purple: oklch(50% .16 295);
+  --purple-soft: oklch(96% .03 295);
+  --neutral-soft: oklch(96% .005 230);
+  --shadow-sm: 0 1px 2px oklch(22% .02 240 / .05);
+  --shadow-md: 0 1px 2px oklch(22% .02 240 / .05), 0 8px 24px -6px oklch(22% .02 240 / .12);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(52% .1 215) 35%, transparent);
+  --on-red: oklch(100% 0 0);
+  --on-accent: oklch(100% 0 0);
+  --radius: 5px;
+  --radius-sm: 4px;
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-display-weight: 400;
+  color-scheme: light;
+}
+:root[data-theme="signal"][data-scheme="dark"] {
+  --bg: oklch(8% .005 240);
+  --surface: oklch(12% .008 240);
+  --surface-sunken: oklch(10% .006 240);
+  --hover: oklch(15.5% .01 240);
+  --divider: oklch(100% 0 0 / .07);
+  --hairline: oklch(100% 0 0 / .1);
+  --gray-900: oklch(94% .005 220);
+  --gray-700: oklch(80% .008 225);
+  --gray-500: oklch(60% .012 230);
+  --gray-400: oklch(47% .012 230);
+  --gray-200: oklch(24% .01 240);
+  --accent: oklch(78% .11 200);
+  --accent-soft: color-mix(in oklab, oklch(78% .11 200) 14%, transparent);
+  --on-accent: oklch(8% .005 240);
+  --green: oklch(80% .15 155);
+  --green-soft: color-mix(in oklab, oklch(80% .15 155) 13%, transparent);
+  --amber: oklch(84% .13 85);
+  --amber-soft: color-mix(in oklab, oklch(84% .13 85) 13%, transparent);
+  --red: oklch(68% .19 25);
+  --red-soft: color-mix(in oklab, oklch(68% .19 25) 15%, transparent);
+  --purple: oklch(76% .12 295);
+  --purple-soft: color-mix(in oklab, oklch(76% .12 295) 14%, transparent);
+  --neutral-soft: oklch(17% .01 240);
+  --shadow-sm: 0 0 0 1px oklch(100% 0 0 / .04);
+  --shadow-md: 0 0 0 1px oklch(100% 0 0 / .06), 0 12px 32px -8px oklch(0% 0 0 / .6);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(78% .11 200) 40%, transparent);
+  --on-red: oklch(8% .005 240);
+  color-scheme: dark;
+}
+
+/* Ember: Warm paper and charcoal, with a copper accent. "Needs you" amber leans gold so it reads apart from the copper. */
+:root[data-theme="ember"] {
+  --bg: oklch(96.5% .012 85);
+  --surface: oklch(99.3% .006 85);
+  --surface-sunken: oklch(97.8% .01 85);
+  --hover: oklch(95% .014 80);
+  --divider: oklch(91% .014 80);
+  --hairline: oklch(30% .03 60 / .1);
+  --gray-900: oklch(24% .02 55);
+  --gray-700: oklch(39% .025 55);
+  --gray-500: oklch(53% .025 60);
+  --gray-400: oklch(65% .02 65);
+  --gray-200: oklch(88% .015 75);
+  --accent: oklch(55% .15 45);
+  --accent-soft: oklch(94.5% .035 55);
+  --green: oklch(50% .12 150);
+  --green-soft: oklch(95.5% .04 145);
+  --amber: oklch(58% .13 88);
+  --amber-soft: oklch(96% .06 95);
+  --red: oklch(52% .2 22);
+  --red-soft: oklch(95.5% .03 22);
+  --purple: oklch(50% .14 320);
+  --purple-soft: oklch(95.5% .03 320);
+  --neutral-soft: oklch(94.5% .012 80);
+  --shadow-sm: 0 1px 2px oklch(30% .03 60 / .06);
+  --shadow-md: 0 1px 2px oklch(30% .03 60 / .06), 0 6px 16px oklch(30% .03 60 / .08);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(55% .15 45) 35%, transparent);
+  --on-red: oklch(100% 0 0);
+  --on-accent: oklch(100% 0 0);
+  --radius: 8px;
+  --radius-sm: 5px;
+  color-scheme: light;
+}
+:root[data-theme="ember"][data-scheme="dark"] {
+  --bg: oklch(16% .008 60);
+  --surface: oklch(20% .01 60);
+  --surface-sunken: oklch(18% .009 60);
+  --hover: oklch(23.5% .012 60);
+  --divider: oklch(27% .012 60);
+  --hairline: oklch(100% 0 0 / .07);
+  --gray-900: oklch(93% .015 80);
+  --gray-700: oklch(80% .02 75);
+  --gray-500: oklch(63% .02 70);
+  --gray-400: oklch(51% .02 65);
+  --gray-200: oklch(31% .015 60);
+  --accent: oklch(74% .13 50);
+  --accent-soft: color-mix(in oklab, oklch(74% .13 50) 16%, transparent);
+  --green: oklch(78% .13 150);
+  --green-soft: color-mix(in oklab, oklch(78% .13 150) 14%, transparent);
+  --amber: oklch(87% .14 98);
+  --amber-soft: color-mix(in oklab, oklch(87% .14 98) 13%, transparent);
+  --red: oklch(68% .2 20);
+  --red-soft: color-mix(in oklab, oklch(68% .2 20) 16%, transparent);
+  --purple: oklch(75% .11 320);
+  --purple-soft: color-mix(in oklab, oklch(75% .11 320) 14%, transparent);
+  --neutral-soft: oklch(24% .01 60);
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / .4);
+  --shadow-md: 0 1px 2px oklch(0% 0 0 / .4), 0 8px 22px oklch(0% 0 0 / .35);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(74% .13 50) 40%, transparent);
+  --on-accent: oklch(16% .008 60);
+  --on-red: oklch(16% .008 60);
+  color-scheme: dark;
+}
+
+/* Dusk: Indigo neutrals, with a violet accent and soft corners. The purple status color leans magenta to stay apart from it. */
+:root[data-theme="dusk"] {
+  --bg: oklch(97% .01 285);
+  --surface: oklch(100% 0 0);
+  --surface-sunken: oklch(98.3% .008 285);
+  --hover: oklch(95.5% .014 285);
+  --divider: oklch(92% .014 285);
+  --hairline: oklch(25% .05 280 / .09);
+  --gray-900: oklch(22% .04 280);
+  --gray-700: oklch(38% .045 280);
+  --gray-500: oklch(53% .04 282);
+  --gray-400: oklch(65% .035 285);
+  --gray-200: oklch(89% .02 285);
+  --accent: oklch(52% .2 285);
+  --accent-soft: oklch(95% .03 285);
+  --green: oklch(52% .13 160);
+  --green-soft: oklch(96% .04 160);
+  --amber: oklch(57% .13 70);
+  --amber-soft: oklch(96.5% .045 85);
+  --red: oklch(53% .2 15);
+  --red-soft: oklch(96% .025 15);
+  --purple: oklch(52% .18 335);
+  --purple-soft: oklch(96% .03 335);
+  --neutral-soft: oklch(95.5% .012 285);
+  --shadow-sm: 0 1px 2px oklch(25% .05 280 / .06);
+  --shadow-md: 0 1px 2px oklch(25% .05 280 / .06), 0 8px 22px oklch(25% .05 280 / .1);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(52% .2 285) 35%, transparent);
+  --on-red: oklch(100% 0 0);
+  --on-accent: oklch(100% 0 0);
+  --radius: 12px;
+  --radius-sm: 8px;
+  color-scheme: light;
+}
+:root[data-theme="dusk"][data-scheme="dark"] {
+  --bg: oklch(15% .025 280);
+  --surface: oklch(19.5% .03 280);
+  --surface-sunken: oklch(17% .028 280);
+  --hover: oklch(23% .035 280);
+  --divider: oklch(26% .035 280);
+  --hairline: oklch(100% 0 0 / .07);
+  --gray-900: oklch(94% .012 285);
+  --gray-700: oklch(81% .02 285);
+  --gray-500: oklch(64% .03 285);
+  --gray-400: oklch(52% .03 285);
+  --gray-200: oklch(30% .035 280);
+  --accent: oklch(74% .14 285);
+  --accent-soft: color-mix(in oklab, oklch(74% .14 285) 18%, transparent);
+  --green: oklch(80% .14 160);
+  --green-soft: color-mix(in oklab, oklch(80% .14 160) 14%, transparent);
+  --amber: oklch(84% .13 80);
+  --amber-soft: color-mix(in oklab, oklch(84% .13 80) 13%, transparent);
+  --red: oklch(70% .18 15);
+  --red-soft: color-mix(in oklab, oklch(70% .18 15) 16%, transparent);
+  --purple: oklch(76% .14 335);
+  --purple-soft: color-mix(in oklab, oklch(76% .14 335) 15%, transparent);
+  --neutral-soft: oklch(23% .03 280);
+  --shadow-sm: 0 1px 2px oklch(5% .03 280 / .5);
+  --shadow-md: 0 1px 2px oklch(5% .03 280 / .5), 0 10px 26px oklch(5% .03 280 / .45);
+  --ring: 0 0 0 3px color-mix(in oklab, oklch(74% .14 285) 42%, transparent);
+  --on-accent: oklch(15% .025 280);
+  --on-red: oklch(15% .025 280);
+  color-scheme: dark;
+}
+
+/* Graphite: Monochrome and high-contrast: the accent is black (white in dark), so only the status colors carry hue. */
+:root[data-theme="graphite"] {
+  --bg: oklch(96.5% 0 0);
+  --surface: oklch(100% 0 0);
+  --surface-sunken: oklch(98% 0 0);
+  --hover: oklch(95% 0 0);
+  --divider: oklch(90% 0 0);
+  --hairline: oklch(0% 0 0 / .14);
+  --gray-900: oklch(12% 0 0);
+  --gray-700: oklch(30% 0 0);
+  --gray-500: oklch(47% 0 0);
+  --gray-400: oklch(60% 0 0);
+  --gray-200: oklch(87% 0 0);
+  --accent: oklch(12% 0 0);
+  --accent-soft: oklch(93% 0 0);
+  --green: oklch(47% .14 150);
+  --green-soft: oklch(95.5% .045 150);
+  --amber: oklch(55% .13 70);
+  --amber-soft: oklch(96% .05 85);
+  --red: oklch(50% .2 25);
+  --red-soft: oklch(95.5% .03 25);
+  --purple: oklch(48% .17 300);
+  --purple-soft: oklch(95.5% .035 300);
+  --neutral-soft: oklch(94% 0 0);
+  --shadow-sm: 0 0 0 1px oklch(0% 0 0 / .06);
+  --shadow-md: 0 0 0 1px oklch(0% 0 0 / .1), 0 8px 20px oklch(0% 0 0 / .1);
+  --ring: 0 0 0 2px oklch(12% 0 0);
+  --on-red: oklch(100% 0 0);
+  --on-accent: oklch(100% 0 0);
+  --radius: 3px;
+  --radius-sm: 2px;
+  color-scheme: light;
+}
+:root[data-theme="graphite"][data-scheme="dark"] {
+  --bg: oklch(10% 0 0);
+  --surface: oklch(14% 0 0);
+  --surface-sunken: oklch(12% 0 0);
+  --hover: oklch(18% 0 0);
+  --divider: oklch(23% 0 0);
+  --hairline: oklch(100% 0 0 / .12);
+  --gray-900: oklch(97% 0 0);
+  --gray-700: oklch(84% 0 0);
+  --gray-500: oklch(66% 0 0);
+  --gray-400: oklch(53% 0 0);
+  --gray-200: oklch(28% 0 0);
+  --accent: oklch(97% 0 0);
+  --accent-soft: oklch(22% 0 0);
+  --on-accent: oklch(10% 0 0);
+  --green: oklch(82% .17 150);
+  --green-soft: color-mix(in oklab, oklch(82% .17 150) 14%, transparent);
+  --amber: oklch(86% .15 90);
+  --amber-soft: color-mix(in oklab, oklch(86% .15 90) 14%, transparent);
+  --red: oklch(70% .2 25);
+  --red-soft: color-mix(in oklab, oklch(70% .2 25) 16%, transparent);
+  --purple: oklch(76% .14 300);
+  --purple-soft: color-mix(in oklab, oklch(76% .14 300) 15%, transparent);
+  --neutral-soft: oklch(19% 0 0);
+  --shadow-sm: 0 0 0 1px oklch(100% 0 0 / .06);
+  --shadow-md: 0 0 0 1px oklch(100% 0 0 / .1), 0 10px 24px oklch(0% 0 0 / .6);
+  --ring: 0 0 0 2px oklch(97% 0 0);
+  --on-red: oklch(10% 0 0);
+  color-scheme: dark;
+}

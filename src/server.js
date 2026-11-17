@@ -33,6 +33,7 @@ import { createCleanupService } from './cleanup.js';
 import { createLiveTerminals } from './live-terminal.js';
 import { canReadScreen, createTerminal } from './terminal.js';
 import { conditionalState } from './state-etag.js';
+import { themeBootScript } from './theme-boot.js';
 import { STATIC_FILES, STYLE_NONCE_PAGES } from './static-files.js';
 import { createTmux } from './tmux.js';
 
@@ -59,6 +60,7 @@ const CONTENT_TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
+  '.woff2': 'font/woff2',
 };
 
 function sendJson(res, status, body) {
@@ -71,6 +73,14 @@ function sendConditional(res, { status, headers, body }) {
   const contentType = body === undefined ? {} : { 'Content-Type': 'application/json' };
   res.writeHead(status, { ...SECURITY_HEADERS, ...contentType, 'Cache-Control': 'no-store', ...headers });
   res.end(body);
+}
+
+/** The theme boot script, with the appearance saved in Settings as its default (see theme-boot.js). */
+async function sendThemeBoot(res, settingsService) {
+  const source = await readFile(join(PUBLIC_DIR, 'theme-boot.js'), 'utf8');
+  const { appearance } = settingsService.view().values;
+  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES['.js'], 'Cache-Control': 'no-store' });
+  res.end(themeBootScript(source, appearance));
 }
 
 async function sendStatic(res, file) {
@@ -516,6 +526,7 @@ function createHandler(services) {
         const data = await prService.getPrs({ force });
         return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services, { prs: data }), capabilities: services.capabilities } });
       }
+      if (url.pathname === '/theme-boot.js') return await sendThemeBoot(res, services.settingsService);
       const file = STATIC_FILES[url.pathname];
       if (file) return await sendStatic(res, file);
       return sendJson(res, 404, { success: false, error: 'Not found' });

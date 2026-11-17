@@ -20,6 +20,15 @@ async function agentsLoaded(page) {
   await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
 }
 
+/** Show the Agents page in a theme, as the top-bar theme menu would choose it for this browser. */
+function inTheme(theme, mode) {
+  return async (page) => {
+    await page.evaluate((choice) => localStorage.setItem('switchyard.appearance', JSON.stringify(choice)), { theme, mode });
+    await page.reload();
+    await agentsLoaded(page);
+  };
+}
+
 /** The row of the session with this title. */
 const rowOf = (page, title) => page.locator('li.list-row', { hasText: title });
 
@@ -32,6 +41,20 @@ export const SCENES = [
     fullPage: true,
     prepare: agentsLoaded,
   },
+  {
+    name: 'theme-menu',
+    title: 'The theme menu: a theme, and light or dark, for this browser, or the Settings default',
+    path: '/',
+    prepare: async (page) => {
+      await agentsLoaded(page);
+      await page.getByTitle('Theme, and light or dark, for this browser').click();
+    },
+  },
+  { name: 'theme-signal', title: 'Signal theme, dark: near-black, cyan, its own type', path: '/', prepare: inTheme('signal', 'dark') },
+  { name: 'theme-signal-light', title: 'Signal theme, light', path: '/', prepare: inTheme('signal', 'light') },
+  { name: 'theme-ember', title: 'Ember theme, light: warm paper with a copper accent', path: '/', prepare: inTheme('ember', 'light') },
+  { name: 'theme-dusk', title: 'Dusk theme, dark: indigo with a violet accent', path: '/', prepare: inTheme('dusk', 'dark') },
+  { name: 'theme-graphite', title: 'Graphite theme, light: monochrome and high-contrast', path: '/', prepare: inTheme('graphite', 'light') },
   {
     name: 'agents-phone',
     title: 'Agents on a phone: the top bar in two rows, nothing wider than the screen',

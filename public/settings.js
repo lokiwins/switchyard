@@ -2,6 +2,7 @@ import { h, shortPath, toast } from './dom.js';
 import { applyNav, startNavBadges } from './nav.js';
 import { post } from './actions.js';
 import { FIELD_NAMES, editsFromFields, fieldsFromValues } from './settings-form.js';
+import { MODES, THEMES } from './themes.js';
 
 const $ = (id) => document.getElementById(id);
 const form = $('settings');
@@ -68,6 +69,13 @@ async function loadRepoChoices() {
   }
 }
 
+/** The appearance choices, from the one list of themes and modes. */
+function fillAppearanceChoices() {
+  const options = (choices, labelOf) => choices.map((choice) => h('option', { value: choice.id }, labelOf(choice)));
+  fieldOf('appearance.theme').replaceChildren(...options(THEMES, (theme) => theme.label));
+  fieldOf('appearance.mode').replaceChildren(...options(MODES, (mode) => (mode.id === 'system' ? 'Follow the system' : mode.label)));
+}
+
 /** Fill the form from what the server says is saved. */
 function show(view) {
   ui.saved = fieldsFromValues(view.values);
@@ -109,7 +117,10 @@ form.addEventListener('submit', async (event) => {
   $('save').disabled = true;
   $('save-state').textContent = 'Saving…';
   try {
-    show(await post('/api/settings/save', editsFromFields(currentFields())));
+    const saved = await post('/api/settings/save', editsFromFields(currentFields()));
+    show(saved);
+    // This page shows the new default at once (other pages pick it up when they next load).
+    window.switchyardAppearance?.setDefaults(saved.values.appearance);
     showErrors([]);
     toast('Settings saved. They apply now.');
   } catch (error) {
@@ -128,5 +139,6 @@ window.addEventListener('beforeunload', (event) => {
   if (hasChanges()) event.preventDefault();
 });
 
+fillAppearanceChoices();
 startNavBadges();
 load().then(loadRepoChoices);
