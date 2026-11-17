@@ -879,6 +879,8 @@ html:has(.glass-pane[open]) { overflow: hidden; }
   background: color-mix(in srgb, var(--pane-shade) 25%, transparent); color: var(--pane-text); font-size: 12px; color-scheme: var(--pane-scheme);
 }
 .pane-link { font-size: 12px; color: var(--pane-accent); }
+/* The terminal pane's own picker for its colours, beside Close. */
+.term-theme { flex: none; max-width: 15em; }
 .pane-footer-note { margin: 0 auto 0 0; }
 /* A task's title opens its details: a button that reads as the title. */
 .row-title-btn {

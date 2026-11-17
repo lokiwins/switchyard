@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  PANE_TOKENS, TERMINAL_CHOICES, TERMINAL_IDS, TERMINAL_PALETTES, paneVars, terminalPalette, xtermOptions, xtermTheme,
+  PANE_TOKENS, TERMINAL_CHOICES, TERMINAL_IDS, TERMINAL_PALETTES, paneVars, terminalPalette, terminalPicker, xtermOptions, xtermTheme,
 } from '../public/terminal-themes.js';
 import { THEME_IDS } from '../public/themes.js';
 
@@ -94,4 +94,14 @@ test('a light terminal gets a contrast floor, since Claude Code may draw for a d
   assert.equal(xtermOptions(TERMINAL_PALETTES['classic-light']).minimumContrastRatio, 4.5);
   assert.equal(xtermOptions(TERMINAL_PALETTES['classic-dark']).minimumContrastRatio, 1);
   assert.equal(xtermOptions(TERMINAL_PALETTES.dracula).minimumContrastRatio, 1);
+});
+
+test('the terminal pane\'s picker: the Settings default (named), then every choice; selects what this browser uses', () => {
+  const byDefault = terminalPicker({ own: {}, defaults: { terminal: 'nord' } });
+  assert.equal(byDefault.selected, '');
+  assert.deepEqual(byDefault.options[0], { value: '', label: 'Settings default (Nord)' });
+  assert.deepEqual(byDefault.options.slice(1).map((o) => o.value), TERMINAL_IDS);
+  assert.equal(byDefault.options[1].label, 'Match page theme');
+  assert.equal(terminalPicker({ own: { terminal: 'dracula' }, defaults: { terminal: 'match' } }).selected, 'dracula');
+  assert.equal(terminalPicker({ own: {}, defaults: { terminal: 'match' } }).options[0].label, 'Settings default (Match page theme)');
 });
