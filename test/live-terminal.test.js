@@ -5,7 +5,7 @@ import { createFlow, createLiveTerminals, parseSize, seedBytes } from '../src/li
 
 const SESSION = 'c9c573f7-e5a4-4da9-9837-c8fe1b428fc2';
 
-function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = false, resizeDuringCapture = false, honorsResize = true, reportsResize = true } = {}) {
+function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = false, resizeDuringCapture = false, honorsResize = true, reportsResize = true, currentWindow = { cols: 137, rows: 39 } } = {}) {
   const commands = [];
   let client = null;
   // The pane's real size, which a test can change as tmux would.
@@ -29,6 +29,12 @@ function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = f
   };
   const tmux = {
     paneSize: async () => ({ ...pane }),
+    // The session's current window: another task's, unless the test says otherwise.
+    currentWindowSize: async (session) => {
+      if (session !== 'switchyard') throw new Error(`unexpected session ${session}`);
+      if (!currentWindow) throw new ActionError(502, 'tmux: no current window');
+      return currentWindow;
+    },
     capturePane: async () => {
       // Output the pane prints while it's being captured.
       client.onEvent({ type: 'output', pane: '%3', data: Buffer.from('during') });
@@ -131,7 +137,25 @@ test('parseSize reads tmux\'s WxH', () => {
 test('start subscribes to the pane\'s size, quoted so tmux doesn\'t read # as a comment', async () => {
   const { terminals, sink, commands } = setup();
   await terminals.start({ sessionId: SESSION }, sink);
-  assert.deepEqual(commands, ["refresh-client -B 'size:%3:#{pane_width}x#{pane_height}'"]);
+  assert.deepEqual(commands, ['refresh-client -C 137x39', "refresh-client -B 'size:%3:#{pane_width}x#{pane_height}'"]);
+});
+
+test('start leaves the session\'s other windows their size: the client takes the current window\'s size before asking for the pane\'s', async () => {
+  // A control client counts as 80x24 until told otherwise, and asking for one window's size makes tmux
+  // size the session's current window (another task) to the client: it would shrink, and that task's
+  // program redraw for 80 columns, until opened again.
+  const { terminals, sink, commands } = setup();
+  await terminals.start({ sessionId: SESSION, cols: 120, rows: 40 }, sink);
+  const own = commands.indexOf('refresh-client -C 137x39');
+  assert.equal(own, 0);
+  assert.ok(own < commands.indexOf('refresh-client -C @4:120x40'));
+});
+
+test('start goes on when the session\'s current window can\'t be read; it just doesn\'t set the client\'s size', async () => {
+  const { terminals, sink, commands } = setup({ currentWindow: null });
+  await terminals.start({ sessionId: SESSION, cols: 120, rows: 40 }, sink);
+  assert.equal(commands.some((c) => /^refresh-client -C \d+x\d+$/.test(c)), false);
+  assert.deepEqual(sink.events[0], ['ready', { token: 'tok', cols: 120, rows: 40 }]);
 });
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
@@ -240,7 +264,7 @@ test('start ignores a size it can\'t use, and asks for none', async () => {
   for (const size of [{ cols: 5, rows: 40 }, { cols: 120, rows: 900 }, { cols: '120', rows: '40' }, { cols: 120 }]) {
     const { terminals, sink, commands } = setup();
     await terminals.start({ sessionId: SESSION, ...size }, sink);
-    assert.equal(commands.some((c) => c.startsWith('refresh-client -C')), false, JSON.stringify(size));
+    assert.equal(commands.some((c) => c.startsWith('refresh-client -C @')), false, JSON.stringify(size));
     assert.deepEqual(sink.events[0], ['ready', { token: 'tok', cols: 80, rows: 24 }]);
   }
 });
