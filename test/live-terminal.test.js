@@ -5,14 +5,27 @@ import { createFlow, createLiveTerminals, parseSize, seedBytes } from '../src/li
 
 const SESSION = 'c9c573f7-e5a4-4da9-9837-c8fe1b428fc2';
 
-function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = false, resizeDuringCapture = false } = {}) {
+function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = false, resizeDuringCapture = false, honorsResize = true, reportsResize = true } = {}) {
   const commands = [];
   let client = null;
   // The pane's real size, which a test can change as tmux would.
   const pane = { window: '@4', cols: 80, rows: 24, cursorX: 2, cursorY: 1 };
   const attach = ({ session, onEvent, onClose }) => {
     client = { session, onEvent, onClose, closed: false };
-    return { command: (line) => commands.push(line), close: () => { client.closed = true; } };
+    return {
+      command: (line) => {
+        commands.push(line);
+        // tmux applies a client size a moment later and reports the pane's new size.
+        const asked = line.match(/^refresh-client -C @4:(\d+)x(\d+)$/);
+        if (asked && honorsResize) {
+          setTimeout(() => {
+            Object.assign(pane, { cols: Number(asked[1]), rows: Number(asked[2]) });
+            if (reportsResize) client.onEvent({ type: 'subscription', name: 'size', pane: '%3', value: `${asked[1]}x${asked[2]}` });
+          }, 5);
+        }
+      },
+      close: () => { client.closed = true; },
+    };
   };
   const tmux = {
     paneSize: async () => ({ ...pane }),
@@ -33,7 +46,7 @@ function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = f
       return target;
     },
   };
-  const terminals = createLiveTerminals({ actions, tmux, attach, newToken: () => 'tok' });
+  const terminals = createLiveTerminals({ actions, tmux, attach, newToken: () => 'tok', resizeWaitMs: 60 });
   const sink = {
     events: [],
     ready: (r) => sink.events.push(['ready', r]),
@@ -204,4 +217,48 @@ test('ack refuses unknown tokens and nonsense counts', async () => {
     assert.throws(() => terminals.ack({ token: 'tok', bytes }), (error) => error.status === 400, String(bytes));
   }
   assert.ok(terminals.ack({ token: 'tok', bytes: 10 }).inFlight >= 0);
+});
+
+test('start at the page\'s size: the window takes it before the first screen, so the page draws once, at that size', async () => {
+  const { terminals, sink, commands } = setup();
+  await terminals.start({ sessionId: SESSION, cols: 120, rows: 40 }, sink);
+  assert.ok(commands.includes('refresh-client -C @4:120x40'));
+  assert.deepEqual(sink.events.map((e) => e[0]), ['ready', 'output', 'output']);
+  assert.deepEqual(sink.events[0], ['ready', { token: 'tok', cols: 120, rows: 40 }]);
+});
+
+test('start at the page\'s size when tmux keeps another (a bigger client wins): it goes on at tmux\'s size after a short wait', async () => {
+  const { terminals, sink, commands } = setup({ honorsResize: false });
+  const started = Date.now();
+  await terminals.start({ sessionId: SESSION, cols: 120, rows: 40 }, sink);
+  assert.ok(commands.includes('refresh-client -C @4:120x40'));
+  assert.deepEqual(sink.events[0], ['ready', { token: 'tok', cols: 80, rows: 24 }]);
+  assert.ok(Date.now() - started < 1000);
+});
+
+test('start ignores a size it can\'t use, and asks for none', async () => {
+  for (const size of [{ cols: 5, rows: 40 }, { cols: 120, rows: 900 }, { cols: '120', rows: '40' }, { cols: 120 }]) {
+    const { terminals, sink, commands } = setup();
+    await terminals.start({ sessionId: SESSION, ...size }, sink);
+    assert.equal(commands.some((c) => c.startsWith('refresh-client -C')), false, JSON.stringify(size));
+    assert.deepEqual(sink.events[0], ['ready', { token: 'tok', cols: 80, rows: 24 }]);
+  }
+});
+
+test('start at the page\'s size when tmux is slow to report it: still one screen, with no second redraw', async () => {
+  const { terminals, sink } = setup({ reportsResize: false });
+  await terminals.start({ sessionId: SESSION, cols: 120, rows: 40 }, sink);
+  await new Promise((resolve) => { setTimeout(resolve, 50); });
+  assert.deepEqual(sink.events.map((e) => e[0]), ['ready', 'output', 'output']);
+  assert.deepEqual(sink.events[0], ['ready', { token: 'tok', cols: 120, rows: 40 }]);
+});
+
+test('a resize the page asks for is redrawn as soon as the window has it, not when tmux next reports it', async () => {
+  const { terminals, sink } = setup({ reportsResize: false });
+  await terminals.start({ sessionId: SESSION }, sink);
+  sink.events.length = 0;
+  terminals.resize({ token: 'tok', cols: 132, rows: 43 });
+  await new Promise((resolve) => { setTimeout(resolve, 120); });
+  assert.deepEqual(sink.events[0], ['resize', { cols: 132, rows: 43 }]);
+  assert.equal(sink.events[1][0], 'output');
 });

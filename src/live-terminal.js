@@ -17,6 +17,9 @@ export const MAX_INPUT_BYTES = 2048;
 // The sizes a terminal may ask its window to take.
 const COLS = { min: 20, max: 500 };
 const ROWS = { min: 5, max: 200 };
+// How long a terminal waits for its window to take the size the page asked to start at.
+const RESIZE_WAIT_MS = 300;
+const SIZE_POLL_MS = 15;
 // Home, clear the screen and the scrollback, before redrawing a resized pane.
 const CLEAR_SCREEN = Buffer.from('\x1b[H\x1b[2J\x1b[3J');
 // tmux reports the pane's size under this subscription, now and whenever it changes.
@@ -71,7 +74,16 @@ export function seedBytes(capture, { cursorX, cursorY }) {
   return Buffer.from(`\x1b[0m${text.replaceAll('\n', '\r\n')}\x1b[${cursorY + 1};${cursorX + 1}H`, 'utf8');
 }
 
-export function createLiveTerminals({ actions, tmux, attach = attachControlClient, newToken = () => randomBytes(16).toString('hex') }) {
+const inRange = (n, { min, max }) => Number.isInteger(n) && n >= min && n <= max;
+
+/** The size a page asked to start at, if it's one a terminal can be; null otherwise. */
+function requestedSize(body) {
+  return inRange(body?.cols, COLS) && inRange(body?.rows, ROWS) ? { cols: body.cols, rows: body.rows } : null;
+}
+
+export function createLiveTerminals({
+  actions, tmux, attach = attachControlClient, newToken = () => randomBytes(16).toString('hex'), resizeWaitMs = RESIZE_WAIT_MS,
+}) {
   const open = new Map();
 
   /**
@@ -165,15 +177,58 @@ export function createLiveTerminals({ actions, tmux, attach = attachControlClien
         sink.end();
       },
     });
-    open.set(token, { client, pane, window: first.window, flow });
+    /**
+     * The page asked for `wanted`: tmux applies it at once but reports it only
+     * now and then, and meanwhile the program in the pane redraws for the new
+     * size on a page still at the old one. So look until the window has it,
+     * and redraw then.
+     */
+    async function followResize(wanted) {
+      const deadline = Date.now() + resizeWaitMs;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => { setTimeout(resolve, SIZE_POLL_MS); });
+        const size = await tmux.paneSize(pane).catch(() => null);
+        if (!size) return;
+        if (size.cols !== latest.cols || size.rows !== latest.rows) {
+          latest = { cols: size.cols, rows: size.rows };
+          if (differs()) scheduleRedraw();
+          return;
+        }
+        if (size.cols === wanted.cols && size.rows === wanted.rows) return;
+      }
+    }
+
+    open.set(token, { client, pane, window: first.window, flow, followResize });
     // Quoted: an unquoted # starts a comment in tmux's command syntax.
     client.command(`refresh-client -B '${SIZE_SUBSCRIPTION}:${pane}:#{pane_width}x#{pane_height}'`);
     try {
-      await redraw(first);
+      await redraw(await startingSize(requestedSize(body)));
     } catch (error) {
       client.close();
       throw error;
     }
+    /**
+     * The size to send the first screen at. Asked for the page's size, the
+     * window takes it before the screen is copied, so the page draws once, at
+     * the right size, instead of at the window's old size and then again. If
+     * tmux keeps another size (another client wins), it goes on at that one.
+     */
+    async function startingSize(wanted) {
+      if (!wanted || (wanted.cols === first.cols && wanted.rows === first.rows)) return first;
+      client.command(`refresh-client -C ${first.window}:${wanted.cols}x${wanted.rows}`);
+      // tmux reports size changes only now and then, so ask it directly until the window has it.
+      const deadline = Date.now() + resizeWaitMs;
+      for (;;) {
+        await new Promise((resolve) => { setTimeout(resolve, SIZE_POLL_MS); });
+        const size = await tmux.paneSize(pane);
+        if ((size.cols === wanted.cols && size.rows === wanted.rows) || Date.now() >= deadline) {
+          // What tmux has now, so its later report of the same size doesn't redraw it again.
+          latest = { cols: size.cols, rows: size.rows };
+          return size;
+        }
+      }
+    }
+
     // A size change while the first copy was taken.
     if (differs()) scheduleRedraw();
     return () => client.close();
@@ -199,9 +254,9 @@ export function createLiveTerminals({ actions, tmux, attach = attachControlClien
     const terminal = open.get(body?.token);
     if (!terminal) throw new ActionError(404, 'That terminal is no longer open');
     const { cols, rows } = body;
-    const inRange = (n, { min, max }) => Number.isInteger(n) && n >= min && n <= max;
     if (!inRange(cols, COLS) || !inRange(rows, ROWS)) throw new ActionError(400, 'Expected whole-number cols (20–500) and rows (5–200)');
     terminal.client.command(`refresh-client -C ${terminal.window}:${cols}x${rows}`);
+    terminal.followResize({ cols, rows }).catch(() => {});
     return { requested: { cols, rows } };
   }
 
