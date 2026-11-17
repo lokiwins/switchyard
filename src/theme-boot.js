@@ -1,4 +1,5 @@
 import { THEME_IDS, MODE_IDS } from '../public/themes.js';
+import { TERMINAL_IDS } from '../public/terminal-themes.js';
 
 /*
  * /theme-boot.js: public/theme-boot.js with the Settings page's default theme
@@ -13,7 +14,13 @@ const PLACEHOLDER = '/*APPEARANCE*/null';
 export function themeBootScript(source, appearance) {
   if (!THEME_IDS.includes(appearance?.theme)) throw new Error(`Unknown theme: ${appearance?.theme}`);
   if (!MODE_IDS.includes(appearance?.mode)) throw new Error(`Unknown mode: ${appearance?.mode}`);
+  if (!TERMINAL_IDS.includes(appearance?.terminal)) throw new Error(`Unknown terminal: ${appearance?.terminal}`);
   if (!source.includes(PLACEHOLDER)) throw new Error('theme-boot.js has no place for the appearance');
-  const filled = { defaults: { theme: appearance.theme, mode: appearance.mode }, themes: THEME_IDS, modes: MODE_IDS };
+  const filled = {
+    defaults: { theme: appearance.theme, mode: appearance.mode, terminal: appearance.terminal },
+    themes: THEME_IDS,
+    modes: MODE_IDS,
+    terminals: TERMINAL_IDS,
+  };
   return source.replace(PLACEHOLDER, JSON.stringify(filled));
 }

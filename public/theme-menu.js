@@ -1,14 +1,16 @@
 import { h } from './dom.js';
 import { dropdown } from './actions.js';
 import { MODES, THEMES } from './themes.js';
+import { TERMINAL_CHOICES } from './terminal-themes.js';
 
 /*
- * The theme menu in the top bar: this browser's own theme and light/dark
- * mode, or the default chosen on the Settings page. theme-boot.js keeps the
+ * The theme menu in the top bar: this browser's own theme, light/dark mode
+ * and terminal colours, or the defaults chosen on the Settings page. theme-boot.js keeps the
  * choice (localStorage) and applies it; this only offers it.
  */
 
 const labelOf = (list, id) => list.find((item) => item.id === id)?.label ?? id;
+const CHOICES = { theme: THEMES, mode: MODES, terminal: TERMINAL_CHOICES };
 
 /** One choice; `value` null means "use the Settings default". Ticked by update(). */
 function choiceItem(appearance, key, value) {
@@ -20,17 +22,16 @@ function choiceItem(appearance, key, value) {
     'data-key': key,
     'data-value': value ?? '',
     onclick: () => appearance.choose({ [key]: value }),
-  }, h('span', { class: 'theme-tick', 'aria-hidden': 'true' }), h('span', { class: 'menu-title' }, value ? labelOf(key === 'theme' ? THEMES : MODES, value) : ''));
+  }, h('span', { class: 'theme-tick', 'aria-hidden': 'true' }), h('span', { class: 'menu-title' }, value ? labelOf(CHOICES[key], value) : ''));
 }
 
 /** The choices, built once (so a click never lands on a replaced button, which would close the menu). */
 function choices(appearance) {
-  const group = (key, list, label) => [
+  const group = (key, list, label) => h('div', { class: `theme-group is-${key}`, role: 'group', 'aria-label': label },
     h('div', { class: 'menu-label' }, label),
     choiceItem(appearance, key, null),
-    ...list.map((item) => choiceItem(appearance, key, item.id)),
-  ];
-  return [...group('theme', THEMES, 'Theme'), ...group('mode', MODES, 'Light or dark')];
+    ...list.map((item) => choiceItem(appearance, key, item.id)));
+  return [group('theme', THEMES, 'Theme'), group('mode', MODES, 'Light or dark'), group('terminal', TERMINAL_CHOICES, 'Terminal')];
 }
 
 /** Tick what this browser uses now, and name the Settings defaults. */
@@ -41,7 +42,7 @@ function update(panel, appearance) {
     const chosen = value ? now.own[key] === value : !now.own[key];
     item.setAttribute('aria-checked', String(chosen));
     item.querySelector('.theme-tick').textContent = chosen ? '✓' : '';
-    if (!value) item.querySelector('.menu-title').textContent = `Settings default (${labelOf(key === 'theme' ? THEMES : MODES, now.defaults[key])})`;
+    if (!value) item.querySelector('.menu-title').textContent = `Settings default (${labelOf(CHOICES[key], now.defaults[key])})`;
   }
 }
 
@@ -53,7 +54,7 @@ export function mountThemeMenu(appearance = window.switchyardAppearance) {
   const menu = dropdown({
     key: 'theme',
     label: [h('span', { 'aria-hidden': 'true' }, '◐'), h('span', { class: 'visually-hidden' }, 'Theme')],
-    title: 'Theme, and light or dark, for this browser',
+    title: 'Theme, light or dark, and terminal colours for this browser',
     className: 'btn btn-sm btn-secondary theme-button',
     panelClass: 'theme-panel',
     focusInput: false,

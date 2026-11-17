@@ -209,9 +209,12 @@ main {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-500);
 }
 /* The theme menu in the top bar: ticked choices, theme then light or dark. */
-.theme-panel { --panel-min: 220px; --panel-max: 260px; }
-.theme-choices { display: flex; flex-direction: column; }
-.theme-choices .menu-label:first-child { margin-top: 0; border-top: 0; }
+/* Terminal schemes sit two to a row; a short window scrolls the panel. */
+.theme-panel { --panel-min: 300px; --panel-max: 340px; max-height: calc(100vh - 72px); overflow-y: auto; overscroll-behavior: contain; }
+.theme-choices, .theme-group { display: flex; flex-direction: column; }
+.theme-group.is-terminal { display: grid; grid-template-columns: 1fr 1fr; }
+.theme-group.is-terminal > .menu-label, .theme-group.is-terminal > .theme-choice:nth-child(2) { grid-column: 1 / -1; }
+.theme-group:first-child .menu-label { margin-top: 0; border-top: 0; }
 .theme-tick { flex: none; width: 1em; color: var(--accent); }
 .theme-button { font-size: 13px; padding: 3px 8px; }
 /* Reply ▾: a one-line message box in the dropdown panel. */
@@ -714,34 +717,55 @@ fieldset.setting > legend { padding: 0; margin-bottom: var(--space-1); }
 
 /*
  * Glass pane: slides in from the right over about half the window, leaving the
- * sessions list visible. Always dark. Hosts the live terminal (whose cells are
- * transparent, so the frosted glass shows through) and the review of a
- * permission prompt.
+ * sessions list visible. Hosts the live terminal (whose cells are transparent,
+ * so the frosted glass shows through), the review of a permission prompt and a
+ * task's details. Its colours are the --pane-* tokens, which follow the
+ * terminal theme (see terminal-themes.js); these defaults are Classic dark's.
  */
-.glass-pane {
+:root {
+  /* The glass pane's colours, until the terminal theme sets them. */
+  --pane-bg: rgb(8 13 24 / 0.68);
+  --pane-tint-a: rgb(56 189 248 / 0.10);
+  --pane-tint-b: rgb(168 85 247 / 0.08);
   --pane-edge: rgb(125 211 252 / 0.28);
   --pane-glow: rgb(56 189 248 / 0.18);
   --pane-text: #e6f1ff;
   --pane-dim: #8aa4c2;
+  --pane-accent: #7dd3fc;
+  --pane-accent-strong: #38bdf8;
+  --pane-ok: #34d399;
+  --pane-wait: #fbbf24;
+  --pane-bad: #f87171;
+  --pane-add-text: #a7f3d0;
+  --pane-del-text: #fecaca;
+  --pane-shade: #000000;
+  --pane-shine: #ffffff;
+  --pane-lift: #ffffff;
+  --pane-backdrop: rgb(4 8 16 / 0.18);
+  --pane-drop: rgb(0 0 0 / 0.55);
+  --pane-scheme: dark;
+}
+.glass-pane {
+  color-scheme: var(--pane-scheme);
   position: fixed; inset: 12px 12px 12px auto; margin: 0;
   width: max(560px, 50vw); max-width: calc(100vw - 24px); height: auto; max-height: none;
   padding: 0; border: 1px solid var(--pane-edge); border-radius: 16px;
   color: var(--pane-text);
   background:
-    linear-gradient(160deg, rgb(56 189 248 / 0.10), transparent 35%),
-    linear-gradient(200deg, rgb(168 85 247 / 0.08), transparent 45%),
-    rgb(8 13 24 / 0.68);
+    linear-gradient(160deg, var(--pane-tint-a), transparent 35%),
+    linear-gradient(200deg, var(--pane-tint-b), transparent 45%),
+    var(--pane-bg);
   backdrop-filter: blur(22px) saturate(160%);
   -webkit-backdrop-filter: blur(22px) saturate(160%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.08),
-    0 0 0 1px rgb(255 255 255 / 0.03),
+    inset 0 1px 0 color-mix(in srgb, var(--pane-shine) 8%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--pane-shine) 3%, transparent),
     0 0 48px var(--pane-glow),
-    0 30px 80px rgb(0 0 0 / 0.55);
+    0 30px 80px var(--pane-drop);
   overflow: hidden;
 }
 .glass-pane[open] { display: flex; flex-direction: column; animation: pane-slide-in 240ms cubic-bezier(0.2, 0.9, 0.3, 1); }
-.glass-pane::backdrop { background: rgb(4 8 16 / 0.18); }
+.glass-pane::backdrop { background: var(--pane-backdrop, rgb(4 8 16 / 0.18)); }
 /* While a pane is open the page behind it stays put, and scrolling past either end of the pane doesn't carry on to it. */
 html:has(.glass-pane[open]) { overflow: hidden; }
 @keyframes pane-slide-in {
@@ -760,7 +784,7 @@ html:has(.glass-pane[open]) { overflow: hidden; }
   content: ""; position: absolute; top: 16px; bottom: 16px; left: 3px; width: 2px; border-radius: 1px;
   background: var(--pane-edge); opacity: 0; transition: opacity 120ms ease;
 }
-.pane-resize:hover::after, .pane-resize:focus-visible::after, .glass-pane.is-resizing .pane-resize::after { opacity: 1; background: #7dd3fc; box-shadow: 0 0 8px #38bdf8; }
+.pane-resize:hover::after, .pane-resize:focus-visible::after, .glass-pane.is-resizing .pane-resize::after { opacity: 1; background: var(--pane-accent); box-shadow: 0 0 8px var(--pane-accent-strong); }
 /* While dragging, the pointer stays a resize cursor and nothing gets selected. */
 .glass-pane.is-resizing { cursor: col-resize; user-select: none; }
 
@@ -773,27 +797,27 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 .pane-heading strong { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pane-sub { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--pane-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pane-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--pane-dim); }
-.glass-pane.is-live .pane-dot { background: #34d399; box-shadow: 0 0 10px #34d399; }
+.glass-pane.is-live .pane-dot { background: var(--pane-ok); box-shadow: 0 0 10px var(--pane-ok); }
 .pane-pill {
   margin-left: auto; padding: 2px 8px; border: 1px solid var(--pane-edge); border-radius: 999px;
   font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--pane-dim); white-space: nowrap;
 }
 .pane-btn {
   padding: 4px 12px; border: 1px solid var(--pane-edge); border-radius: 8px;
-  background: rgb(255 255 255 / 0.04); color: var(--pane-text); font-size: 12px; cursor: pointer;
+  background: color-mix(in srgb, var(--pane-shine) 4%, transparent); color: var(--pane-text); font-size: 12px; cursor: pointer;
 }
-.pane-btn:hover { background: rgb(125 211 252 / 0.14); }
-.pane-btn:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.pane-btn:hover { background: color-mix(in srgb, var(--pane-accent) 14%, transparent); }
+.pane-btn:focus-visible { outline: 2px solid var(--pane-accent); outline-offset: 2px; }
 
 .term-screen { flex: 1; min-height: 0; padding: 10px 6px 10px 14px; }
 /* xterm.css (loaded later) and xterm.js itself paint the viewport black; the glass shows through instead. */
 .glass-pane .term-screen .xterm .xterm-viewport { background-color: transparent !important; overscroll-behavior: contain; }
-.glass-pane .term-screen .xterm .slider { background: rgb(125 211 252 / 0.22) !important; border-radius: 4px; }
+.glass-pane .term-screen .xterm .slider { background: color-mix(in srgb, var(--pane-accent) 22%, transparent) !important; border-radius: 4px; }
 
 /* Review pane: a permission prompt in full. */
-.pane-dot.is-waiting { background: #fbbf24; box-shadow: 0 0 10px #fbbf24; }
-.pane-btn.is-primary { background: rgb(52 211 153 / 0.18); border-color: rgb(52 211 153 / 0.5); }
-.pane-btn.is-primary:hover { background: rgb(52 211 153 / 0.3); }
+.pane-dot.is-waiting { background: var(--pane-wait); box-shadow: 0 0 10px var(--pane-wait); }
+.pane-btn.is-primary { background: color-mix(in srgb, var(--pane-ok) 18%, transparent); border-color: color-mix(in srgb, var(--pane-ok) 50%, transparent); }
+.pane-btn.is-primary:hover { background: color-mix(in srgb, var(--pane-ok) 30%, transparent); }
 .pane-btn:disabled { opacity: 0.5; cursor: default; }
 .plan-answers { flex-wrap: wrap; }
 .plan-text-answer { display: flex; flex: 1 1 100%; gap: 10px; }
@@ -804,7 +828,7 @@ html:has(.glass-pane[open]) { overflow: hidden; }
   padding: 3px 12px; border: 1px solid var(--pane-edge); border-radius: 999px;
   background: transparent; color: var(--pane-dim); font-size: 12px; cursor: pointer;
 }
-.pane-tab[aria-pressed="true"] { background: rgb(125 211 252 / 0.16); color: var(--pane-text); }
+.pane-tab[aria-pressed="true"] { background: color-mix(in srgb, var(--pane-accent) 16%, transparent); color: var(--pane-text); }
 .pane-footer {
   display: flex; align-items: center; gap: 10px; padding: 12px 16px;
   border-top: 1px solid transparent;
@@ -812,10 +836,10 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 }
 .pane-input {
   flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--pane-edge); border-radius: 8px;
-  background: rgb(0 0 0 / 0.25); color: var(--pane-text); font-size: 12px;
+  background: color-mix(in srgb, var(--pane-shade) 25%, transparent); color: var(--pane-text); font-size: 12px;
 }
 .pane-input::placeholder { color: var(--pane-dim); }
-.pane-input:focus-visible, .pane-tab:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.pane-input:focus-visible, .pane-tab:focus-visible { outline: 2px solid var(--pane-accent); outline-offset: 2px; }
 
 /* A task's details pane (Tasks page). */
 .task-pane-body { display: grid; gap: 18px; align-content: start; }
@@ -823,12 +847,12 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 .pane-field { display: grid; gap: 4px; font-size: 11px; color: var(--pane-dim); }
 .pane-field .pane-input { font-size: 13px; }
 .pane-textarea { resize: vertical; font-family: inherit; line-height: 1.5; }
-.pane-field input[type="date"] { color-scheme: dark; justify-self: start; }
+.pane-field input[type="date"] { color-scheme: var(--pane-scheme); justify-self: start; }
 .pane-section { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pane-dim); }
 .pane-tickets { display: grid; gap: 10px; }
 .pane-ticket {
   display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--pane-edge); border-radius: 10px;
-  background: rgb(255 255 255 / 0.03);
+  background: color-mix(in srgb, var(--pane-shine) 3%, transparent);
 }
 .pane-ticket-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pane-ticket-label { font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--pane-text); }
@@ -838,14 +862,14 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 .pane-ticket .markdown { font-size: 13px; }
 .ticket-pane-status {
   text-transform: uppercase; letter-spacing: 0.04em;
-  color: color-mix(in srgb, var(--status, var(--pane-dim)) 70%, white);
+  color: color-mix(in srgb, var(--status, var(--pane-dim)) 70%, var(--pane-lift));
   border-color: color-mix(in srgb, var(--status, var(--pane-dim)) 60%, transparent);
 }
 .pane-select {
   padding: 3px 8px; border: 1px solid var(--pane-edge); border-radius: 8px;
-  background: rgb(0 0 0 / 0.25); color: var(--pane-text); font-size: 12px; color-scheme: dark;
+  background: color-mix(in srgb, var(--pane-shade) 25%, transparent); color: var(--pane-text); font-size: 12px; color-scheme: var(--pane-scheme);
 }
-.pane-link { font-size: 12px; color: #7dd3fc; }
+.pane-link { font-size: 12px; color: var(--pane-accent); }
 .pane-footer-note { margin: 0 auto 0 0; }
 /* A task's title opens its details: a button that reads as the title. */
 .row-title-btn {
@@ -855,22 +879,22 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 .row-title-btn:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
 .review-code {
-  margin: 0; padding: 12px; border-radius: 8px; background: rgb(0 0 0 / 0.3);
+  margin: 0; padding: 12px; border-radius: 8px; background: color-mix(in srgb, var(--pane-shade) 30%, transparent);
   font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word;
 }
 .diff { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
-.diff-hunk { margin-bottom: 12px; border: 1px solid rgb(125 211 252 / 0.12); border-radius: 8px; overflow: hidden; }
-.diff-hunk-head { padding: 2px 10px; background: rgb(125 211 252 / 0.08); color: var(--pane-dim); }
+.diff-hunk { margin-bottom: 12px; border: 1px solid color-mix(in srgb, var(--pane-accent) 12%, transparent); border-radius: 8px; overflow: hidden; }
+.diff-hunk-head { padding: 2px 10px; background: color-mix(in srgb, var(--pane-accent) 8%, transparent); color: var(--pane-dim); }
 .diff-line { display: grid; grid-template-columns: 3.5em 3.5em 1.5em 1fr; }
-.diff-num { padding-right: 8px; text-align: right; color: rgb(138 164 194 / 0.6); user-select: none; }
+.diff-num { padding-right: 8px; text-align: right; color: color-mix(in srgb, var(--pane-dim) 60%, transparent); user-select: none; }
 .diff-sign { text-align: center; user-select: none; }
 .diff-text { white-space: pre-wrap; word-break: break-word; }
-.diff-line.is-add { background: rgb(52 211 153 / 0.13); }
-.diff-line.is-add .diff-sign, .diff-line.is-add .diff-text { color: #a7f3d0; }
-.diff-line.is-del { background: rgb(248 113 113 / 0.13); }
-.diff-line.is-del .diff-sign, .diff-line.is-del .diff-text { color: #fecaca; }
+.diff-line.is-add { background: color-mix(in srgb, var(--pane-ok) 13%, transparent); }
+.diff-line.is-add .diff-sign, .diff-line.is-add .diff-text { color: var(--pane-add-text); }
+.diff-line.is-del { background: color-mix(in srgb, var(--pane-bad) 13%, transparent); }
+.diff-line.is-del .diff-sign, .diff-line.is-del .diff-text { color: var(--pane-del-text); }
 
-/* Rendered Markdown, on the dark glass. */
+/* Rendered Markdown, on the glass. */
 .markdown { font-size: 14px; line-height: 1.6; max-width: 72ch; }
 .markdown > :first-child { margin-top: 0; }
 .markdown h1, .markdown h2, .markdown h3, .markdown h4, .markdown h5, .markdown h6 { margin: 1.2em 0 0.5em; line-height: 1.3; }
@@ -882,17 +906,17 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 .markdown li > ul, .markdown li > ol { margin: 0.2em 0 0.2em; }
 .markdown li.md-task { list-style: none; margin-left: -1.3em; }
 .markdown li.md-task input { margin: 0 0.45em 0 0; vertical-align: middle; }
-.markdown code { padding: 0.1em 0.35em; border-radius: 4px; background: rgb(125 211 252 / 0.12); font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; }
-.markdown pre { padding: 12px; border-radius: 8px; background: rgb(0 0 0 / 0.35); overflow: auto; }
+.markdown code { padding: 0.1em 0.35em; border-radius: 4px; background: color-mix(in srgb, var(--pane-accent) 12%, transparent); font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markdown pre { padding: 12px; border-radius: 8px; background: color-mix(in srgb, var(--pane-shade) 35%, transparent); overflow: auto; }
 .markdown pre code { padding: 0; background: none; }
 .markdown blockquote { padding-left: 1em; border-left: 3px solid var(--pane-edge); color: var(--pane-dim); }
-.markdown a { color: #7dd3fc; }
+.markdown a { color: var(--pane-accent); }
 .markdown hr { border: 0; border-top: 1px solid var(--pane-edge); margin: 1.2em 0; }
 .markdown .md-table { overflow-x: auto; }
 .markdown table { border-collapse: collapse; }
-.markdown th, .markdown td { padding: 4px 10px; border: 1px solid rgb(125 211 252 / 0.2); }
+.markdown th, .markdown td { padding: 4px 10px; border: 1px solid color-mix(in srgb, var(--pane-accent) 20%, transparent); }
 /* Plain Markdown headers, not the app's small-caps table headings. */
-.markdown th { background: rgb(125 211 252 / 0.08); text-transform: none; letter-spacing: normal; font-size: inherit; font-weight: 600; color: inherit; }
+.markdown th { background: color-mix(in srgb, var(--pane-accent) 8%, transparent); text-transform: none; letter-spacing: normal; font-size: inherit; font-weight: 600; color: inherit; }
 .markdown .md-left { text-align: left; } .markdown .md-center { text-align: center; } .markdown .md-right { text-align: right; }
 .markdown .md-image, .markdown .md-link { color: var(--pane-dim); }
 

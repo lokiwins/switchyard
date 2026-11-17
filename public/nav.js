@@ -1,4 +1,5 @@
 import { mountThemeMenu } from './theme-menu.js';
+import { followTerminalLook } from './terminal-look.js';
 
 // Each page's own responses carry fresh counts; this slower poll only catches up the other pages' badges.
 const POLL_MS = 60_000;
@@ -34,6 +35,7 @@ async function refresh() {
 /** Keep the header's per-page "needs you" badges current while the page's own data isn't changing; and add the theme menu. */
 export function startNavBadges() {
   mountThemeMenu();
+  followTerminalLook();
   refresh();
   setInterval(() => {
     if (!document.hidden) refresh();

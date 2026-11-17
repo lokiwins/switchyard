@@ -1,8 +1,8 @@
 /*
- * Sets the page's theme before it draws: <html data-theme data-mode data-scheme>.
+ * Sets the page's theme before it draws: <html data-theme data-mode data-terminal data-scheme>.
  * The server fills in the Settings default (see src/theme-boot.js); this
  * browser's own choice, made in the top bar, is kept in localStorage and wins
- * over it, theme and mode separately. "system" mode follows the OS as it
+ * over it, theme, mode and terminal separately. "system" mode follows the OS as it
  * changes. A plain script, not a module, so it runs before the stylesheets.
  */
 (function () {
@@ -22,12 +22,19 @@
     var choice = {};
     if (saved && known(saved.theme, SETUP.themes)) choice.theme = saved.theme;
     if (saved && known(saved.mode, SETUP.modes)) choice.mode = saved.mode;
+    if (saved && known(saved.terminal, SETUP.terminals)) choice.terminal = saved.terminal;
     return choice;
   }
 
   function current() {
     var choice = own();
-    return { theme: choice.theme || defaults.theme, mode: choice.mode || defaults.mode, own: choice, defaults: defaults };
+    return {
+      theme: choice.theme || defaults.theme,
+      mode: choice.mode || defaults.mode,
+      terminal: choice.terminal || defaults.terminal,
+      own: choice,
+      defaults: defaults,
+    };
   }
 
   function apply() {
@@ -35,6 +42,7 @@
     var html = document.documentElement;
     html.dataset.theme = now.theme;
     html.dataset.mode = now.mode;
+    html.dataset.terminal = now.terminal;
     html.dataset.scheme = now.mode === 'system' ? (system.matches ? 'dark' : 'light') : now.mode;
     document.dispatchEvent(new CustomEvent('switchyard:theme'));
   }
@@ -46,7 +54,7 @@
       if (change[key] === null) delete next[key];
       else next[key] = change[key];
     }
-    var empty = !next.theme && !next.mode;
+    var empty = !next.theme && !next.mode && !next.terminal;
     try {
       if (empty) window.localStorage.removeItem(KEY);
       else window.localStorage.setItem(KEY, JSON.stringify(next));
@@ -59,7 +67,7 @@
 
   /** The Settings page saved a new default: use it here too. */
   function setDefaults(next) {
-    defaults = { theme: next.theme, mode: next.mode };
+    defaults = { theme: next.theme, mode: next.mode, terminal: next.terminal || 'match' };
     apply();
   }
 
