@@ -70,6 +70,8 @@ The default for every browser is set on the **Settings** page, under *Appearance
 
 Signal uses Manrope, JetBrains Mono and Fraunces, bundled in `public/vendor/fonts` under the SIL Open Font License; a browser only downloads them while Signal is on.
 
+The live terminal has colours of its own, chosen in the same places (the ◐ menu's *Terminal* section, and *Terminal colours* on the Settings page). *Match page theme*, the default, uses a palette made for each theme, in its light or dark. Or pick a named scheme: Dracula, Solarized Dark or Light, Nord, Gruvbox Dark, Tokyo Night, Catppuccin Mocha or Latte, or One Dark. The glass panes (the terminal, a prompt's review, a task's details) take its colours too, and an open terminal changes at once. On a light terminal, switchyard keeps all text at a 4.5:1 contrast at least, because Claude Code may be drawing colours meant for a dark one.
+
 ## Acting from the dashboard (macOS)
 
 A web page can't touch your terminal, but the switchyard server runs on your machine, so the buttons ask it to. What each one can do depends on where the session runs:
@@ -156,6 +158,7 @@ Everything works without a config file. The **Settings** page (in the top bar) c
 | `github.copilotReviewer` | `copilot-pull-request-reviewer[bot]` | Reviewer login used by the Copilot review button and to recognise Copilot's reviews. |
 | `appearance.theme` | `classic` | The theme every browser starts with: `classic`, `signal`, `ember`, `dusk` or `graphite`. Each browser can choose its own from the ◐ menu in the top bar. |
 | `appearance.mode` | `system` | Light or dark for every browser: `system` (follow the OS), `light` or `dark`. |
+| `appearance.terminal` | `match` | The live terminal's colours for every browser: `match` (the page theme's own), or `dracula`, `solarized-dark`, `solarized-light`, `nord`, `gruvbox-dark`, `tokyo-night`, `catppuccin-mocha`, `catppuccin-latte`, `one-dark`. |
 | `terminal.app` | `auto` | Terminal used by **Resume** and **Terminal** buttons: `iTerm`, `Terminal`, or `none` to hide them. `auto` picks iTerm when switchyard was started from iTerm, otherwise Terminal. |
 | `editor.urlScheme` | `vscode` | Editor opened by **Code** buttons, as a URL scheme: `vscode`, `cursor`, `vscode-insiders`, `windsurf`, or `none`. |
 | `agents.parkedAfterHours` | `24` | An idle session untouched this long is *parked* rather than *waiting on you*. |

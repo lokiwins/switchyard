@@ -67,18 +67,19 @@ test('every page applies the theme before it draws: the boot script, then the st
 });
 
 test('appearance settings: Classic, following the system, by default; only known themes and modes', () => {
-  assert.deepEqual(DEFAULT_SETTINGS.appearance, { theme: 'classic', mode: 'system' });
-  assert.deepEqual(parseSettings({ appearance: { theme: 'signal', mode: 'dark' } }).appearance, { theme: 'signal', mode: 'dark' });
+  assert.deepEqual(DEFAULT_SETTINGS.appearance, { theme: 'classic', mode: 'system', terminal: 'match' });
+  assert.deepEqual(parseSettings({ appearance: { theme: 'signal', mode: 'dark', terminal: 'nord' } }).appearance, { theme: 'signal', mode: 'dark', terminal: 'nord' });
+  assert.throws(() => parseSettings({ appearance: { terminal: 'neon' } }), /appearance.terminal/);
   assert.throws(() => parseSettings({ appearance: { theme: 'neon' } }), /appearance.theme/);
   assert.throws(() => parseSettings({ appearance: { mode: 'dim' } }), /appearance.mode/);
   assert.throws(() => parseSettings({ appearance: { font: 'x' } }), /appearance.font/);
 });
 
 test('the Settings page edits the appearance, and saves only what differs from the default', () => {
-  assert.deepEqual(editableSettings({}).appearance, { theme: 'classic', mode: 'system' });
-  assert.deepEqual(applyEdits({}, { appearance: { theme: 'ember', mode: 'system' } }), { appearance: { theme: 'ember' } });
-  assert.deepEqual(applyEdits({ appearance: { theme: 'ember' } }, { appearance: { theme: 'classic', mode: 'system' } }), {});
-  assert.ok(FIELD_NAMES.includes('appearance.theme') && FIELD_NAMES.includes('appearance.mode'));
-  const values = { ...editableSettings({}), appearance: { theme: 'dusk', mode: 'light' } };
-  assert.deepEqual(editsFromFields(fieldsFromValues(values)).appearance, { theme: 'dusk', mode: 'light' });
+  assert.deepEqual(editableSettings({}).appearance, { theme: 'classic', mode: 'system', terminal: 'match' });
+  assert.deepEqual(applyEdits({}, { appearance: { theme: 'ember', mode: 'system', terminal: 'match' } }), { appearance: { theme: 'ember' } });
+  assert.deepEqual(applyEdits({ appearance: { theme: 'ember' } }, { appearance: { theme: 'classic', mode: 'system', terminal: 'match' } }), {});
+  assert.ok(['appearance.theme', 'appearance.mode', 'appearance.terminal'].every((name) => FIELD_NAMES.includes(name)));
+  const values = { ...editableSettings({}), appearance: { theme: 'dusk', mode: 'light', terminal: 'one-dark' } };
+  assert.deepEqual(editsFromFields(fieldsFromValues(values)).appearance, { theme: 'dusk', mode: 'light', terminal: 'one-dark' });
 });

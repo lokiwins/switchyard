@@ -3,6 +3,7 @@ import { applyNav, startNavBadges } from './nav.js';
 import { post } from './actions.js';
 import { FIELD_NAMES, editsFromFields, fieldsFromValues } from './settings-form.js';
 import { MODES, THEMES } from './themes.js';
+import { TERMINAL_CHOICES } from './terminal-themes.js';
 
 const $ = (id) => document.getElementById(id);
 const form = $('settings');
@@ -74,6 +75,7 @@ function fillAppearanceChoices() {
   const options = (choices, labelOf) => choices.map((choice) => h('option', { value: choice.id }, labelOf(choice)));
   fieldOf('appearance.theme').replaceChildren(...options(THEMES, (theme) => theme.label));
   fieldOf('appearance.mode').replaceChildren(...options(MODES, (mode) => (mode.id === 'system' ? 'Follow the system' : mode.label)));
+  fieldOf('appearance.terminal').replaceChildren(...options(TERMINAL_CHOICES, (choice) => choice.label));
 }
 
 /** Fill the form from what the server says is saved. */

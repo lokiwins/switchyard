@@ -47,7 +47,7 @@ export const SCENES = [
     path: '/',
     prepare: async (page) => {
       await agentsLoaded(page);
-      await page.getByTitle('Theme, and light or dark, for this browser').click();
+      await page.getByTitle('Theme, light or dark, and terminal colours for this browser').click();
     },
   },
   { name: 'theme-signal', title: 'Signal theme, dark: near-black, cyan, its own type', path: '/', prepare: inTheme('signal', 'dark') },
@@ -55,6 +55,28 @@ export const SCENES = [
   { name: 'theme-ember', title: 'Ember theme, light: warm paper with a copper accent', path: '/', prepare: inTheme('ember', 'light') },
   { name: 'theme-dusk', title: 'Dusk theme, dark: indigo with a violet accent', path: '/', prepare: inTheme('dusk', 'dark') },
   { name: 'theme-graphite', title: 'Graphite theme, light: monochrome and high-contrast', path: '/', prepare: inTheme('graphite', 'light') },
+  {
+    name: 'terminal-theme-dracula',
+    title: 'Terminal colours: the glass panes in Dracula (the live terminal uses the same palette)',
+    path: '/',
+    prepare: async (page) => {
+      await inTheme('classic', 'dark')(page);
+      await page.evaluate(() => window.switchyardAppearance.choose({ terminal: 'dracula' }));
+      await page.getByRole('button', { name: 'Review', exact: true }).first().click();
+      await page.locator('dialog.glass-pane[open] .diff').waitFor();
+    },
+  },
+  {
+    name: 'terminal-theme-latte',
+    title: 'Terminal colours: a light scheme (Catppuccin Latte) gives light glass',
+    path: '/',
+    prepare: async (page) => {
+      await inTheme('classic', 'light')(page);
+      await page.evaluate(() => window.switchyardAppearance.choose({ terminal: 'catppuccin-latte' }));
+      await page.getByRole('button', { name: 'Review', exact: true }).first().click();
+      await page.locator('dialog.glass-pane[open] .diff').waitFor();
+    },
+  },
   {
     name: 'agents-phone',
     title: 'Agents on a phone: the top bar in two rows, nothing wider than the screen',

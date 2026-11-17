@@ -1,4 +1,5 @@
 import { MODE_IDS, THEME_IDS } from '../public/themes.js';
+import { TERMINAL_IDS } from '../public/terminal-themes.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -35,6 +36,8 @@ export const DEFAULTS = Object.freeze({
     // The theme and light/dark mode every browser starts with; each browser can choose its own in the top bar.
     theme: 'classic',
     mode: 'system',
+    // The live terminal's colours: "match" uses the page theme's own, or a named scheme such as "nord".
+    terminal: 'match',
   }),
   agents: Object.freeze({
     parkedAfterHours: 24,
@@ -49,7 +52,7 @@ const SECTION_KEYS = {
   github: ['copilotReviewer', 'issueRepos'],
   terminal: ['app'],
   editor: ['urlScheme'],
-  appearance: ['theme', 'mode'],
+  appearance: ['theme', 'mode', 'terminal'],
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
 };
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];
@@ -143,6 +146,7 @@ export function parseSettings(file = {}) {
 
   if (!THEME_IDS.includes(appearance.theme)) fail('appearance.theme', `must be one of: ${THEME_IDS.join(', ')}`);
   if (!MODE_IDS.includes(appearance.mode)) fail('appearance.mode', `must be one of: ${MODE_IDS.join(', ')}`);
+  if (!TERMINAL_IDS.includes(appearance.terminal)) fail('appearance.terminal', `must be one of: ${TERMINAL_IDS.join(', ')}`);
   if (typeof github.copilotReviewer !== 'string' || github.copilotReviewer === '') {
     fail('github.copilotReviewer', 'must be a non-empty string');
   }
@@ -159,7 +163,7 @@ export function parseSettings(file = {}) {
     github: { copilotReviewer: github.copilotReviewer, issueRepos: [...issueRepos] },
     terminal: { app: terminal.app },
     editor: { urlScheme: editor.urlScheme === 'none' ? null : editor.urlScheme },
-    appearance: { theme: appearance.theme, mode: appearance.mode },
+    appearance: { theme: appearance.theme, mode: appearance.mode, terminal: appearance.terminal },
     agents: {
       parkedAfterMs: positiveNumber(agents.parkedAfterHours, 'agents.parkedAfterHours') * HOUR_MS,
       endedHistoryMs: positiveNumber(agents.endedHistoryDays, 'agents.endedHistoryDays') * DAY_MS,

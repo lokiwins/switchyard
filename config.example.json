@@ -31,7 +31,8 @@
   },
   "appearance": {
     "theme": "classic",
-    "mode": "system"
+    "mode": "system",
+    "terminal": "match"
   },
   "agents": {
     "parkedAfterHours": 24,

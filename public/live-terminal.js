@@ -3,6 +3,7 @@ import { post, tmuxPlace } from './actions.js';
 import { sessionTitle } from './session-text.js';
 import { keyInput } from './terminal-keys.js';
 import { resizeHandle } from './pane-resize.js';
+import { currentXtermOptions } from './terminal-look.js';
 
 /*
  * "Terminal": a session's tmux pane, live in a dialog. The server streams what
@@ -25,13 +26,6 @@ const INPUT_CHUNK_CHARS = 600;
 const RESIZE_SETTLE_MS = 120;
 // How often, at most, to tell the server how much output has been drawn.
 const ACK_EVERY_MS = 200;
-// Transparent cells let the glass pane show through; the rest picks out cursor and selection.
-const THEME = {
-  background: 'rgba(0, 0, 0, 0)',
-  cursor: '#7dd3fc',
-  cursorAccent: '#0b1220',
-  selectionBackground: 'rgba(125, 211, 252, 0.3)',
-};
 
 let xtermModule = null;
 
@@ -172,7 +166,8 @@ async function openTerminal(session) {
   let token = null;
   const terminal = new Terminal({
     allowTransparency: true,
-    theme: THEME,
+    // The terminal theme's colours (see terminal-themes.js); its cells are transparent so the glass shows through.
+    ...currentXtermOptions(),
     fontSize: 13,
     lineHeight: 1.15,
     scrollback: 5000,
@@ -185,7 +180,11 @@ async function openTerminal(session) {
   const watchSize = new ResizeObserver(() => fitter.soon());
   const reconnect = h('button', { type: 'button', class: 'pane-btn', hidden: true, onclick: () => connect() }, 'Reconnect');
 
+  // A new terminal theme, or page theme it matches, recolours the open terminal.
+  const recolor = () => { Object.assign(terminal.options, currentXtermOptions()); };
+  document.addEventListener('switchyard:theme', recolor);
   const close = () => {
+    document.removeEventListener('switchyard:theme', recolor);
     source?.close();
     watchSize.disconnect();
     fitter.stop();

@@ -4,7 +4,7 @@ import { editsFromFields, fieldsFromValues } from '../public/settings-form.js';
 
 const VALUES = {
   roots: ['~/work', '~/code'],
-  appearance: { theme: 'signal', mode: 'system' },
+  appearance: { theme: 'signal', mode: 'system', terminal: 'nord' },
   terminal: { app: 'iTerm' },
   editor: { urlScheme: 'cursor' },
   agents: { parkedAfterHours: 24, endedHistoryDays: 7, interruptedAttentionDays: 3 },

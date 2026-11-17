@@ -9,7 +9,7 @@ const SOURCE = readFileSync(join(import.meta.dirname, '..', 'public', 'theme-boo
 const KEY = 'switchyard.appearance';
 
 /** Run the boot script as a page would, in a fake browser; returns what it set and how to poke it. */
-function boot({ appearance = { theme: 'classic', mode: 'system' }, stored = null, osDark = false, storageFails = false } = {}) {
+function boot({ appearance = { theme: 'classic', mode: 'system', terminal: 'match' }, stored = null, osDark = false, storageFails = false } = {}) {
   const data = new Map(stored ? [[KEY, JSON.stringify(stored)]] : []);
   const media = { matches: osDark, listeners: [], addEventListener(type, fn) { this.listeners.push(fn); } };
   const windowListeners = {};
@@ -43,15 +43,15 @@ function boot({ appearance = { theme: 'classic', mode: 'system' }, stored = null
 }
 
 test('with nothing chosen in this browser, the Settings default applies; System follows the OS', () => {
-  assert.deepEqual({ ...boot().html }, { theme: 'classic', mode: 'system', scheme: 'light' });
-  assert.deepEqual({ ...boot({ osDark: true }).html }, { theme: 'classic', mode: 'system', scheme: 'dark' });
-  assert.deepEqual({ ...boot({ appearance: { theme: 'signal', mode: 'dark' } }).html }, { theme: 'signal', mode: 'dark', scheme: 'dark' });
+  assert.deepEqual({ ...boot().html }, { theme: 'classic', mode: 'system', terminal: 'match', scheme: 'light' });
+  assert.deepEqual({ ...boot({ osDark: true }).html }, { theme: 'classic', mode: 'system', terminal: 'match', scheme: 'dark' });
+  assert.deepEqual({ ...boot({ appearance: { theme: 'signal', mode: 'dark', terminal: 'nord' } }).html }, { theme: 'signal', mode: 'dark', terminal: 'nord', scheme: 'dark' });
 });
 
 test('this browser\'s choice wins over the default, one part at a time', () => {
-  const page = boot({ appearance: { theme: 'ember', mode: 'light' }, stored: { mode: 'dark' } });
-  assert.deepEqual({ ...page.html }, { theme: 'ember', mode: 'dark', scheme: 'dark' });
-  assert.deepEqual({ ...boot({ stored: { theme: 'dusk' }, osDark: true }).html }, { theme: 'dusk', mode: 'system', scheme: 'dark' });
+  const page = boot({ appearance: { theme: 'ember', mode: 'light', terminal: 'match' }, stored: { mode: 'dark', terminal: 'dracula' } });
+  assert.deepEqual({ ...page.html }, { theme: 'ember', mode: 'dark', terminal: 'dracula', scheme: 'dark' });
+  assert.deepEqual({ ...boot({ stored: { theme: 'dusk' }, osDark: true }).html }, { theme: 'dusk', mode: 'system', terminal: 'match', scheme: 'dark' });
 });
 
 test('a pinned mode ignores the OS; System follows it as it changes', () => {
@@ -67,14 +67,14 @@ test('choosing in the menu saves it in this browser and applies at once; clearin
   const page = boot();
   page.api.choose({ theme: 'graphite', mode: 'dark' });
   assert.deepEqual(page.stored(), { theme: 'graphite', mode: 'dark' });
-  assert.deepEqual({ ...page.html }, { theme: 'graphite', mode: 'dark', scheme: 'dark' });
+  assert.deepEqual({ ...page.html }, { theme: 'graphite', mode: 'dark', terminal: 'match', scheme: 'dark' });
   page.api.choose({ theme: null });
   assert.deepEqual(page.stored(), { mode: 'dark' });
   assert.equal(page.html.theme, 'classic');
   page.api.choose({ mode: null });
   assert.equal(page.stored(), null);
   // Made in the page's own realm, so compared as plain data.
-  assert.deepEqual(JSON.parse(JSON.stringify(page.api.current())), { theme: 'classic', mode: 'system', own: {}, defaults: { theme: 'classic', mode: 'system' } });
+  assert.deepEqual(JSON.parse(JSON.stringify(page.api.current())), { theme: 'classic', mode: 'system', terminal: 'match', own: {}, defaults: { theme: 'classic', mode: 'system', terminal: 'match' } });
 });
 
 test('a choice made in another tab applies here too', () => {
@@ -85,22 +85,34 @@ test('a choice made in another tab applies here too', () => {
 
 test('a saved Settings default reaches the open page', () => {
   const page = boot();
-  page.api.setDefaults({ theme: 'dusk', mode: 'light' });
-  assert.deepEqual({ ...page.html }, { theme: 'dusk', mode: 'light', scheme: 'light' });
+  page.api.setDefaults({ theme: 'dusk', mode: 'light', terminal: 'nord' });
+  assert.deepEqual({ ...page.html }, { theme: 'dusk', mode: 'light', terminal: 'nord', scheme: 'light' });
 });
 
 test('an unknown or garbled stored choice, or blocked storage, falls back to the default', () => {
   assert.equal(boot({ stored: { theme: 'neon', mode: 'dim' } }).html.theme, 'classic');
   assert.equal(boot({ stored: { theme: 'neon', mode: 'dim' } }).html.mode, 'system');
-  const blocked = boot({ storageFails: true, appearance: { theme: 'ember', mode: 'dark' } });
-  assert.deepEqual({ ...blocked.html }, { theme: 'ember', mode: 'dark', scheme: 'dark' });
+  assert.equal(boot({ stored: { terminal: 'neon' } }).html.terminal, 'match');
+  const blocked = boot({ storageFails: true, appearance: { theme: 'ember', mode: 'dark', terminal: 'match' } });
+  assert.deepEqual({ ...blocked.html }, { theme: 'ember', mode: 'dark', terminal: 'match', scheme: 'dark' });
   blocked.api.choose({ theme: 'dusk' }); // nowhere to keep it: applies for this page only
   assert.equal(blocked.html.theme, 'dusk');
 });
 
 test('themeBootScript fills in the default and the known themes as JSON, nothing else', () => {
-  const script = themeBootScript(SOURCE, { theme: 'signal', mode: 'dark' });
-  assert.ok(script.includes('"theme":"signal"'));
-  assert.ok(script.includes('"classic"'));
-  assert.throws(() => themeBootScript(SOURCE, { theme: '</script><b>', mode: 'dark' }), /theme/);
+  const script = themeBootScript(SOURCE, { theme: 'signal', mode: 'dark', terminal: 'nord' });
+  assert.ok(script.includes('"theme":"signal"') && script.includes('"terminal":"nord"'));
+  assert.ok(script.includes('"classic"') && script.includes('"tokyo-night"'));
+  assert.throws(() => themeBootScript(SOURCE, { theme: '</script><b>', mode: 'dark', terminal: 'match' }), /theme/);
+  assert.throws(() => themeBootScript(SOURCE, { theme: 'signal', mode: 'dark', terminal: 'neon' }), /terminal/);
+});
+
+test('the terminal is chosen on its own, like the theme and mode', () => {
+  const page = boot({ osDark: true });
+  page.api.choose({ terminal: 'gruvbox-dark' });
+  assert.deepEqual(page.stored(), { terminal: 'gruvbox-dark' });
+  assert.equal(page.html.terminal, 'gruvbox-dark');
+  assert.equal(page.html.theme, 'classic');
+  page.api.choose({ terminal: null });
+  assert.equal(page.html.terminal, 'match');
 });

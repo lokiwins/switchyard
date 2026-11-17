@@ -61,6 +61,8 @@ export const STATIC_FILES = {
   '/theme-boot.js': 'theme-boot.js',
   '/themes.js': 'themes.js',
   '/theme-menu.js': 'theme-menu.js',
+  '/terminal-themes.js': 'terminal-themes.js',
+  '/terminal-look.js': 'terminal-look.js',
   '/vendor/fonts/manrope.woff2': 'vendor/fonts/manrope.woff2',
   '/vendor/fonts/jetbrains-mono.woff2': 'vendor/fonts/jetbrains-mono.woff2',
   '/vendor/fonts/fraunces.woff2': 'vendor/fonts/fraunces.woff2',
