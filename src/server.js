@@ -420,7 +420,9 @@ async function streamTerminal(req, res, url, { liveTerminals }) {
     close?.();
   });
   try {
-    close = await liveTerminals.start({ sessionId: url.searchParams.get('sessionId') }, {
+    // The size the page has room for, so the first screen comes at it (ignored unless it's a usable size).
+    const size = (name) => Number(url.searchParams.get(name));
+    close = await liveTerminals.start({ sessionId: url.searchParams.get('sessionId'), cols: size('cols'), rows: size('rows') }, {
       ready: (info) => {
         res.writeHead(200, SSE_HEADERS);
         // If the stream drops, the browser reconnects after this long (a new terminal, a fresh copy).

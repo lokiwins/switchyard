@@ -26,6 +26,8 @@ const INPUT_CHUNK_CHARS = 600;
 const RESIZE_SETTLE_MS = 120;
 // How often, at most, to tell the server how much output has been drawn.
 const ACK_EVERY_MS = 200;
+// How long output waits for a size the page asked for, before it's drawn anyway (tmux may keep another size).
+const RESIZE_HOLD_MS = 400;
 
 let xtermModule = null;
 
@@ -135,7 +137,7 @@ function createAcker(getToken) {
  * The page draws at whatever size tmux reports back (another attached
  * terminal may win), so this only asks.
  */
-function createFitter(fit, getToken) {
+function createFitter(fit, getToken, { onAsk = () => {} } = {}) {
   let timer = null;
   let asked = null;
   const ask = async () => {
@@ -145,6 +147,7 @@ function createFitter(fit, getToken) {
     const key = `${size.cols}x${size.rows}`;
     if (key === asked) return;
     asked = key;
+    onAsk();
     await post('/api/terminal/resize', { token, cols: size.cols, rows: size.rows }).catch((error) => toast(error.message));
   };
   return {
@@ -235,7 +238,23 @@ async function openTerminal(session) {
   const status = h('span', { class: 'pane-pill' }, 'Connecting…');
   let source = null;
   let token = null;
-  const fitter = createFitter(fit, () => token);
+  // Asking for a new size: what the pane prints until the size comes back is drawn for the new size, and
+  // would look squashed in the old one; the fresh copy of the screen that follows the size has it all.
+  // So it's held, and dropped then (or written, if the size doesn't change after all).
+  let held = null;
+  const writeOut = (bytes) => terminal.write(bytes, () => acker.drawn(bytes.length));
+  const releaseHeld = ({ drop }) => {
+    if (!held) return;
+    clearTimeout(held.timer);
+    const { chunks } = held;
+    held = null;
+    if (!drop) chunks.forEach(writeOut);
+    else acker.drawn(chunks.reduce((sum, c) => sum + c.length, 0));
+  };
+  const holdOutput = () => {
+    held ??= { chunks: [], timer: setTimeout(() => releaseHeld({ drop: false }), RESIZE_HOLD_MS) };
+  };
+  const fitter = createFitter(fit, () => token, { onAsk: holdOutput });
   const acker = createAcker(() => token);
   const watchSize = new ResizeObserver(() => fitter.soon());
   const reconnect = h('button', { type: 'button', class: 'pane-btn', hidden: true, onclick: () => connect() }, 'Reconnect');
@@ -251,6 +270,7 @@ async function openTerminal(session) {
     picker.dispose();
     source?.close();
     token = null;
+    releaseHeld({ drop: true });
     watchSize.disconnect();
     fitter.stop();
     acker.stop();
@@ -283,6 +303,13 @@ async function openTerminal(session) {
   dialog.append(resizeHandle(dialog, { pref: TERMINAL_WIDTH_PREF, label: 'Terminal width' }));
   document.body.append(dialog);
   dialog.showModal();
+  // Fill the pane now, at the size it has room for, rather than at the size the terminal was parked at.
+  const fitted = () => {
+    const size = fit.proposeDimensions();
+    return size && Number.isFinite(size.cols) && Number.isFinite(size.rows) ? { cols: size.cols, rows: size.rows } : null;
+  };
+  const roomFor = fitted();
+  if (roomFor) terminal.resize(roomFor.cols, roomFor.rows);
 
   if (!webgl) {
     status.textContent = "Can't draw: WebGL is unavailable";
@@ -312,11 +339,17 @@ async function openTerminal(session) {
   };
 
   // Each connection is a new terminal on the server: a new token, a fresh copy of the screen.
+  let pendingSize = null;
   function connect() {
     source?.close();
+    pendingSize = null;
+    releaseHeld({ drop: true });
     reconnect.hidden = true;
     status.textContent = 'Connecting…';
-    source = new EventSource(`/api/terminal/live?sessionId=${encodeURIComponent(session.sessionId)}`);
+    // Ask to start at the pane's size, so the first screen comes at it and is drawn once.
+    const size = fitted();
+    const sized = size ? `&cols=${size.cols}&rows=${size.rows}` : '';
+    source = new EventSource(`/api/terminal/live?sessionId=${encodeURIComponent(session.sessionId)}${sized}`);
     source.addEventListener('ready', (event) => {
       const info = JSON.parse(event.data);
       token = info.token;
@@ -330,9 +363,22 @@ async function openTerminal(session) {
     });
     source.addEventListener('output', (event) => {
       const bytes = fromBase64(event.data);
-      terminal.write(bytes, () => acker.drawn(bytes.length));
+      // A new size is applied with the fresh copy of the screen that follows it, so they're drawn together.
+      if (pendingSize) {
+        showSize(pendingSize);
+        pendingSize = null;
+      } else if (held) {
+        held.chunks.push(bytes);
+        return;
+      }
+      writeOut(bytes);
     });
-    source.addEventListener('resize', (event) => showSize(JSON.parse(event.data)));
+    // The server sends a fresh copy of the screen right after a size change. Resizing now would draw the
+    // old screen rewrapped to the new width (squashed) until that copy came, so the size waits for it.
+    source.addEventListener('resize', (event) => {
+      pendingSize = JSON.parse(event.data);
+      releaseHeld({ drop: true });
+    });
     source.addEventListener('end', () => {
       source.close();
       disconnected('Session ended', { canReconnect: false });
