@@ -4,7 +4,7 @@ import { terminalButton } from './live-terminal.js';
 import { sessionToJump } from './task-views.js';
 import { approvalButtons, endMenu, replyMenu, stopButton } from './session-controls.js';
 import { answerMenu, planButton } from './screen-answer.js';
-import { checkControl } from './check-view.js';
+import { checksControl } from './check-view.js';
 
 /*
  * The worktrees working on a task, under its row on the Tasks page: kept
@@ -29,8 +29,9 @@ function sessionControls(session, approvals) {
 }
 
 /**
- * A worktree working on the task: where, its PR, its check (see check-view.js),
- * and its session's controls (or a way to start one). `onRunCheck(path)` runs its check.
+ * A worktree working on the task: where, its PR, its checks (see check-view.js),
+ * and its session's controls (or a way to start one). `onRunCheck(path, name?)`
+ * runs one of its checks, or all of them.
  */
 export function linkLine(link, caps, approvals = [], { onRunCheck } = {}) {
   const session = sessionToJump(link);
@@ -40,7 +41,7 @@ export function linkLine(link, caps, approvals = [], { onRunCheck } = {}) {
     link.pr && h('a', {
       class: `small task-link-pr${state ? ` is-${state}` : ''}`, href: link.pr.url, target: '_blank', rel: 'noopener noreferrer', title: `Pull request${state ? ` (${state})` : ''}`,
     }, `#${link.pr.number}`),
-    onRunCheck && checkControl(link.check, { canRun: link.canCheck, onRun: () => onRunCheck(link.path) }),
+    onRunCheck && checksControl(link.checks, { names: link.checkNames, onRun: (name) => onRunCheck(link.path, name) }),
     h('div', { class: 'actions' },
       session ? sessionControls(session, approvals) : openMenu(link.path, link.recent, caps)));
 }

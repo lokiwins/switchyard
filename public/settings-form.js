@@ -3,7 +3,7 @@
  * or "roots"), to and from the settings the server sends and takes.
  */
 
-const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes', 'checks.commands']);
+const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes']);
 const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'tasks.deleteDoneAfterDays', 'checks.timeoutMinutes']);
 // Checkboxes: "true" or "false" in the form.
 const BOOLEANS = new Set(['tasks.autoDeleteDone', 'providers.claude.enabled']);

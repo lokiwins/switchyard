@@ -360,9 +360,9 @@ async function hubPayload({
     taskStarts: taskStarts.list(sessions.liveSessions ?? []),
     // Worktrees closed tasks left with changes or unmerged commits, waiting for Keep or Delete.
     worktreeChoices: taskCleanup.pending(),
-    // Run check: each worktree's latest result (see checks.js), and the repos that have a command to run.
+    // Run check: each worktree's latest results (see checks.js), and each repo's check names.
     checks: await checks.results({ repos: sessions.repos }),
-    checkRepos: checks.repos(),
+    checkNames: checks.names(),
     capabilities,
     checkedAt: Date.now(),
   };

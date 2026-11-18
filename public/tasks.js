@@ -6,6 +6,7 @@ import { renderToolCards } from './task-views.js';
 import { newTaskForm, renderGroups } from './hub-views.js';
 import { openTaskPane } from './task-pane.js';
 import { openAttemptPane } from './attempt-pane.js';
+import { anyRunning } from './check-status.js';
 import { groupTasks, matchesHubTask } from './task-state.js';
 import { cleanupSummary, renderWorktreeChoices } from './worktree-choices.js';
 
@@ -91,9 +92,9 @@ const actions = {
   reopen: (task) => change('/api/hub/tasks/reopen', { id: task.id }, `Reopened: ${task.title}`),
   remove: (task) => closing(task, 'delete', () => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`)),
   open: (task) => openTaskPane(task, { save: (fields) => change('/api/hub/tasks/update', { id: task.id, ...fields }, `Saved: ${fields.title.trim()}`) }),
-  runCheck: (path) => change('/api/checks/run', { path }),
+  runCheck: (path, name) => change('/api/checks/run', { path, ...(name ? { name } : {}) }),
   compare: (task) => openAttemptPane(task, {
-    runCheck: (path) => post('/api/checks/run', { path }).then(() => true, (error) => { toast(error.message); return false; }),
+    runCheck: (path, name) => post('/api/checks/run', { path, ...(name ? { name } : {}) }).then(() => true, (error) => { toast(error.message); return false; }),
     load: () => getJson(`/api/hub/tasks/attempts?id=${encodeURIComponent(task.id)}`),
     pick: (attempt) => change('/api/hub/tasks/pick', { id: task.id, branch: attempt.branch }, `Picked attempt ${attempt.n}: ${task.title}`),
   }),
@@ -115,7 +116,7 @@ const actions = {
 function lookAgainIfStarting(groups) {
   clearTimeout(ui.soon);
   const starting = groups.some((group) => group.tasks.some((task) => task.state === 'starting' || task.start
-    || task.work.some((w) => w.check?.state === 'running')));
+    || task.work.some((w) => anyRunning(w.checks))));
   if (starting) ui.soon = setTimeout(() => loadTasks(), STARTING_POLL_MS);
 }
 
@@ -132,11 +133,11 @@ function renderTasks() {
       : 'No tasks yet. Add what you’re working on above, with links to its tickets; its worktree, PR and Claude session show under it.'));
     return;
   }
-  const checkRepos = new Set(data.checkRepos ?? []);
+
   const tasks = shown.map((task) => ({
     ...task,
-    // Each worktree's latest check, and whether its repo has one to run (see src/checks.js).
-    work: task.work.map((w) => ({ ...w, check: data.checks?.[w.path] ?? null, canCheck: checkRepos.has(w.repoName) })),
+    // Each worktree's latest checks, and the checks its repo has to run (see src/checks.js).
+    work: task.work.map((w) => ({ ...w, checks: data.checks?.[w.path] ?? [], checkNames: data.checkNames?.[w.repoName] ?? [] })),
     ...(ui.creating.has(task.id) ? { creating: ui.creating.get(task.id) } : {}),
     ...(ui.closing.has(task.id) ? { closing: ui.closing.get(task.id) } : {}),
   }));

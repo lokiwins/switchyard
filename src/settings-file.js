@@ -2,6 +2,7 @@ import { chmodSync, existsSync, readFileSync, renameSync, statSync, writeFileSyn
 import { ActionError } from './errors.js';
 import { expandHome } from './config.js';
 import { DEFAULTS, SettingsError, parseSettings } from './settings.js';
+import { commandsFromText, commandsToText } from './check-commands.js';
 
 /*
  * config.json, as the Settings page reads and edits it. The page edits the
@@ -25,6 +26,11 @@ export const EDITABLE = {
 };
 
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+// Settings the page edits as text, kept in config.json as data: check commands are YAML on the page.
+const AS_TEXT = {
+  'checks.commands': { toText: commandsToText, fromText: commandsFromText },
+};
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const invalid = (message) => new ActionError(400, message);
 
@@ -38,7 +44,10 @@ function shown(value, fallback) {
 export function editableSettings(file) {
   const sections = Object.fromEntries(Object.entries(EDITABLE).map(([name, keys]) => [
     name,
-    Object.fromEntries(keys.map((key) => [key, shown(file[name]?.[key], DEFAULTS[name][key])])),
+    Object.fromEntries(keys.map((key) => {
+      const value = shown(file[name]?.[key], DEFAULTS[name][key]);
+      return [key, AS_TEXT[`${name}.${key}`] ? AS_TEXT[`${name}.${key}`].toText(value) : value];
+    })),
   ]));
   return { roots: Array.isArray(file.roots) ? [...file.roots] : [], ...sections };
 }
@@ -54,8 +63,10 @@ function cleanRoots(roots) {
 function editSection(current, name, edits) {
   if (!isObject(edits)) throw invalid(`"${name}" must be an object`);
   const next = { ...(isObject(current) ? current : {}) };
-  for (const [key, value] of Object.entries(edits)) {
+  for (const [key, edited] of Object.entries(edits)) {
     if (!EDITABLE[name].includes(key)) throw invalid(`"${name}.${key}" is not a setting the page can change`);
+    const asText = AS_TEXT[`${name}.${key}`];
+    const value = asText && typeof edited === 'string' ? asText.fromText(edited) : edited;
     const fallback = DEFAULTS[name][key];
     // A group of settings (a provider's) keeps only what differs from its defaults.
     const kept = isObject(fallback) && isObject(value)

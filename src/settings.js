@@ -51,8 +51,8 @@ export const DEFAULTS = Object.freeze({
     deleteDoneAfterDays: 7,
   }),
   checks: Object.freeze({
-    // "repo: command" lines: the command Run check runs in a worktree of that repo, e.g. "billing-api: npm test".
-    commands: Object.freeze([]),
+    // Each repo's named checks, run in a worktree of it: { "billing-api": { "lint": "npm run lint", "test": "npm test" } }.
+    commands: Object.freeze({}),
     // A check still running after this long is stopped, and counts as failed.
     timeoutMinutes: 10,
   }),
@@ -88,22 +88,50 @@ const PROGRAM = /^(?:[A-Za-z0-9_][A-Za-z0-9._-]*|(?:~|)\/[A-Za-z0-9._\/-]+)$/;
 // An option is a plain word: nothing a shell would treat as quoting, expansion or another command.
 const OPTION_WORD = /^[A-Za-z0-9_@%+=:,.\/~-]+$/;
 const MAX_OPTIONS_LENGTH = 500;
-// "repo: command": a repo's folder name, then the shell command its check runs.
+// A repo's folder name, or a check's name: no spaces, as both are typed as keys.
+const CHECK_NAME = /^[A-Za-z0-9._-]{1,64}$/;
+// The earlier one-line form, "repo: command", still read.
 const CHECK_LINE = /^\s*([A-Za-z0-9._-]+)\s*:\s*(\S.*?)\s*$/;
-const MAX_CHECK_COMMAND = 500;
+// A repo given just a command has one check, called this.
+const SINGLE_CHECK = 'check';
+const MAX_CHECK_COMMAND = 2000;
+const MAX_CHECKS_PER_REPO = 20;
 const MAX_CHECK_MINUTES = 120;
 
-/** "repo: command" lines as { repo: command }. */
-function checkCommands(lines) {
+/** The earlier ["repo: command", …] lines, as { repo: command }. */
+function fromLines(lines) {
   const commands = {};
   for (const line of stringList(lines, 'checks.commands')) {
     const [, repo, command] = CHECK_LINE.exec(line) ?? [];
-    if (!repo) fail('checks.commands', `must be lines of "repo: command", such as "billing-api: npm test" (got ${JSON.stringify(line)})`);
-    if (command.length > MAX_CHECK_COMMAND) fail('checks.commands', `has a command for ${repo} longer than ${MAX_CHECK_COMMAND} characters`);
+    if (!repo) fail('checks.commands', `must give each repo its checks, such as "billing-api: npm test" (got ${JSON.stringify(line)})`);
     if (Object.hasOwn(commands, repo)) fail('checks.commands', `names ${repo} twice`);
     commands[repo] = command;
   }
   return commands;
+}
+
+function checkCommand(value, where) {
+  if (typeof value !== 'string' || value.trim() === '') fail('checks.commands', `has no command for ${where}`);
+  if (value.length > MAX_CHECK_COMMAND) fail('checks.commands', `has a command for ${where} longer than ${MAX_CHECK_COMMAND} characters`);
+  return value.trim();
+}
+
+/** { repo: { name: command } | command } as { repo: [{ name, command }] }, in the order written. */
+function checkCommands(value) {
+  const byRepo = Array.isArray(value) ? fromLines(value) : value;
+  if (typeof byRepo !== 'object' || byRepo === null) fail('checks.commands', 'must give each repo its checks, such as { "billing-api": { "test": "npm test" } }');
+  return Object.fromEntries(Object.entries(byRepo).map(([repo, checks]) => {
+    if (!CHECK_NAME.test(repo)) fail('checks.commands', `has ${JSON.stringify(repo)}, which isn't a repo folder name`);
+    if (typeof checks === 'string') return [repo, [{ name: SINGLE_CHECK, command: checkCommand(checks, repo) }]];
+    if (typeof checks !== 'object' || checks === null || Array.isArray(checks)) fail('checks.commands', `must give ${repo} named checks, such as test: npm test`);
+    const entries = Object.entries(checks);
+    if (entries.length === 0) fail('checks.commands', `gives ${repo} no checks`);
+    if (entries.length > MAX_CHECKS_PER_REPO) fail('checks.commands', `gives ${repo} more than ${MAX_CHECKS_PER_REPO} checks`);
+    return [repo, entries.map(([name, command]) => {
+      if (!CHECK_NAME.test(name)) fail('checks.commands', `has a check called ${JSON.stringify(name)} for ${repo}; use letters, digits, ".", "_" and "-"`);
+      return { name, command: checkCommand(command, `${repo} ${name}`) };
+    })];
+  }));
 }
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];
 
