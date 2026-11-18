@@ -240,6 +240,10 @@ function startMenu(task, { repos, actions }) {
 function detailLine(task) {
   const { start } = task;
   if (task.creating) return h('span', { class: 'row-detail is-pending' }, 'Creating the worktree…');
+  if (task.closing) {
+    const doing = { done: 'Marking it done', dropped: 'Dropping it', delete: 'Deleting it' }[task.closing];
+    return h('span', { class: 'row-detail is-pending' }, task.work.length > 0 ? `${doing}: ending its sessions and putting its worktrees away…` : `${doing}…`);
+  }
   if (start?.state === 'asking-trust') return h('span', { class: 'row-detail is-needs-you' }, h('span', { class: 'row-detail-label' }, 'Asks:'), ' trust this folder?');
   if (start?.state === 'starting') return h('span', { class: 'row-detail is-pending' }, `Starting Claude in tmux window ${start.place}`);
   if (start?.state === 'exited') {
@@ -251,6 +255,8 @@ function detailLine(task) {
 }
 
 function rowActions(task, context) {
+  // Already on its way out; a second click would only close it twice.
+  if (task.closing) return null;
   if (task.start?.state === 'asking-trust') return trustButtons(task.start);
   const canStart = task.state === 'not-started' && context.caps?.tmux && context.repos.length > 0;
   return [canStart && startMenu(task, context), taskMenu(task, context.actions)];

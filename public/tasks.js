@@ -18,7 +18,7 @@ const STARTING_POLL_MS = 1_500;
 const CLOCK_MS = 5_000;
 
 const ui = {
-  tools: null, data: null, query: '', loading: false, loads: 0, doneOpen: false, creating: new Set(), soon: null,
+  tools: null, data: null, query: '', loading: false, loads: 0, doneOpen: false, creating: new Set(), closing: new Map(), soon: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -68,10 +68,22 @@ function renderChoices() {
   $('worktree-choices').replaceChildren(...renderWorktreeChoices(ui.data?.worktreeChoices ?? [], chooseWorktree));
 }
 
+/** Show the task as closing at once: the server ends its sessions and puts its worktrees away before it answers. */
+async function closing(task, kind, run) {
+  ui.closing.set(task.id, kind);
+  renderTasks();
+  try {
+    return await run();
+  } finally {
+    ui.closing.delete(task.id);
+    renderTasks();
+  }
+}
+
 const actions = {
-  close: (task, as) => change('/api/hub/tasks/close', { id: task.id, as }, as === 'done' ? `Done: ${task.title}` : `Dropped: ${task.title}`),
+  close: (task, as) => closing(task, as, () => change('/api/hub/tasks/close', { id: task.id, as }, as === 'done' ? `Done: ${task.title}` : `Dropped: ${task.title}`)),
   reopen: (task) => change('/api/hub/tasks/reopen', { id: task.id }, `Reopened: ${task.title}`),
-  remove: (task) => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`),
+  remove: (task) => closing(task, 'delete', () => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`)),
   open: (task) => openTaskPane(task, { save: (fields) => change('/api/hub/tasks/update', { id: task.id, ...fields }, `Saved: ${fields.title.trim()}`) }),
   async start(task, repo) {
     // Shown as starting at once; New task can take a few seconds (a fetch, a checkout).
@@ -106,7 +118,11 @@ function renderTasks() {
       : 'No tasks yet. Add what you’re working on above, with links to its tickets; its worktree, PR and Claude session show under it.'));
     return;
   }
-  const tasks = shown.map((task) => (ui.creating.has(task.id) ? { ...task, creating: true } : task));
+  const tasks = shown.map((task) => ({
+    ...task,
+    ...(ui.creating.has(task.id) ? { creating: true } : {}),
+    ...(ui.closing.has(task.id) ? { closing: ui.closing.get(task.id) } : {}),
+  }));
   const groups = groupTasks(tasks, Date.now(), data.taskStarts);
   lookAgainIfStarting(groups);
   // Replacing the rows would take away the reply box you're typing in; the next look catches up.

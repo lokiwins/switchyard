@@ -13,6 +13,8 @@ const WEEK_DAYS = 6;
 export const STATE_LABELS = {
   'needs-you': { label: 'Needs you', tone: 'amber' },
   starting: { label: 'Starting…', tone: 'green' },
+  closing: { label: 'Closing…', tone: '' },
+  deleting: { label: 'Deleting…', tone: '' },
   working: { label: 'Working', tone: 'green' },
   'in-review': { label: 'In review', tone: 'purple' },
   paused: { label: 'Paused', tone: '' },
@@ -22,7 +24,7 @@ export const STATE_LABELS = {
 };
 
 // Work under way before work not started, within a group.
-const STATE_ORDER = ['needs-you', 'starting', 'working', 'in-review', 'paused', 'not-started', 'done', 'dropped'];
+const STATE_ORDER = ['needs-you', 'closing', 'deleting', 'starting', 'working', 'in-review', 'paused', 'not-started', 'done', 'dropped'];
 
 const GROUPS = [
   { key: 'needs-you', label: 'Needs you' },
@@ -52,6 +54,8 @@ export function startOf(task, starts = []) {
  * you, and one that quit is paused.
  */
 export function taskState(task, starts = []) {
+  // Shown the moment you click, while the server ends its sessions and puts its worktrees away.
+  if (task.closing) return task.closing === 'delete' ? 'deleting' : 'closing';
   if (task.closedAs) return task.closedAs;
   const work = task.work ?? [];
   if (work.some((w) => w.pr?.state === 'MERGED')) return 'done';
