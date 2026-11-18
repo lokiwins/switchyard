@@ -3,6 +3,7 @@ import { mapLimit, run } from './exec.js';
 import { discoverRepos, getRemoteUrl, listWorktrees } from './git.js';
 import { fetchBranchPrs, fetchPrDetails, parseGithubRemote } from './github.js';
 import { DEFAULT_SETTINGS } from './settings.js';
+import { isHidden } from './session-removal.js';
 import { createStatusTracker } from './status-tracker.js';
 
 // git status only runs where files changed (see status-tracker.js) and GitHub data refreshes
@@ -106,6 +107,7 @@ function latestOf(...timestamps) {
  * @param {(dir: string, listener: () => void) => object} [deps.watchRoot] Watches a root folder
  *   (fs.watch, not recursive), so a repo added or removed there is found without a periodic look.
  * @param {() => number} [deps.now] The clock, for how recently a root folder changed.
+ * @param {() => Promise<Map<string, number>>} [deps.hiddenSessions] Ended sessions deleted from the lists, with when each ended.
  */
 export function createStateService({
   config, claude, cache,
@@ -114,6 +116,7 @@ export function createStateService({
   prSnapshot = () => null,
   watchRoot = (dir, listener) => fsWatch(dir, { persistent: false }, listener),
   now = Date.now,
+  hiddenSessions = async () => new Map(),
 }) {
   const settings = config.settings ?? DEFAULT_SETTINGS;
 
@@ -166,13 +169,13 @@ export function createStateService({
     return { ...pr, ...(detail ?? {}) };
   }
 
-  async function buildWorktree({ repo, remote, worktree, status, refs, prs, liveSessions, scan, sync }) {
+  async function buildWorktree({ repo, remote, worktree, status, refs, prs, liveSessions, hidden, scan, sync }) {
     const isMain = worktree.path === repo.mainPath;
     const pr = remote ? await attachChecks(remote, matchPr(prs, worktree.branch, settings.git.isLongLivedBranch), scan, sync) : null;
     const lastSession = await claude.latestSession(worktree.path);
-    const recentSessions = await claude.recentSessions(worktree.path, {
+    const recentSessions = (await claude.recentSessions(worktree.path, {
       exclude: new Set(liveSessions.map((s) => s.sessionId)),
-    });
+    })).filter((s) => !isHidden({ sessionId: s.sessionId, endedAt: s.updatedAt }, hidden));
     const lastCommit = worktree.branch ? refs.get(worktree.branch) ?? null : null;
     const flags = deriveFlags({ isMain, status, pr, liveSessions, lastSession }, Date.now(), settings.agents);
     return {
@@ -193,11 +196,11 @@ export function createStateService({
     };
   }
 
-  async function buildRepo({ repo, github: remote, refs }, { sessionsByWorktree, branchPrs, scan, sync }) {
+  async function buildRepo({ repo, github: remote, refs }, { sessionsByWorktree, hidden, branchPrs, scan, sync }) {
     // git status is the slow part of a local scan; the sessions view leaves it out.
     const statuses = scan.git ? await statusTracker.statuses(repo.worktrees) : repo.worktrees.map(() => null);
     const worktrees = await Promise.all(repo.worktrees.map((worktree, i) => buildWorktree({
-      repo, remote, worktree, refs, scan, sync,
+      repo, remote, worktree, refs, scan, sync, hidden,
       status: statuses[i],
       prs: (remote && branchPrs.byRepo[remote]) ?? [],
       liveSessions: sessionsByWorktree.get(worktree.path) ?? [],
@@ -355,10 +358,12 @@ export function createStateService({
     const now = Date.now();
     const liveSessions = (await claude.liveSessions()).map((s) => ({ ...s, parked: isParked(s, now, settings.agents.parkedAfterMs) }));
     const { byWorktree, unmatched } = groupSessions(liveSessions, worktreePaths);
-    const ended = await claude.endedSessions({
+    // Sessions you deleted from the lists stay off them; their transcripts are still there to resume.
+    const hidden = await hiddenSessions();
+    const ended = (await claude.endedSessions({
       since: now - settings.agents.endedHistoryMs,
       liveSessionIds: new Set(liveSessions.map((s) => s.sessionId)),
-    });
+    })).filter((s) => !isHidden(s, hidden));
 
     const sync = prSnapshot();
     const myOpenPrs = await fetchMyOpenPrs(scan, sync).catch((error) => {
@@ -372,7 +377,7 @@ export function createStateService({
     errors.push(...branchPrs.errors);
 
     const repos = await mapLimit(reposWithRemote, REPO_CONCURRENCY, (repo) => buildRepo(repo, {
-      sessionsByWorktree: byWorktree, branchPrs, scan, sync,
+      sessionsByWorktree: byWorktree, hidden, branchPrs, scan, sync,
     }));
 
     const matchedPrUrls = new Set(repos.flatMap((r) => r.worktrees.map((w) => w.pr?.url).filter(Boolean)));
@@ -416,6 +421,10 @@ export function createStateService({
     /** Settings changed: find the repos again (the roots may have), and build every view afresh with the new settings. */
     settingsChanged: async () => {
       await cache.reload('repos', lookForRepos);
+      for (const key of ['state', 'local', 'sessions']) cache.invalidate(key);
+    },
+    /** Sessions were deleted from the lists: every view is built afresh, without them. */
+    sessionsRemoved: () => {
       for (const key of ['state', 'local', 'sessions']) cache.invalidate(key);
     },
     /** The sessions view rebuilt now, for a session that just changed; the repo list stays cached. */

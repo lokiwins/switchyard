@@ -4,6 +4,7 @@ import { sessionDetail, sessionTitle } from './session-text.js';
 import { graphLink } from './session-controls.js';
 import { sessionRow, statusBadge, taskLink, whereLabel } from './session-row.js';
 import { taskFromWork } from './make-task.js';
+import { deleteMenu } from './session-delete.js';
 
 const COLLAPSED_LIMIT = 5;
 
@@ -42,6 +43,7 @@ export function renderEndedRow(session, details = null, caps = null) {
       // Only a session in a worktree switchyard knows can be linked to a task.
       session.worktreePath && taskFromWork({ sessionId: session.sessionId }, session.hubTask),
       graphLink(session),
+      deleteMenu(session),
     ],
   });
 }

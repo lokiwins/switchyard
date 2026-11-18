@@ -18,6 +18,7 @@ import { CSP, newStyleNonce, withStyleNonce } from './csp.js';
 import { ActionError } from './errors.js';
 import { buildLocalIndex, createPrService } from './prs.js';
 import { resolveTerminalApp } from './settings.js';
+import { createSessionRemoval } from './session-removal.js';
 import { createStateService } from './state.js';
 import { createTaskService } from './tasks.js';
 import { createTaskStarts } from './task-starts.js';
@@ -161,6 +162,10 @@ const POST_ROUTES = {
   '/api/terminal/reply': ({ actions }, body) => actions.replyToSession(body),
   '/api/terminal/interrupt': ({ actions }, body) => actions.interruptSession(body),
   '/api/terminal/end': ({ actions }, body) => actions.endSession(body),
+  '/api/agents/hide': ({ sessionRemoval }, body) => sessionRemoval.hide(body),
+  '/api/agents/unhide': ({ sessionRemoval }, body) => sessionRemoval.unhide(body),
+  '/api/agents/trash': ({ sessionRemoval }, body) => sessionRemoval.trash(body),
+  '/api/agents/restore': ({ sessionRemoval }, body) => sessionRemoval.restore(body),
   '/api/terminal/answer': answerPrompt,
   '/api/terminal/input': ({ liveTerminals }, body) => liveTerminals.input(body),
   '/api/terminal/resize': ({ liveTerminals }, body) => liveTerminals.resize(body),
@@ -589,8 +594,19 @@ async function main() {
   const tmux = createTmux();
   // The board reuses the PR sync's details for your PRs; the sync is created just below.
   let prService = null;
+  // Ended sessions deleted from the Agents page; it reads the sessions view, made just below.
+  const sessionRemoval = createSessionRemoval({
+    claudeDir: config.claudeDir,
+    getState: () => stateService.getSessions(),
+    keepForMs: () => config.settings.agents.endedHistoryMs,
+    onChange: () => {
+      stateService.sessionsRemoved();
+      agentFeed.changed();
+    },
+  });
   const stateService = createStateService({
     config,
+    hiddenSessions: sessionRemoval.hidden,
     claude: createClaudeProvider({ claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux) }),
     cache,
     prSnapshot: () => prService?.syncSnapshot() ?? null,
@@ -633,7 +649,7 @@ async function main() {
   });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
+    sessionGraphs, sessionRemoval, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({

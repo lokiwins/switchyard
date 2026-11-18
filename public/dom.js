@@ -63,12 +63,24 @@ export function shellQuote(value) {
 
 let toastTimer = null;
 
-export function toast(message) {
+// A toast you can act on (Undo) stays long enough to reach it.
+const ACTION_TOAST_MS = 8000;
+
+/** A short message at the bottom of the page; with `action`, a button too ({ label, run }). */
+export function toast(message, { action = null } = {}) {
   const el = document.getElementById('toast');
-  el.textContent = message;
+  el.replaceChildren(message, action ? h('button', {
+    type: 'button',
+    class: 'toast-action',
+    onclick: () => {
+      el.hidden = true;
+      action.run();
+    },
+  }, action.label) : '');
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, message.length > 60 ? 5000 : 1600);
+  const showMs = action ? ACTION_TOAST_MS : message.length > 60 ? 5000 : 1600;
+  toastTimer = setTimeout(() => { el.hidden = true; }, showMs);
 }
 
 /** Copies a command; marked with ⧉ so it reads as "copy", not "do". */

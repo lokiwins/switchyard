@@ -37,6 +37,7 @@ export const STATIC_FILES = {
   '/session-row.js': 'session-row.js',
   '/session-text.js': 'session-text.js',
   '/session-controls.js': 'session-controls.js',
+  '/session-delete.js': 'session-delete.js',
   '/new-task.js': 'new-task.js',
   '/branch-name.js': 'branch-name.js',
   '/pending-tasks.js': 'pending-tasks.js',
