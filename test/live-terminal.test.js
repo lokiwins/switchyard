@@ -197,7 +197,7 @@ test('resize asks for the size on the terminal\'s window, within sane bounds', a
   const { terminals, sink, commands } = setup();
   await terminals.start({ sessionId: SESSION }, sink);
   assert.deepEqual(terminals.resize({ token: 'tok', cols: 132, rows: 43 }), { requested: { cols: 132, rows: 43 } });
-  assert.equal(commands.at(-1), 'refresh-client -C @4:132x43');
+  assert.ok(commands.includes('refresh-client -C @4:132x43'));
   for (const bad of [{ cols: 10, rows: 40 }, { cols: 100, rows: 500 }, { cols: '100', rows: 40 }, { cols: 100.5, rows: 40 }]) {
     assert.throws(() => terminals.resize({ token: 'tok', ...bad }), (error) => error.status === 400, JSON.stringify(bad));
   }
@@ -285,4 +285,33 @@ test('a resize the page asks for is redrawn as soon as the window has it, not wh
   await new Promise((resolve) => { setTimeout(resolve, 120); });
   assert.deepEqual(sink.events[0], ['resize', { cols: 132, rows: 43 }]);
   assert.equal(sink.events[1][0], 'output');
+});
+
+const DEFAULT_SIZE = /^set-option -t switchyard default-size (\d+x\d+)$/;
+const defaultSizes = (commands) => commands.map((c) => c.match(DEFAULT_SIZE)?.[1]).filter(Boolean);
+
+test('opening a task\'s terminal makes new task windows start at the pane\'s size, so their first open needs no resize', async () => {
+  const { terminals, sink, commands } = setup();
+  await terminals.start({ sessionId: SESSION, cols: 120, rows: 40 }, sink);
+  assert.deepEqual(defaultSizes(commands), ['120x40']);
+});
+
+test('making the pane wider or narrower moves the size new task windows start at too', async () => {
+  const { terminals, sink, commands } = setup();
+  await terminals.start({ sessionId: SESSION, cols: 120, rows: 40 }, sink);
+  terminals.resize({ token: 'tok', cols: 132, rows: 43 });
+  assert.deepEqual(defaultSizes(commands), ['120x40', '132x43']);
+});
+
+test('a terminal on one of your own tmux sessions leaves that session\'s options alone', async () => {
+  const { terminals, sink, commands } = setup({ target: { session: 'work', pane: '%3' } });
+  await terminals.start({ sessionId: SESSION, cols: 120, rows: 40 }, sink);
+  terminals.resize({ token: 'tok', cols: 132, rows: 43 });
+  assert.equal(commands.some((c) => c.includes('default-size')), false);
+});
+
+test('without a size from the page, the size new windows start at is left as it is', async () => {
+  const { terminals, sink, commands } = setup();
+  await terminals.start({ sessionId: SESSION }, sink);
+  assert.equal(commands.some((c) => c.includes('default-size')), false);
 });
