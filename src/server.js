@@ -20,6 +20,7 @@ import { buildLocalIndex, createPrService } from './prs.js';
 import { resolveTerminalApp } from './settings.js';
 import { createSessionRemoval } from './session-removal.js';
 import { createStateService } from './state.js';
+import { createTaskCleanup } from './task-cleanup.js';
 import { createTaskService } from './tasks.js';
 import { createTaskStarts } from './task-starts.js';
 import { CLICKUP_API, createClickUp } from './clickup.js';
@@ -148,6 +149,36 @@ async function answerPrompt({ actions, agentFeed }, body) {
 }
 
 /** A new task; made from a session or worktree (`from`), it's saved with where that work is, so it shows under it. */
+/** After a task's work was put away: the worktree list and every view, afresh. */
+async function workPutAway({ stateService }) {
+  await stateService.rediscover();
+  stateService.sessionsRemoved();
+}
+
+/** Done or dropped: the task's sessions end, come off the lists, and its worktrees go (see task-cleanup.js). */
+async function closeHubTask(services, body) {
+  const task = await services.taskHub.close(body);
+  const cleanup = await services.taskCleanup.afterClose(task);
+  await workPutAway(services);
+  return { ...task, cleanup };
+}
+
+/** Deleted: its work is put away as when it's closed, found while the task is still there. */
+async function deleteHubTask(services, body) {
+  const task = (await services.taskHub.list()).find((t) => t.id === body?.id);
+  const result = await services.taskHub.remove(body);
+  const cleanup = task ? await services.taskCleanup.afterClose(task) : null;
+  await workPutAway(services);
+  return { ...result, cleanup };
+}
+
+/** Keep or Delete for a worktree a closed task left waiting. */
+async function chooseWorktree(services, body) {
+  const result = await services.taskCleanup.choose(body);
+  if (result.removed) await workPutAway(services);
+  return result;
+}
+
 async function createHubTask({ taskHub, taskSources }, body) {
   const attached = body?.from ? await taskSources.attach(body.from) : [];
   return taskHub.create(body, { attached });
@@ -177,9 +208,10 @@ const POST_ROUTES = {
   '/api/terminal/open': ({ actions }, body) => actions.openWorktree(body),
   '/api/hub/tasks/create': createHubTask,
   '/api/hub/tasks/update': ({ taskHub }, body) => taskHub.update(body),
-  '/api/hub/tasks/close': ({ taskHub }, body) => taskHub.close(body),
+  '/api/hub/tasks/close': closeHubTask,
   '/api/hub/tasks/reopen': ({ taskHub }, body) => taskHub.reopen(body),
-  '/api/hub/tasks/delete': ({ taskHub }, body) => taskHub.remove(body),
+  '/api/hub/tasks/delete': deleteHubTask,
+  '/api/hub/tasks/worktree-choice': chooseWorktree,
   '/api/hub/tasks/start': ({ hubStarter }, body) => hubStarter.start(body),
   '/api/hub/ticket/status': ({ ticketDetails }, body) => ticketDetails.setStatus(body),
   '/api/task-tools/connect': ({ taskTools }, body) => taskTools.connect(body),
@@ -292,7 +324,7 @@ async function tasksPayload({ taskTools, stateService, capabilities }, { force }
 
 /** Your own tasks, each with the worktrees working on it (their PRs and sessions), and what the page's buttons can do. */
 async function hubPayload({
-  taskHub, stateService, approvals, taskStarts, capabilities,
+  taskHub, taskCleanup, stateService, approvals, taskStarts, capabilities,
 }, { force }) {
   const [tasks, sessions] = await Promise.all([
     taskHub.list(),
@@ -310,6 +342,8 @@ async function hubPayload({
     // For the work's controls (Allow/Deny), and for tasks just started: asking to trust the folder, or quit.
     approvals: approvals.pending(),
     taskStarts: taskStarts.list(sessions.liveSessions ?? []),
+    // Worktrees closed tasks left with changes or unmerged commits, waiting for Keep or Delete.
+    worktreeChoices: taskCleanup.pending(),
     capabilities,
     checkedAt: Date.now(),
   };
@@ -647,9 +681,16 @@ async function main() {
       agentFeed.changed();
     },
   });
+  // Fresh sessions (PR states as the last full scan saw them), so the sessions to end are the ones running now.
+  const taskCleanup = createTaskCleanup({
+    getState: () => stateService.getSessions({ force: true }),
+    getSessions: () => stateService.getSessions({ force: true }),
+    endSession: actions.endSession,
+    forgetSessions: sessionRemoval.forget,
+  });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, sessionRemoval, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
+    sessionGraphs, sessionRemoval, taskCleanup, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const agentFeed = createAgentFeed({

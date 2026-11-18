@@ -108,6 +108,16 @@ function sessionLinks(task, worktrees) {
   });
 }
 
+/** The worktrees that are the task's by branch or folder (see branchIsTasks), main checkouts left out. */
+export function taskWorktrees(task, repos) {
+  return repos.flatMap((repo) => repo.worktrees
+    .filter((worktree) => !worktree.isMain && branchIsTasks(task, repo, worktree))
+    .map((worktree) => ({ repo, worktree })));
+}
+
+/** The sessions saved on a task by id (ones on a long-lived branch like main). */
+export const attachedSessionIds = (task) => attachments(task).filter((a) => a.sessionId).map((a) => a.sessionId);
+
 /**
  * Your own tasks (see task-hub.js), each with `work`: the worktrees whose
  * branch is the task's (see branchIsTasks), with their PRs and sessions, and

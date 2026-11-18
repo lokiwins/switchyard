@@ -6,6 +6,7 @@ import { renderToolCards } from './task-views.js';
 import { newTaskForm, renderGroups } from './hub-views.js';
 import { openTaskPane } from './task-pane.js';
 import { groupTasks, matchesHubTask } from './task-state.js';
+import { cleanupSummary, renderWorktreeChoices } from './worktree-choices.js';
 
 /*
  * The Tasks page: your own tasks, what needs you first, then by when they're
@@ -37,15 +38,34 @@ async function getJson(url) {
 
 /** Run a change to a task, then show the tasks as they are now. Resolves whether it worked. */
 async function change(url, body, done) {
+  let result;
   try {
-    await post(url, body);
+    result = await post(url, body);
   } catch (error) {
     toast(error.message);
     return false;
   }
-  if (done) toast(done);
+  // Closing or deleting a task puts its work away: say what went, and what couldn't.
+  const errors = result?.cleanup?.errors ?? [];
+  const summary = cleanupSummary(result?.cleanup);
+  if (errors.length > 0) toast(`${done}. ${errors.join(' ')}`);
+  else if (done) toast(summary ? `${done} · ${summary}` : done);
   await loadTasks();
   return true;
+}
+
+async function chooseWorktree(choice, keep) {
+  try {
+    await post('/api/hub/tasks/worktree-choice', { path: choice.path, keep });
+    toast(keep ? `Kept ${choice.path}` : `Deleted ${choice.path}`);
+  } catch (error) {
+    toast(error.message);
+  }
+  await loadTasks();
+}
+
+function renderChoices() {
+  $('worktree-choices').replaceChildren(...renderWorktreeChoices(ui.data?.worktreeChoices ?? [], chooseWorktree));
 }
 
 const actions = {
@@ -122,6 +142,7 @@ async function loadTasks({ force = false } = {}) {
     ui.data = data;
     applyNav(data.nav);
     renderErrors([]);
+    renderChoices();
     renderTasks();
     openFromLink();
   } catch (error) {

@@ -110,6 +110,16 @@ export function createSessionRemoval({
     });
   }
 
+  /** Take sessions off the lists without checking they're listed as ended: a task being put away, say, whose sessions it just ended. */
+  function forget(sessions) {
+    return serial(async () => {
+      const next = new Map(await hidden());
+      sessions.forEach(({ sessionId, endedAt }) => next.set(sessionId, endedAt));
+      await save(next);
+      onChange();
+    });
+  }
+
   async function unhide(body) {
     const ids = parseIds(body);
     return serial(async () => {
@@ -172,5 +182,5 @@ export function createSessionRemoval({
     });
   }
 
-  return { hidden, hide, unhide, trash, restore };
+  return { hidden, hide, forget, unhide, trash, restore };
 }

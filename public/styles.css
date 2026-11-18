@@ -265,6 +265,17 @@ main {
   background: var(--amber-soft); border-bottom: 1px solid var(--divider);
 }
 .hint code { font-family: var(--mono); font-size: 11px; }
+/* Tasks: a closed task's worktree kept for its changes, asking Keep or Delete. */
+.worktree-choices { display: flex; flex-direction: column; gap: var(--space-2); }
+.worktree-choices:not(:empty) { margin-bottom: var(--space-3); }
+.worktree-choice {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  background: var(--amber-soft); box-shadow: inset 3px 0 0 var(--amber);
+}
+.worktree-choice-text { margin: 0; font-size: var(--text-sm); color: var(--gray-900); overflow-wrap: anywhere; }
+.worktree-choice-text code { font-family: var(--mono); font-size: 12px; }
+.worktree-choice-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
 .copy-icon { margin-right: 3px; opacity: 0.7; }
 .live-dot {
   display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%;

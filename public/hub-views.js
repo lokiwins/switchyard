@@ -171,6 +171,9 @@ function ticketLinks(links) {
   });
 }
 
+// What closing or deleting a task does to its work (see src/task-cleanup.js).
+const PUTS_AWAY = 'Its running sessions end and its worktrees are removed; one with uncommitted changes or unmerged commits asks you first.';
+
 /** Mark done, drop, reopen or delete: the row's ⋯ menu. Delete asks once more inside the menu. */
 function taskMenu(task, actions) {
   const item = (label, title, run) => h('button', {
@@ -188,7 +191,7 @@ function taskMenu(task, actions) {
     type: 'button',
     class: 'menu-item',
     role: 'menuitem',
-    title: 'Remove this task from switchyard (its worktree, branch and tickets are left alone)',
+    title: `Remove this task from switchyard. ${PUTS_AWAY} Its branches and tickets stay.`,
     onclick: async (event) => {
       const button = event.currentTarget;
       if (!button.dataset.confirm) {
@@ -202,8 +205,8 @@ function taskMenu(task, actions) {
   }, h('span', { class: 'menu-title' }, 'Delete…'));
   return dropdown({ key: `task-${task.id}`, label: '⋯', title: 'More', className: 'btn btn-action', focusInput: false },
     closed ? item('Reopen', 'Put it back with your open tasks', () => actions.reopen(task)) : [
-      item('Mark done', 'Done, without a merged PR to say so', () => actions.close(task, 'done')),
-      item('Drop', "Not doing it after all", () => actions.close(task, 'dropped')),
+      item('Mark done', `Done, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(task, 'done')),
+      item('Drop', `Not doing it after all. ${PUTS_AWAY}`, () => actions.close(task, 'dropped')),
     ],
     remove);
 }
