@@ -18,6 +18,7 @@ export const EDITABLE = {
   github: ['copilotReviewer', 'issueRepos'],
   git: ['longLivedBranches'],
   ci: ['holdPatterns', 'stripPrefixes'],
+  tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
 };
 
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);

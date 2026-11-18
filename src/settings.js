@@ -44,6 +44,11 @@ export const DEFAULTS = Object.freeze({
     endedHistoryDays: 7,
     interruptedAttentionDays: 3,
   }),
+  tasks: Object.freeze({
+    // Delete done and dropped tasks this many days after they're done, putting their work away (see task-cleanup.js).
+    autoDeleteDone: false,
+    deleteDoneAfterDays: 7,
+  }),
 });
 
 const SECTION_KEYS = {
@@ -54,6 +59,7 @@ const SECTION_KEYS = {
   editor: ['urlScheme'],
   appearance: ['theme', 'mode', 'terminal'],
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
+  tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
 };
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];
 
@@ -138,6 +144,8 @@ export function parseSettings(file = {}) {
   const terminal = section(file, 'terminal');
   const editor = section(file, 'editor');
   const appearance = section(file, 'appearance');
+  const tasks = section(file, 'tasks');
+  if (typeof tasks.autoDeleteDone !== 'boolean') fail('tasks.autoDeleteDone', 'must be true or false');
 
   if (!TERMINAL_CHOICES.includes(terminal.app)) fail('terminal.app', `must be one of: ${TERMINAL_CHOICES.join(', ')}`);
   if (typeof editor.urlScheme !== 'string' || !/^(none|[a-z][a-z0-9+.-]*)$/.test(editor.urlScheme)) {
@@ -168,6 +176,10 @@ export function parseSettings(file = {}) {
       parkedAfterMs: positiveNumber(agents.parkedAfterHours, 'agents.parkedAfterHours') * HOUR_MS,
       endedHistoryMs: positiveNumber(agents.endedHistoryDays, 'agents.endedHistoryDays') * DAY_MS,
       interruptedAttentionMs: positiveNumber(agents.interruptedAttentionDays, 'agents.interruptedAttentionDays') * DAY_MS,
+    },
+    tasks: {
+      autoDeleteDone: tasks.autoDeleteDone,
+      deleteDoneAfterMs: positiveNumber(tasks.deleteDoneAfterDays, 'tasks.deleteDoneAfterDays') * DAY_MS,
     },
   };
 }

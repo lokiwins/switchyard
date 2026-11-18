@@ -10,8 +10,15 @@ const form = $('settings');
 const ui = { saved: null };
 
 const fieldOf = (name) => form.elements.namedItem(name);
-const currentFields = () => Object.fromEntries(FIELD_NAMES.map((name) => [name, fieldOf(name).value]));
-const hasChanges = () => ui.saved !== null && FIELD_NAMES.some((name) => fieldOf(name).value !== ui.saved[name]);
+// A checkbox's field is "true" or "false" (see settings-form.js); every other field is its text.
+const fieldValue = (name) => (fieldOf(name).type === 'checkbox' ? String(fieldOf(name).checked) : fieldOf(name).value);
+function setField(name, value) {
+  const field = fieldOf(name);
+  if (field.type === 'checkbox') field.checked = value === 'true';
+  else field.value = value;
+}
+const currentFields = () => Object.fromEntries(FIELD_NAMES.map((name) => [name, fieldValue(name)]));
+const hasChanges = () => ui.saved !== null && FIELD_NAMES.some((name) => fieldValue(name) !== ui.saved[name]);
 
 function showChanged() {
   $('save').disabled = !hasChanges();
@@ -81,7 +88,7 @@ function fillAppearanceChoices() {
 /** Fill the form from what the server says is saved. */
 function show(view) {
   ui.saved = fieldsFromValues(view.values);
-  for (const name of FIELD_NAMES) fieldOf(name).value = ui.saved[name];
+  for (const name of FIELD_NAMES) setField(name, ui.saved[name]);
   for (const name of FIELD_NAMES) {
     const value = fieldsFromValues(view.defaults)[name];
     fieldOf(name).placeholder = name === 'roots' ? '~/work' : value.split('\n')[0];
@@ -132,7 +139,7 @@ form.addEventListener('submit', async (event) => {
   }
 });
 $('revert').addEventListener('click', () => {
-  for (const name of FIELD_NAMES) fieldOf(name).value = ui.saved[name];
+  for (const name of FIELD_NAMES) setField(name, ui.saved[name]);
   tickRepos();
   showErrors([]);
   showChanged();

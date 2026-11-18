@@ -21,6 +21,7 @@ import { resolveTerminalApp } from './settings.js';
 import { createSessionRemoval } from './session-removal.js';
 import { createStateService } from './state.js';
 import { createTaskCleanup } from './task-cleanup.js';
+import { SWEEP_MS, createDoneTaskSweep } from './done-task-sweep.js';
 import { createTaskService } from './tasks.js';
 import { createTaskStarts } from './task-starts.js';
 import { CLICKUP_API, createClickUp } from './clickup.js';
@@ -679,6 +680,8 @@ async function main() {
     onSaved: async () => {
       await stateService.settingsChanged();
       agentFeed.changed();
+      // Turning on "Delete done tasks", or shortening its days, applies now rather than within the hour.
+      sweepDoneTasks();
     },
   });
   // Fresh sessions (PR states as the last full scan saw them), so the sessions to end are the ones running now.
@@ -693,6 +696,18 @@ async function main() {
     sessionGraphs, sessionRemoval, taskCleanup, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
+  const doneTaskSweep = createDoneTaskSweep({
+    taskHub,
+    getSessions: () => stateService.getSessions(),
+    settings: () => config.settings.tasks,
+    deleteTask: (id) => deleteHubTask(services, { id }),
+  });
+  function sweepDoneTasks() {
+    doneTaskSweep.run()
+      .then(({ errors }) => errors.forEach((message) => process.stderr.write(`[switchyard] deleting a done task: ${message}\n`)))
+      .catch(logError('deleting done tasks'));
+  }
+  setInterval(sweepDoneTasks, SWEEP_MS).unref();
   const agentFeed = createAgentFeed({
     load: () => stateService.refreshSessions().then((data) => agentsPayload(services, data)),
     onError: logError('agent update'),
@@ -709,6 +724,8 @@ async function main() {
     stateService.getState().catch((error) => process.stderr.write(`Initial scan failed: ${error.message}\n`));
     prService.getPrs().catch((error) => process.stderr.write(`Initial PR load failed: ${error.message}\n`));
     prService.start();
+    // After the first scan has found the worktrees, so a task's work is known before it's put away.
+    setTimeout(sweepDoneTasks, 60_000).unref();
     // ClickUp takes seconds to list tasks, so the Tasks page's first visit finds them ready.
     taskTools.tasks().catch((error) => process.stderr.write(`Initial ClickUp load failed: ${error.message}\n`));
   });
