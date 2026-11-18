@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { claudeCommand, createTaskService, parseNewTask, worktreePathFor } from '../src/tasks.js';
+import { createTaskService, parseNewTask, worktreePathFor } from '../src/tasks.js';
+import { testAgents } from './support/agents.js';
 
 const MAIN = '/w/my-repo';
 const state = { repos: [{ name: 'my-repo', mainPath: MAIN, worktrees: [] }] };
@@ -36,6 +37,7 @@ function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths =
     stateService: { getState: async () => state },
     tmux,
     starts: { track: (task) => calls.push(['track', task]) },
+    agents: testAgents(),
     git,
     exists: (path) => paths.includes(path),
   });
@@ -45,8 +47,8 @@ function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths =
 const rejectsWith = (promise, status) => assert.rejects(promise, (error) => error.status === status);
 
 test('parseNewTask takes a repo, a one-line task and an optional branch', () => {
-  assert.deepEqual(parseNewTask({ repo: MAIN, branch: ' fix/login ', prompt: ' Fix the login bug ' }), { repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug' });
-  assert.deepEqual(parseNewTask({ repo: MAIN, branch: '  ', prompt: 'Fix it' }), { repo: MAIN, branch: null, prompt: 'Fix it' });
+  assert.deepEqual(parseNewTask({ repo: MAIN, branch: ' fix/login ', prompt: ' Fix the login bug ' }), { repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug', provider: null });
+  assert.deepEqual(parseNewTask({ repo: MAIN, branch: '  ', prompt: 'Fix it' }), { repo: MAIN, branch: null, prompt: 'Fix it', provider: null });
   assert.equal(parseNewTask({ repo: MAIN, prompt: 'Fix it' }).branch, null);
 });
 
@@ -70,22 +72,43 @@ test('worktreePathFor puts the worktree beside the main checkout, named after th
   assert.equal(worktreePathFor({ name: 'my-repo', mainPath: MAIN }, 'fix/login-bug'), '/w/my-repo-login-bug');
 });
 
-test('claudeCommand quotes the prompt for the shell', () => {
-  assert.equal(claudeCommand("don't stop"), "claude 'don'\\''t stop'");
-  // Always quoted: zsh would expand an unquoted "=word".
-  assert.equal(claudeCommand('=foo'), "claude '=foo'");
+test('parseNewTask takes an optional agent provider id', () => {
+  assert.equal(parseNewTask({ repo: MAIN, prompt: 'Fix it' }).provider, null);
+  assert.equal(parseNewTask({ repo: MAIN, prompt: 'Fix it', provider: 'other' }).provider, 'other');
+  assert.throws(() => parseNewTask({ repo: MAIN, prompt: 'Fix it', provider: 42 }), (error) => error.status === 400);
+});
+
+test('startTask quotes the task for the shell, even when it looks safe', async () => {
+  for (const [prompt, typed] of [["don't stop", "claude 'don'\\''t stop'"], ['=foo', "claude '=foo'"]]) {
+    const { tasks, calls } = setup();
+    await tasks.startTask({ repo: MAIN, branch: 'b', prompt });
+    assert.deepEqual(calls.find(([kind]) => kind === 'type'), ['type', '%7', typed]);
+  }
+});
+
+test('startTask runs the agent asked for, and watches for its command', async () => {
+  const { tasks, calls } = setup();
+  await tasks.startTask({ repo: MAIN, branch: 'fix/login', prompt: 'Fix it', provider: 'other' });
+  assert.deepEqual(calls.find(([kind]) => kind === 'type'), ['type', '%7', "other-agent --task 'Fix it'"]);
+  assert.equal(calls.find(([kind]) => kind === 'track')[1].command, 'other-agent');
+});
+
+test('startTask refuses an agent it does not know, before making anything', async () => {
+  const { tasks, calls } = setup();
+  await rejectsWith(tasks.startTask({ repo: MAIN, branch: 'b', prompt: 'Fix it', provider: 'codex' }), 400);
+  assert.equal(calls.some(([kind, , , command]) => kind === 'new-window' || command === 'worktree'), false);
 });
 
 test('startTask creates a branch from the default branch, a worktree, and a switchyard tmux window running claude', async () => {
   const { tasks, calls } = setup();
-  const result = await tasks.startTask({ repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug' });
+  const result = await tasks.startTask({ repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug', provider: null });
   assert.deepEqual(result, { path: '/w/my-repo-login', branch: 'fix/login', session: 'switchyard', window: 'my-repo-login' });
   assert.deepEqual(calls.filter(([kind, , , command]) => kind !== 'git' || command === 'fetch' || command === 'worktree'), [
     ['git', '-C', MAIN, 'fetch', '--quiet', 'origin', 'main'],
     ['git', '-C', MAIN, 'worktree', 'add', '--no-track', '-b', 'fix/login', '/w/my-repo-login', 'origin/main'],
     ['new-window', { session: 'switchyard', name: 'my-repo-login', cwd: '/w/my-repo-login' }],
     ['type', '%7', "claude 'Fix the login bug'"],
-    ['track', { path: '/w/my-repo-login', place: 'switchyard:my-repo-login', pane: '%7' }],
+    ['track', { path: '/w/my-repo-login', place: 'switchyard:my-repo-login', pane: '%7', command: 'claude' }],
   ]);
 });
 
@@ -152,6 +175,7 @@ test('fetching the default branch never waits on a credential prompt', async () 
   const tasks = createTaskService({
     stateService: { getState: async () => state },
     tmux: { hasWindow: async () => false, newWindow: async () => ({ window: '@1', pane: '%1' }), sendLine: async () => {} },
+    agents: testAgents(),
     git: async (args, options) => { seen.push([args[2], options]); if (args[2] === 'show-ref') throw new Error('no'); return args[2] === 'symbolic-ref' ? 'origin/main\n' : ''; },
     exists: () => false,
   });

@@ -12,6 +12,7 @@ const VALUES = {
   git: { longLivedBranches: ['main', 'release/*'] },
   ci: { holdPatterns: ['\\bhold\\b'], stripPrefixes: ['ci/circleci: '] },
   tasks: { autoDeleteDone: true, deleteDoneAfterDays: 14 },
+  providers: { default: 'claude', claude: { enabled: true, program: 'claude', options: '' } },
 };
 
 test('each setting becomes a form field: lists one item per line, numbers as text', () => {
@@ -46,4 +47,15 @@ test('a yes-or-no setting is a checkbox field: "true" or "false", read back as a
   assert.equal(fields['tasks.deleteDoneAfterDays'], '14');
   assert.equal(editsFromFields({ ...fields, 'tasks.autoDeleteDone': 'false' }).tasks.autoDeleteDone, false);
   assert.deepEqual(editsFromFields(fields).tasks, { autoDeleteDone: true, deleteDoneAfterDays: 14 });
+});
+
+test('a provider\'s settings are fields one level further in: on or off, program, and options as typed', () => {
+  const values = { ...VALUES, providers: { default: 'claude', claude: { enabled: true, program: 'claude', options: '--model opus' } } };
+  const fields = fieldsFromValues(values);
+  assert.equal(fields['providers.default'], 'claude');
+  assert.equal(fields['providers.claude.enabled'], 'true');
+  assert.equal(fields['providers.claude.program'], 'claude');
+  assert.equal(fields['providers.claude.options'], '--model opus');
+  assert.deepEqual(editsFromFields(fields).providers, values.providers);
+  assert.equal(editsFromFields({ ...fields, 'providers.claude.options': '  --model sonnet ' }).providers.claude.options, '--model sonnet');
 });

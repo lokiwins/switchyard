@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClaudeProvider } from './agents/claude.js';
+import { createAgentProviders } from './agents/providers.js';
 import { createSwrCache } from './cache.js';
 import { CONFIG_FILE, loadConfig } from './config.js';
 import { createLiveConfig } from './live-config.js';
@@ -642,10 +643,17 @@ async function main() {
       agentFeed.changed();
     },
   });
+  // The agent CLIs switchyard runs and watches; Claude Code for now, more can be added alongside it.
+  // Settings › Agent providers choose the default, turn providers off, and say how each runs; read each time, so saves apply at once.
+  const agents = createAgentProviders([
+    createClaudeProvider({
+      claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux), settings: () => config.settings.providers.claude,
+    }),
+  ], { settings: () => config.settings.providers });
   const stateService = createStateService({
     config,
     hiddenSessions: sessionRemoval.hidden,
-    claude: createClaudeProvider({ claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux) }),
+    agents,
     cache,
     prSnapshot: () => prService?.syncSnapshot() ?? null,
   });
@@ -658,9 +666,9 @@ async function main() {
   const sessionsView = { getState: stateService.getSessions };
   // Checked once: install tmux, then restart switchyard to get New task and tmux resumes.
   const tmuxInstalled = await tmux.isInstalled();
-  const actions = createActionService({ stateService: sessionsView, terminal, tmux, useTmux: tmuxInstalled });
+  const actions = createActionService({ stateService: sessionsView, agents, terminal, tmux, useTmux: tmuxInstalled });
   const taskStarts = createTaskStarts({ tmux, onChange: () => agentFeed.changed() });
-  const tasks = createTaskService({ stateService: sessionsView, tmux, starts: taskStarts });
+  const tasks = createTaskService({ stateService: sessionsView, tmux, agents, starts: taskStarts });
   const liveTerminals = createLiveTerminals({ actions, tmux });
   // The full state: Clean up needs PR data, which the sessions view leaves out.
   const cleanup = createCleanupService({ stateService });

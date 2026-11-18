@@ -34,7 +34,7 @@ function setup({ synced = true, now = Date.now } = {}) {
   const tracker = createStatusTracker();
   const service = createStateService({
     config: { roots: [root] },
-    claude,
+    agents: claude,
     cache: createSwrCache({ now }),
     statusTracker: tracker,
     github: {

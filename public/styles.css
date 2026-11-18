@@ -696,6 +696,7 @@ fieldset.setting > legend { padding: 0; margin-bottom: var(--space-1); }
 .repo-choice .setting-hint { margin-left: auto; }
 .setting-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }
 .setting-row .setting { margin-bottom: 0; }
+.setting-subhead { margin: var(--space-5) 0 var(--space-3); }
 .setting-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-1) var(--space-4); margin: 0 0 var(--space-2); font-size: var(--text-sm); }
 .setting-facts dt { color: var(--gray-500); }
 .setting-facts dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); }

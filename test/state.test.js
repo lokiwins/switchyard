@@ -99,7 +99,7 @@ function spyCache() {
 
 test('the sessions view never asks GitHub', async () => {
   const cache = spyCache();
-  const service = createStateService({ config: { roots: [] }, claude: fakeClaude([{ sessionId: 's1', cwd: '/x', status: 'busy' }]), cache });
+  const service = createStateService({ config: { roots: [] }, agents: fakeClaude([{ sessionId: 's1', cwd: '/x', status: 'busy' }]), cache });
   const local = await service.getSessions();
   assert.deepEqual(local.liveSessions.map((s) => s.sessionId), ['s1']);
   assert.deepEqual(local.prsWithoutWorktree, []);
@@ -114,7 +114,7 @@ test('hidden ended sessions leave the lists until they are resumed and end again
   ];
   const claude = { ...fakeClaude(), endedSessions: async () => ended };
   const hidden = new Map([['hidden-1', 1000], ['resumed-1', 2000]]);
-  const service = createStateService({ config: { roots: [] }, claude, cache: createSwrCache(), hiddenSessions: async () => hidden });
+  const service = createStateService({ config: { roots: [] }, agents: claude, cache: createSwrCache(), hiddenSessions: async () => hidden });
   const state = await service.getSessions();
   assert.deepEqual(state.endedSessions.map((s) => s.sessionId), ['resumed-1', 'shown-1']);
 });

@@ -36,7 +36,7 @@ async function setup({ watchable = true } = {}) {
   };
   const service = createStateService({
     config: { roots: [root] },
-    claude,
+    agents: claude,
     cache: createSwrCache({ now: () => time }),
     statusTracker: createStatusTracker({ watch: () => { throw new Error('not watched in this test'); } }),
     watchRoot,

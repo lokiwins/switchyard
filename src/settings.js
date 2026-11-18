@@ -49,6 +49,17 @@ export const DEFAULTS = Object.freeze({
     autoDeleteDone: false,
     deleteDoneAfterDays: 7,
   }),
+  // The agent CLIs (see src/agents/providers.js): which one is used when none is named, and how each is run.
+  providers: Object.freeze({
+    default: 'claude',
+    claude: Object.freeze({
+      enabled: true,
+      // A name found on PATH, or a full path (~/ allowed).
+      program: 'claude',
+      // Added to every new and resumed session, e.g. "--model opus".
+      options: '',
+    }),
+  }),
 });
 
 const SECTION_KEYS = {
@@ -60,7 +71,15 @@ const SECTION_KEYS = {
   appearance: ['theme', 'mode', 'terminal'],
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
+  providers: ['default', ...Object.keys(DEFAULTS.providers).filter((key) => key !== 'default')],
 };
+const PROVIDER_IDS = SECTION_KEYS.providers.slice(1);
+const PROVIDER_KEYS = ['enabled', 'program', 'options'];
+// A program: a bare name found on PATH, or a full path; letters, digits and . _ - / only, so it's typed as is.
+const PROGRAM = /^(?:[A-Za-z0-9_][A-Za-z0-9._-]*|(?:~|)\/[A-Za-z0-9._\/-]+)$/;
+// An option is a plain word: nothing a shell would treat as quoting, expansion or another command.
+const OPTION_WORD = /^[A-Za-z0-9_@%+=:,.\/~-]+$/;
+const MAX_OPTIONS_LENGTH = 500;
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];
 
 export class SettingsError extends Error {}
@@ -114,6 +133,35 @@ export function branchMatcher(globs) {
   const wildcards = globs.filter((g) => g.includes('*'))
     .map((g) => new RegExp(`^${g.split('*').map(escape).join('.*')}$`));
   return (branch) => exact.has(branch) || wildcards.some((re) => re.test(branch));
+}
+
+/** One provider's settings, filled from its defaults: { enabled, program, options: [word…] }. */
+function provider(value, id) {
+  const path = `providers.${id}`;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) fail(path, 'must be an object');
+  checkKeys(value, PROVIDER_KEYS, `${path}.`);
+  const { enabled, program, options } = { ...DEFAULTS.providers[id], ...value };
+  if (typeof enabled !== 'boolean') fail(`${path}.enabled`, 'must be true or false');
+  if (typeof program !== 'string' || !PROGRAM.test(program)) {
+    fail(`${path}.program`, 'must be a program name such as "claude", or a full path such as "~/.local/bin/claude", with no spaces or options');
+  }
+  if (typeof options !== 'string' || options.length > MAX_OPTIONS_LENGTH) fail(`${path}.options`, `must be text of up to ${MAX_OPTIONS_LENGTH} characters`);
+  const words = options.trim().split(/[ \t]+/).filter(Boolean);
+  if (/[\n\r]/.test(options) || words.some((word) => !OPTION_WORD.test(word))) {
+    fail(`${path}.options`, 'must be plain words separated by spaces, such as "--model opus": no quotes, $, ;, | or other shell syntax');
+  }
+  return { enabled, program, options: words };
+}
+
+function providers(file) {
+  const value = file.providers ?? {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) fail('providers', 'must be an object');
+  checkKeys(value, SECTION_KEYS.providers, 'providers.');
+  const chosen = value.default ?? DEFAULTS.providers.default;
+  const each = Object.fromEntries(PROVIDER_IDS.map((id) => [id, provider(value[id] ?? {}, id)]));
+  if (!PROVIDER_IDS.includes(chosen)) fail('providers.default', `must be one of: ${PROVIDER_IDS.join(', ')}`);
+  if (!each[chosen].enabled) fail('providers.default', `is ${chosen}, which is turned off; turn it on or choose another default`);
+  return { default: chosen, ...each };
 }
 
 function section(file, name) {
@@ -181,6 +229,7 @@ export function parseSettings(file = {}) {
       autoDeleteDone: tasks.autoDeleteDone,
       deleteDoneAfterMs: positiveNumber(tasks.deleteDoneAfterDays, 'tasks.deleteDoneAfterDays') * DAY_MS,
     },
+    providers: providers(file),
   };
 }
 

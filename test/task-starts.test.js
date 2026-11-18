@@ -65,23 +65,23 @@ test('parseTrustPrompt is not fooled by "trust" in a folder name', () => {
 
 /** A fake tmux pane: what's running in it and what it shows, plus the keys pressed. */
 function fakePane({ command = 'bash', screen = '' } = {}) {
-  const pane = { command, screen, keys: [] };
+  const pane = { command, screen, keys: [], reads: [] };
   const tmux = {
     paneCommand: async () => pane.command,
-    screenText: async () => pane.screen,
+    screenText: async (id, options) => { pane.reads.push(options ?? {}); return pane.screen; },
     pressKey: async (id, key) => { pane.keys.push(key); },
     confirm: async () => { pane.keys.push('Enter'); },
   };
   return { pane, tmux };
 }
 
-function setup(paneOptions) {
+function setup(paneOptions, { agentCommand } = {}) {
   const { pane, tmux } = fakePane(paneOptions);
   let now = 1_000_000;
   let changes = 0;
   const timers = { setInterval: () => 'timer', clearInterval: () => {} };
   const starts = createTaskStarts({ tmux, onChange: () => { changes += 1; }, now: () => now, timers });
-  starts.track({ path: '/code/trial-x', place: 'switchyard:trial-x', pane: '%3' });
+  starts.track({ path: '/code/trial-x', place: 'switchyard:trial-x', pane: '%3', command: agentCommand });
   return {
     pane, starts, advance: (ms) => { now += ms; }, changes: () => changes, only: () => starts.list([])[0],
   };
@@ -150,6 +150,17 @@ test('a claude that never ran counts as exited after a grace period, with what t
   assert.equal(only().state, 'exited');
   assert.equal(only().detail, 'bash: claude: command not found');
   assert.equal(pane.keys.length, 0);
+});
+
+test('another agent CLI that never ran is found by its own command', async () => {
+  const screen = "$ other-agent 'Fix it'\nbash: other-agent: command not found\n$ ";
+  const { starts, only } = setup({ command: 'bash', screen }, { agentCommand: 'other-agent' });
+  await starts.tick();
+  await starts.tick();
+  assert.equal(only().state, 'exited', 'back at the prompt on two looks');
+  assert.equal(only().detail, 'bash: other-agent: command not found');
+  assert.equal(backAtPrompt(screen, 'other-agent'), true);
+  assert.equal(backAtPrompt(screen), false, 'claude was not the command typed');
 });
 
 test('a closed window counts as exited', async () => {
@@ -264,4 +275,17 @@ test('a command typed before the shell drew its prompt shows twice; the prompt l
   await starts.tick();
   assert.equal(only().state, 'exited');
   assert.equal(only().detail, '-bash: claude: command not found');
+});
+
+test('backAtPrompt: the program may be a full path, with options before the task', () => {
+  const typed = "me$ /Users/me/.local/bin/claude --model opus --permission-mode acceptEdits 'Fix it'";
+  assert.equal(backAtPrompt(`${typed}\nbash: /Users/me/.local/bin/claude: No such file or directory\nme$ `), true);
+  assert.equal(backAtPrompt(`${typed}\n Loading…`), false);
+  assert.equal(backAtPrompt("me$ claude --model opus 'Fix it'\nclaude: bad option\nme$ "), true);
+});
+
+test('a starting pane is read with wrapped lines joined, so a long command or error reads whole', async () => {
+  const { starts, pane } = setup({ command: 'bash', screen: '$ ' });
+  await starts.tick();
+  assert.deepEqual(pane.reads, [{ joined: true }]);
 });

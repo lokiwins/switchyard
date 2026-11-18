@@ -192,9 +192,13 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       return { cols, rows };
     },
 
-    /** What a pane shows right now, as text with its colours (a dialog's active tab is shown only by colour). */
-    async screenText(pane) {
-      return tmux(['capture-pane', '-p', '-e', '-t', pane]);
+    /**
+     * What a pane shows right now, as text with its colours (a dialog's active
+     * tab is shown only by colour). `joined`: lines the pane wrapped come back
+     * as the one line they were written as.
+     */
+    async screenText(pane, { joined = false } = {}) {
+      return tmux(['capture-pane', '-p', '-e', ...(joined ? ['-J'] : []), '-t', pane]);
     },
 
     /** What a pane shows, with colours, plus up to `history` lines of scrollback, as raw bytes. */
