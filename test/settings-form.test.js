@@ -13,6 +13,7 @@ const VALUES = {
   ci: { holdPatterns: ['\\bhold\\b'], stripPrefixes: ['ci/circleci: '] },
   tasks: { autoDeleteDone: true, deleteDoneAfterDays: 14 },
   providers: { default: 'claude', claude: { enabled: true, program: 'claude', options: '' } },
+  checks: { commands: ['billing-api: npm test'], timeoutMinutes: 10 },
 };
 
 test('each setting becomes a form field: lists one item per line, numbers as text', () => {

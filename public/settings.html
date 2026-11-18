@@ -133,6 +133,22 @@
         </div>
       </section>
 
+      <section class="panel" aria-labelledby="checks-title">
+        <div class="panel-head"><h2 id="checks-title">Checks</h2></div>
+        <div class="setting-row">
+          <label class="setting">
+            <span class="setting-label">Check commands</span>
+            <textarea name="checks.commands" rows="4" spellcheck="false" placeholder="billing-api: npm test"></textarea>
+            <span class="setting-hint">One line per repo: its folder name, a colon, then the command Run check runs in a worktree of it. Checks only warn; nothing is blocked when one fails.</span>
+          </label>
+          <label class="setting">
+            <span class="setting-label">Stop a check after (minutes)</span>
+            <input name="checks.timeoutMinutes" inputmode="decimal">
+            <span class="setting-hint">A check still running then is stopped, and counts as failed.</span>
+          </label>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="tasks-settings-title">
         <div class="panel-head"><h2 id="tasks-settings-title">Tasks</h2></div>
         <div class="setting-row">

@@ -64,7 +64,7 @@ test('each attempt: what it changed against main, its commits, PR, session, acti
   const [one, two, three] = result.attempts;
   assert.deepEqual(one, {
     n: 1, branch: `${BASE}-try1`, path: path(1), present: true,
-    state: 'working', pr: null, lastActivityAt: NOW - 60_000, contextTokens: 31000, commits: 2,
+    state: 'working', pr: null, lastActivityAt: NOW - 60_000, contextTokens: 31000, commits: 2, check: null,
     changes: {
       files: [{ path: 'src/cart.js', added: 10, removed: 2 }, { path: 'logo.png', added: null, removed: null }, { path: 'notes.md', added: null, removed: null, untracked: true }],
       added: 10, removed: 2,
@@ -134,3 +134,23 @@ function createAttemptCompareWith(worktreeExtra) {
     now: () => NOW,
   });
 }
+
+test('each attempt carries its latest check, and whether its repo has a check command', async () => {
+  const checked = createAttemptCompare({
+    taskHub: { list: async () => [TASK], recordAttempts: async () => {} },
+    getState: async () => world(),
+    putAwayWorktrees: async () => ({}),
+    git: async (args) => GIT[args.join(' ')] ?? '',
+    checks: {
+      results: async ({ repos }) => (repos[0].name === 'shop' ? { [path(1)]: { state: 'failed', exitCode: 1, outOfDate: false } } : {}),
+      repos: () => ['shop'],
+    },
+    now: () => NOW,
+  });
+  const result = await checked.compare({ id: TASK.id });
+  assert.equal(result.canCheck, true);
+  assert.deepEqual(result.attempts[0].check, { state: 'failed', exitCode: 1, outOfDate: false });
+  assert.equal(result.attempts[1].check, null);
+  assert.equal(result.attempts[2].check, undefined, 'a gone attempt has nothing to check');
+  assert.equal((await setup().compare.compare({ id: TASK.id })).canCheck, false);
+});

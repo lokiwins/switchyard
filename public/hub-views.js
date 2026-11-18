@@ -4,6 +4,7 @@ import { linkLine } from './task-link-views.js';
 import { trustButtons } from './agent-views.js';
 import { STATE_LABELS, dueOnLabel, ticketLabel, trackerOf } from './task-state.js';
 import { canCompare } from './attempt-cards.js';
+import { hasFailedCheck } from './check-status.js';
 import { matchesTicket, taskFromTicket, unlinkedTickets } from './ticket-import.js';
 
 /*
@@ -206,7 +207,10 @@ function taskMenu(task, actions) {
   }, h('span', { class: 'menu-title' }, 'Delete…'));
   return dropdown({ key: `task-${task.id}`, label: '⋯', title: 'More', className: 'btn btn-action', focusInput: false },
     closed ? item('Reopen', 'Put it back with your open tasks', () => actions.reopen(task)) : [
-      item('Mark done', `Done, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(task, 'done')),
+      // Checks only warn: a failed one is named here, and Mark done still works.
+      hasFailedCheck(task)
+        ? item('Mark done anyway (check failed)', `Its latest check failed. Done anyway, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(task, 'done'))
+        : item('Mark done', `Done, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(task, 'done')),
       item('Drop', `Not doing it after all. ${PUTS_AWAY}`, () => actions.close(task, 'dropped')),
     ],
     remove);
@@ -290,7 +294,7 @@ function taskRow(task, context) {
     detailLine(task),
     h('span', { class: `task-due${due?.tone ? ` ${due.tone}` : ''}` }, due?.text ?? ''),
     h('div', { class: 'actions' }, rowActions(task, context)),
-    task.work.length > 0 && h('div', { class: 'task-links', 'aria-label': 'Work on this task' }, task.work.map((link) => linkLine(link, caps, approvals))));
+    task.work.length > 0 && h('div', { class: 'task-links', 'aria-label': 'Work on this task' }, task.work.map((link) => linkLine(link, caps, approvals, { onRunCheck: context.actions.runCheck }))));
 }
 
 /** The groups, each a heading and its tasks; Done is folded away until opened. */

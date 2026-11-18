@@ -145,3 +145,21 @@ test('providers: the default is a provider that is turned on; unknown providers 
   assert.throws(() => parseSettings({ providers: { claude: { model: 'opus' } } }), /providers\.claude\.model/);
   assert.throws(() => parseSettings({ providers: { claude: 'on' } }), /providers\.claude/);
 });
+
+test('checks: none by default, with a 10 minute timeout', () => {
+  assert.deepEqual(parseSettings({}).checks, { commands: {}, timeoutMs: 10 * 60 * 1000 });
+});
+
+test('checks: one "repo: command" line per repo, read into a command per repo', () => {
+  const checks = parseSettings({ checks: { commands: ['billing-api: npm test', '  storefront:   npm run lint && npm test  '], timeoutMinutes: 2.5 } }).checks;
+  assert.deepEqual(checks.commands, { 'billing-api': 'npm test', storefront: 'npm run lint && npm test' });
+  assert.equal(checks.timeoutMs, 150_000);
+});
+
+test('checks: a line without a repo or a command, a repo twice, or a bad timeout is refused', () => {
+  for (const commands of [['npm test'], ['billing-api:'], [': npm test'], ['my repo: npm test'], ['a: x', 'a: y'], [`a: ${'x'.repeat(600)}`]]) {
+    assert.throws(() => parseSettings({ checks: { commands } }), (e) => e instanceof SettingsError && /checks\.commands/.test(e.message), JSON.stringify(commands));
+  }
+  assert.throws(() => parseSettings({ checks: { timeoutMinutes: 0 } }), /checks\.timeoutMinutes/);
+  assert.throws(() => parseSettings({ checks: { timeoutMinutes: 121 } }), /checks\.timeoutMinutes/);
+});

@@ -3,8 +3,8 @@
  * or "roots"), to and from the settings the server sends and takes.
  */
 
-const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes']);
-const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'tasks.deleteDoneAfterDays']);
+const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes', 'checks.commands']);
+const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'tasks.deleteDoneAfterDays', 'checks.timeoutMinutes']);
 // Checkboxes: "true" or "false" in the form.
 const BOOLEANS = new Set(['tasks.autoDeleteDone', 'providers.claude.enabled']);
 // A prefix's trailing space is part of what's removed from a check's name.
@@ -15,7 +15,7 @@ export const FIELD_NAMES = [
   'roots', 'appearance.theme', 'appearance.mode', 'appearance.terminal', 'terminal.app', 'editor.urlScheme',
   'agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays',
   'github.copilotReviewer', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
-  'tasks.autoDeleteDone', 'tasks.deleteDoneAfterDays',
+  'tasks.autoDeleteDone', 'tasks.deleteDoneAfterDays', 'checks.commands', 'checks.timeoutMinutes',
   'providers.default', 'providers.claude.enabled', 'providers.claude.program', 'providers.claude.options',
 ];
 
