@@ -102,7 +102,7 @@ test('startTask refuses an agent it does not know, before making anything', asyn
 test('startTask creates a branch from the default branch, a worktree, and a switchyard tmux window running claude', async () => {
   const { tasks, calls } = setup();
   const result = await tasks.startTask({ repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug', provider: null });
-  assert.deepEqual(result, { path: '/w/my-repo-login', branch: 'fix/login', session: 'switchyard', window: 'my-repo-login' });
+  assert.deepEqual(result, { path: '/w/my-repo-login', branch: 'fix/login', session: 'switchyard', window: 'my-repo-login', provider: 'claude' });
   assert.deepEqual(calls.filter(([kind, , , command]) => kind !== 'git' || command === 'fetch' || command === 'worktree'), [
     ['git', '-C', MAIN, 'fetch', '--quiet', 'origin', 'main'],
     ['git', '-C', MAIN, 'worktree', 'add', '--no-track', '-b', 'fix/login', '/w/my-repo-login', 'origin/main'],
@@ -187,7 +187,7 @@ test('fetching the default branch never waits on a credential prompt', async () 
 test('startTask names the branch after the task when you leave it empty', async () => {
   const { tasks, calls } = setup();
   const result = await tasks.startTask({ repo: MAIN, prompt: 'Fix the login redirect' });
-  assert.deepEqual(result, { path: '/w/my-repo-fix-login-redirect', branch: 'fix-login-redirect', session: 'switchyard', window: 'my-repo-fix-login-redirect' });
+  assert.deepEqual(result, { path: '/w/my-repo-fix-login-redirect', branch: 'fix-login-redirect', session: 'switchyard', window: 'my-repo-fix-login-redirect', provider: 'claude' });
   assert.ok(calls.some((call) => call.join(' ') === `git -C ${MAIN} worktree add --no-track -b fix-login-redirect /w/my-repo-fix-login-redirect origin/main`));
 });
 

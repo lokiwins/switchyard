@@ -41,10 +41,18 @@ const waitsOnYou = (s) => s.needsYou || (s.status === 'idle' && !s.parked);
 
 const trimSlash = (path) => String(path ?? '').replace(/\/+$/, '');
 
+// With several attempts starting at once, the one to show: a question for you first, then one still on its way.
+const START_ORDER = ['asking-trust', 'starting', 'exited'];
+const startRank = (start) => {
+  const rank = START_ORDER.indexOf(start.state);
+  return rank < 0 ? START_ORDER.length : rank;
+};
+
 /** The start under way in one of the task's worktrees, as the server watches it (see src/task-starts.js); null when none. */
 export function startOf(task, starts = []) {
   const paths = new Set((task.work ?? []).map((w) => trimSlash(w.path)));
-  return starts.find((s) => paths.has(trimSlash(s.path))) ?? null;
+  const mine = starts.filter((s) => paths.has(trimSlash(s.path)));
+  return mine.reduce((best, s) => (best === null || startRank(s) < startRank(best) ? s : best), null);
 }
 
 /**

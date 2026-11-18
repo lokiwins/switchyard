@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  dueOnLabel, groupTasks, linkedWhere, matchesHubTask, taskState, ticketLabel,
+  dueOnLabel, groupTasks, linkedWhere, matchesHubTask, startOf, taskState, ticketLabel,
 } from '../public/task-state.js';
 
 // Tuesday 10 Nov 2026, mid-morning local time.
@@ -153,4 +153,12 @@ test('a task being closed or deleted shows so at once, before the server answers
   // It stays in its group until it's closed, rather than vanishing into Done.
   const [group] = groupTasks([{ ...base, closing: 'done' }], Date.now());
   assert.notEqual(group.key, 'done');
+});
+
+test('with several attempts starting, the one asking to trust its folder is the one shown, then one still starting', () => {
+  const t = task({ work: [work({ path: '/code/shop-try1' }), work({ path: '/code/shop-try2' }), work({ path: '/code/shop-try3' })] });
+  const start = (path, state) => ({ path, state, place: `switchyard:${path.split('/').pop()}` });
+  assert.equal(startOf(t, [start('/code/shop-try1', 'exited'), start('/code/shop-try2', 'starting'), start('/code/shop-try3', 'asking-trust')]).path, '/code/shop-try3');
+  assert.equal(startOf(t, [start('/code/shop-try1', 'exited'), start('/code/shop-try2', 'starting')]).path, '/code/shop-try2');
+  assert.equal(startOf(t, [start('/elsewhere', 'asking-trust')]), null);
 });
