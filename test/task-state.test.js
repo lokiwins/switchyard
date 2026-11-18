@@ -144,3 +144,13 @@ test('linkedWhere says where a task made from a session will be linked', () => {
   assert.equal(linkedWhere({ repoName: 'shop', branch: 'main', sessionOnly: true }), 'Linked to this session only, since main is a long-lived branch');
   assert.equal(linkedWhere({ repoName: 'shop', branch: null, sessionOnly: true }), 'Linked to this session only');
 });
+
+test('a task being closed or deleted shows so at once, before the server answers', () => {
+  const base = { id: 'sy-a', title: 'A', notes: '', work: [{ live: [{ status: 'busy' }], pr: { state: 'OPEN' } }] };
+  assert.equal(taskState({ ...base, closing: 'done' }), 'closing');
+  assert.equal(taskState({ ...base, closing: 'dropped' }), 'closing');
+  assert.equal(taskState({ ...base, closing: 'delete' }), 'deleting');
+  // It stays in its group until it's closed, rather than vanishing into Done.
+  const [group] = groupTasks([{ ...base, closing: 'done' }], Date.now());
+  assert.notEqual(group.key, 'done');
+});

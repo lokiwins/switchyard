@@ -150,9 +150,12 @@ async function answerPrompt({ actions, agentFeed }, body) {
 }
 
 /** A new task; made from a session or worktree (`from`), it's saved with where that work is, so it shows under it. */
-/** After a task's work was put away: the worktree list and every view, afresh. */
-async function workPutAway({ stateService }) {
-  await stateService.rediscover();
+/**
+ * After a task's work was put away: every view afresh, and the worktree list
+ * found again only when a worktree went (it means a git call per repo).
+ */
+async function workPutAway({ stateService }, { removed = [] } = {}) {
+  if (removed.length > 0) await stateService.rediscover();
   stateService.sessionsRemoved();
 }
 
@@ -160,7 +163,7 @@ async function workPutAway({ stateService }) {
 async function closeHubTask(services, body) {
   const task = await services.taskHub.close(body);
   const cleanup = await services.taskCleanup.afterClose(task);
-  await workPutAway(services);
+  await workPutAway(services, cleanup);
   return { ...task, cleanup };
 }
 
@@ -169,14 +172,14 @@ async function deleteHubTask(services, body) {
   const task = (await services.taskHub.list()).find((t) => t.id === body?.id);
   const result = await services.taskHub.remove(body);
   const cleanup = task ? await services.taskCleanup.afterClose(task) : null;
-  await workPutAway(services);
+  await workPutAway(services, cleanup ?? undefined);
   return { ...result, cleanup };
 }
 
 /** Keep or Delete for a worktree a closed task left waiting. */
 async function chooseWorktree(services, body) {
   const result = await services.taskCleanup.choose(body);
-  if (result.removed) await workPutAway(services);
+  if (result.removed) await workPutAway(services, { removed: [result.removed] });
   return result;
 }
 
