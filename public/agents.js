@@ -3,6 +3,7 @@ import { canShowTerminalSessions, sessionSearchText } from './session-text.js';
 import { locateSession, renderLiveList, renderPendingRow } from './agent-views.js';
 import { actionButton, post } from './actions.js';
 import { renderEnded } from './ended-views.js';
+import { deleteAllButton } from './session-delete.js';
 import { applyNav, startNavBadges } from './nav.js';
 import { isTypingReply } from './session-controls.js';
 import { isEditingTask, newTaskMenu, pendingTasks, replacePending } from './new-task.js';
@@ -177,6 +178,9 @@ function renderEndedPanel(state, filter) {
     interrupted > 0 ? ' · ' : '',
     interrupted > 0 ? h('span', { class: 'pill amber' }, `${interrupted} interrupted`) : '',
   );
+  // Every listed one, shown or collapsed: all of them, or just what the filter and search picked.
+  const everything = !ui.query && (ui.filter === 'all' || ui.filter === 'ended');
+  $('ended-actions').replaceChildren(deleteAllButton(sessions, everything ? 'Delete all ended' : `Delete these ${sessions.length}`) ?? '');
   $('ended').replaceChildren(...renderEnded(sessions, {
     expanded: ui.showAllEnded,
     onToggle: () => {

@@ -232,6 +232,11 @@ main {
 /* End ▾: what ending does, then the button that does it. */
 .end-panel { --panel-min: 240px; --panel-max: 320px; padding: var(--space-2); gap: 6px; }
 .end-panel .reply-hint { white-space: normal; }
+/* Delete ▾: two ways to delete, each saying what it keeps. */
+.delete-panel { --panel-min: 240px; --panel-max: 300px; }
+.delete-choice { flex-direction: column; align-items: stretch; gap: 2px; }
+.delete-hint { font-size: 11px; color: var(--gray-500); white-space: normal; }
+.delete-choice:hover .delete-hint, .delete-choice:focus-visible .delete-hint { color: inherit; }
 .reply-form { display: flex; gap: 6px; }
 .reply-form input {
   flex: 1; min-width: 0; padding: 4px 8px;
@@ -325,6 +330,8 @@ main {
 .panel-head .muted { font-size: var(--text-xs); }
 /* A control next to the panel's title, with the filters still to the right. */
 .panel-head .panel-action { margin-right: auto; }
+/* Recently ended: the count stays beside Delete all ended, on the right. */
+#ended-count { margin-left: auto; }
 .subhead { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-4) 0 var(--space-1); }
 .subhead .muted { font-size: var(--text-xs); }
 
@@ -535,6 +542,10 @@ td .actions { flex-wrap: nowrap; }
   padding: var(--space-2) var(--space-4); border-radius: var(--radius-sm);
   background: var(--gray-900); color: var(--surface); font-size: var(--text-sm); font-weight: 500;
   box-shadow: var(--shadow-md);
+}
+.toast-action {
+  margin-left: var(--space-3); padding: 0; border: 0; background: transparent;
+  font: inherit; font-weight: 600; color: inherit; text-decoration: underline; cursor: pointer;
 }
 
 /* ---------- tasks page ---------- */

@@ -105,3 +105,16 @@ test('the sessions view never asks GitHub', async () => {
   assert.deepEqual(local.prsWithoutWorktree, []);
   assert.equal(cache.loaded.some((key) => key === 'my-open-prs' || key.startsWith('prs:') || key.startsWith('checks:')), false);
 });
+
+test('hidden ended sessions leave the lists until they are resumed and end again', async () => {
+  const ended = [
+    { sessionId: 'hidden-1', cwd: '/x', endedAt: 1000, transcript: {} },
+    { sessionId: 'resumed-1', cwd: '/x', endedAt: 5000, transcript: {} },
+    { sessionId: 'shown-1', cwd: '/x', endedAt: 1000, transcript: {} },
+  ];
+  const claude = { ...fakeClaude(), endedSessions: async () => ended };
+  const hidden = new Map([['hidden-1', 1000], ['resumed-1', 2000]]);
+  const service = createStateService({ config: { roots: [] }, claude, cache: createSwrCache(), hiddenSessions: async () => hidden });
+  const state = await service.getSessions();
+  assert.deepEqual(state.endedSessions.map((s) => s.sessionId), ['resumed-1', 'shown-1']);
+});
