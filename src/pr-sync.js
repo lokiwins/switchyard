@@ -4,17 +4,21 @@ import { DEFAULT_SETTINGS } from './settings.js';
 
 /**
  * How often to ask GitHub, when the PR page is open. PRs with checks still
- * running change often; settled PRs rarely do. When only a header badge is
- * watching everything runs BACKGROUND_FACTOR times slower, and nothing is
- * fetched while no page is open at all.
+ * running change often; settled PRs rarely do, and when one does (a push, a
+ * review, a comment) the list's search shows it updated, so it's fetched then.
+ * GitHub allows 30 searches a minute; these use under 10. When only a header
+ * badge is watching everything runs BACKGROUND_FACTOR times slower, and
+ * nothing is fetched while no page is open at all.
  */
 export const PACE = Object.freeze({
   activePrMs: 20_000,
   idlePrMs: 120_000,
   failedPrMs: 60_000,
-  searchMs: 60_000,
+  searchMs: 30_000,
   teamSearchMs: 300_000,
 });
+// Coming back to the PR page re-checks anything older than this: you may have changed it on GitHub.
+export const RETURN_FRESH_MS = 15_000;
 export const BACKGROUND_FACTOR = 3;
 const PR_CONCURRENCY = 4;
 
@@ -32,10 +36,10 @@ export function prInterval(entry, pace = PACE) {
   return entry.pr?.checks?.pending > 0 ? pace.activePrMs : pace.idlePrMs;
 }
 
-/** Keys of tracked PRs whose details are due for a refresh. */
-export function duePrKeys(entries, now, { pace = PACE, factor = 1 } = {}) {
+/** Keys of tracked PRs whose details are due for a refresh (none waits longer than `freshWithin`). */
+export function duePrKeys(entries, now, { pace = PACE, factor = 1, freshWithin = Infinity } = {}) {
   return [...entries]
-    .filter(([, entry]) => now - entry.fetchedAt >= prInterval(entry, pace) * factor)
+    .filter(([, entry]) => now - entry.fetchedAt >= Math.min(prInterval(entry, pace) * factor, freshWithin))
     .map(([key]) => key);
 }
 
@@ -58,6 +62,8 @@ export function createPrSync({
   let syncedAt = 0;
   let loading = null;
   let ticking = false;
+  // A tick asked for while one runs, run after it (so a return to the page isn't lost).
+  let queued = null;
 
   function tracked() {
     const items = [...(lists.authored ?? []), ...(lists.direct ?? [])];
@@ -86,11 +92,17 @@ export function createPrSync({
     }
   }
 
-  /** Drop PRs that left the lists; start tracking new ones. Returns the keys needing a first fetch. */
+  /**
+   * Drop PRs that left the lists; start tracking new ones. Returns the keys
+   * needing a fetch: new ones, and ones the list shows updated since theirs.
+   */
   function reconcile() {
     const current = tracked();
     for (const key of entries.keys()) if (!current.has(key)) entries.delete(key);
-    return [...current].filter(([key]) => !entries.has(key));
+    return [...current].filter(([key, item]) => {
+      const entry = entries.get(key);
+      return !entry || (item.updatedAt !== undefined && item.updatedAt !== entry.item.updatedAt);
+    });
   }
 
   /** Record a round of fetches; rounds where nothing was due change nothing. */
@@ -118,22 +130,35 @@ export function createPrSync({
     return loading;
   }
 
-  /** Refresh whatever is due. `factor` stretches every interval (used when only badges are watching). */
-  async function tick({ factor = 1 } = {}) {
-    if (ticking || !loading) return;
+  /**
+   * Refresh whatever is due. `factor` stretches every interval (used when only
+   * badges are watching); `freshWithin` caps them (used when the page comes back).
+   */
+  async function tick({ factor = 1, freshWithin = Infinity } = {}) {
+    if (!loading) return;
+    if (ticking) {
+      queued = { factor: Math.min(factor, queued?.factor ?? factor), freshWithin: Math.min(freshWithin, queued?.freshWithin ?? Infinity) };
+      return;
+    }
     ticking = true;
     try {
       const t = now();
-      const dueLists = ['authored', 'direct'].filter((name) => t - listFetchedAt[name] >= PACE.searchMs * factor);
-      if (t - listFetchedAt.team >= PACE.teamSearchMs * factor) dueLists.push('team');
+      const isDue = (name, ms) => t - listFetchedAt[name] >= Math.min(ms * factor, freshWithin);
+      const dueLists = ['authored', 'direct'].filter((name) => isDue(name, PACE.searchMs));
+      if (isDue('team', PACE.teamSearchMs)) dueLists.push('team');
       await Promise.all(dueLists.map(refreshList));
-      const fresh = reconcile();
+      const changed = reconcile();
+      const changedKeys = new Set(changed.map(([key]) => key));
       const items = tracked();
-      const due = [...fresh, ...duePrKeys(entries, t, { factor }).map((key) => [key, items.get(key)])];
+      const stale = duePrKeys(entries, t, { factor, freshWithin }).filter((key) => !changedKeys.has(key));
+      const due = [...changed, ...stale.map((key) => [key, items.get(key)])];
       await mapLimit(due, PR_CONCURRENCY, ([key, item]) => refreshEntry(key, item));
       finish(dueLists.length + due.length);
     } finally {
       ticking = false;
+      const next = queued;
+      queued = null;
+      if (next) await tick(next);
     }
   }
 

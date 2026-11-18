@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { BACKGROUND_FACTOR, PACE, createPrSync, duePrKeys, prInterval } from '../src/pr-sync.js';
+import { BACKGROUND_FACTOR, PACE, RETURN_FRESH_MS, createPrSync, duePrKeys, prInterval } from '../src/pr-sync.js';
 import { createPrService } from '../src/prs.js';
 
 const item = (number, repo = 'acme/app') => ({ number, repository: { nameWithOwner: repo }, url: `https://x/${number}`, title: `PR ${number}` });
@@ -159,4 +159,81 @@ test('the Worktrees page counts as an active viewer, and can read the sync witho
   assert.equal(service.pace(), BACKGROUND_FACTOR);
   c.advance(3 * 60_000);
   assert.equal(service.pace(), null);
+});
+
+const updated = (it, at) => ({ ...it, updatedAt: at });
+
+test('the lists are searched often enough to catch a change within half a minute, inside GitHub\'s 30 searches a minute', () => {
+  assert.ok(PACE.searchMs <= 30_000);
+  // While the page is open: the two main lists each searchMs, the team list each teamSearchMs.
+  const perMinute = 2 * (60_000 / PACE.searchMs) + 60_000 / PACE.teamSearchMs;
+  assert.ok(perMinute <= 10, `${perMinute} searches a minute`);
+});
+
+test('a PR the list shows as updated (a push, review or comment) is fetched again at once, not at its next turn', async () => {
+  const { github, calls } = fakeGithub({ authored: [updated(item(1), 't0'), updated(item(2), 't0')], details: { 1: pr(1, settled), 2: pr(2, settled) } });
+  const c = clock();
+  const sync = createPrSync({ ...github, now: c.now });
+  await sync.ensureLoaded();
+  calls.full.length = 0;
+
+  github.lists.authored = [updated(item(1), 't0'), updated(item(2), 't1')];
+  c.advance(PACE.searchMs);
+  await sync.tick();
+
+  assert.deepEqual(calls.full, [2]);
+  // And it isn't fetched again for the same update.
+  c.advance(PACE.searchMs);
+  await sync.tick();
+  assert.deepEqual(calls.full, [2]);
+});
+
+test('coming back to the page re-checks lists and PRs older than a few seconds, so changes made elsewhere show at once', async () => {
+  const { github, calls } = fakeGithub({ details: { 1: pr(1, settled), 2: pr(2, settled) } });
+  const c = clock();
+  const sync = createPrSync({ ...github, now: c.now });
+  await sync.ensureLoaded();
+  calls.search = 0;
+  calls.full.length = 0;
+
+  // Just checked: nothing asked again.
+  c.advance(RETURN_FRESH_MS - 1);
+  await sync.tick({ freshWithin: RETURN_FRESH_MS });
+  assert.equal(calls.search, 0);
+  assert.deepEqual(calls.full, []);
+
+  // A little older (well inside every regular interval): all of it is asked again.
+  c.advance(1);
+  await sync.tick({ freshWithin: RETURN_FRESH_MS });
+  assert.equal(calls.search, 3);
+  assert.deepEqual(calls.full.sort(), [1, 2]);
+});
+
+test('opening the PR page re-checks what is older than a few seconds', async () => {
+  const { github, calls } = fakeGithub({ details: { 1: pr(1, settled), 2: pr(2, settled) } });
+  const c = clock();
+  const sync = createPrSync({ ...github, now: c.now });
+  const service = createPrService({ getLocalIndex: async () => new Map(), sync, now: c.now });
+  await service.getPrs();
+  calls.full.length = 0;
+
+  c.advance(RETURN_FRESH_MS);
+  const unsubscribe = service.subscribe(() => {});
+  await new Promise((resolve) => { setTimeout(resolve, 20); });
+  unsubscribe();
+  assert.deepEqual(calls.full.sort(), [1, 2]);
+});
+
+test('coming back while a regular check is running re-checks once that one finishes', async () => {
+  const { github, calls } = fakeGithub({ details: { 1: pr(1, settled), 2: pr(2, settled) } });
+  const c = clock();
+  const sync = createPrSync({ ...github, now: c.now });
+  await sync.ensureLoaded();
+  calls.full.length = 0;
+
+  c.advance(PACE.searchMs);
+  const regular = sync.tick();
+  await sync.tick({ freshWithin: RETURN_FRESH_MS });
+  await regular;
+  assert.deepEqual(calls.full.sort(), [1, 2]);
 });
