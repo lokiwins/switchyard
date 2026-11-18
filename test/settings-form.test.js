@@ -11,6 +11,7 @@ const VALUES = {
   github: { copilotReviewer: 'copilot-pull-request-reviewer[bot]', issueRepos: ['acme/storefront'] },
   git: { longLivedBranches: ['main', 'release/*'] },
   ci: { holdPatterns: ['\\bhold\\b'], stripPrefixes: ['ci/circleci: '] },
+  tasks: { autoDeleteDone: true, deleteDoneAfterDays: 14 },
 };
 
 test('each setting becomes a form field: lists one item per line, numbers as text', () => {
@@ -37,4 +38,12 @@ test('numbers are read as numbers; one that isn\'t a number is sent as written, 
   const edits = editsFromFields({ ...fieldsFromValues(VALUES), 'agents.parkedAfterHours': ' 1.5 ', 'agents.endedHistoryDays': 'soon' });
   assert.equal(edits.agents.parkedAfterHours, 1.5);
   assert.equal(edits.agents.endedHistoryDays, 'soon');
+});
+
+test('a yes-or-no setting is a checkbox field: "true" or "false", read back as a boolean', () => {
+  const fields = fieldsFromValues(VALUES);
+  assert.equal(fields['tasks.autoDeleteDone'], 'true');
+  assert.equal(fields['tasks.deleteDoneAfterDays'], '14');
+  assert.equal(editsFromFields({ ...fields, 'tasks.autoDeleteDone': 'false' }).tasks.autoDeleteDone, false);
+  assert.deepEqual(editsFromFields(fields).tasks, { autoDeleteDone: true, deleteDoneAfterDays: 14 });
 });

@@ -141,3 +141,12 @@ test('the file only keeps sessions still young enough to be listed, so it never 
   assert.deepEqual([...(await removal.hidden()).keys()], [A]);
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(store, 'hidden-sessions.json'), 'utf8')).sessions), [A]);
 });
+
+test('forget takes sessions off the lists as told, for a task being put away (sessions it just ended included)', async () => {
+  const { removal, changes } = setup();
+  await removal.forget([{ sessionId: LIVE, endedAt: NOW }, { sessionId: A, endedAt: NOW - 1000 }]);
+  const hidden = await removal.hidden();
+  assert.equal(hidden.get(LIVE), NOW);
+  assert.equal(hidden.get(A), NOW - 1000);
+  assert.equal(changes(), 1);
+});

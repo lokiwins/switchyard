@@ -265,6 +265,17 @@ main {
   background: var(--amber-soft); border-bottom: 1px solid var(--divider);
 }
 .hint code { font-family: var(--mono); font-size: 11px; }
+/* Tasks: a closed task's worktree kept for its changes, asking Keep or Delete. */
+.worktree-choices { display: flex; flex-direction: column; gap: var(--space-2); }
+.worktree-choices:not(:empty) { margin-bottom: var(--space-3); }
+.worktree-choice {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  background: var(--amber-soft); box-shadow: inset 3px 0 0 var(--amber);
+}
+.worktree-choice-text { margin: 0; font-size: var(--text-sm); color: var(--gray-900); overflow-wrap: anywhere; }
+.worktree-choice-text code { font-family: var(--mono); font-size: 12px; }
+.worktree-choice-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
 .copy-icon { margin-right: 3px; opacity: 0.7; }
 .live-dot {
   display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%;
@@ -679,6 +690,8 @@ fieldset.setting > legend { padding: 0; margin-bottom: var(--space-1); }
 .repo-checklist { display: grid; gap: 2px; max-width: 520px; max-height: 260px; overflow-y: auto; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1px var(--gray-200); }
 .repo-choice { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); padding: 2px 0; cursor: pointer; font-size: var(--text-sm); }
 .setting .repo-choice input { flex: none; width: auto; padding: 0; box-shadow: none; }
+.setting-toggle { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+.setting .setting-toggle input { flex: none; width: auto; margin: 0; padding: 0; box-shadow: none; }
 .repo-choice .repo-name { color: var(--gray-900); overflow-wrap: anywhere; }
 .repo-choice .setting-hint { margin-left: auto; }
 .setting-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }

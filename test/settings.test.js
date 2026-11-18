@@ -106,3 +106,10 @@ test('github.issueRepos: which repos the GitHub issues list shows, as owner/repo
     assert.throws(() => parseSettings({ github: { issueRepos: bad } }), /github\.issueRepos/, JSON.stringify(bad));
   }
 });
+
+test('done tasks are kept unless you turn on deleting them, after a number of days', () => {
+  assert.deepEqual(parseSettings({}).tasks, { autoDeleteDone: false, deleteDoneAfterMs: 7 * 86_400_000 });
+  assert.deepEqual(parseSettings({ tasks: { autoDeleteDone: true, deleteDoneAfterDays: 0.5 } }).tasks, { autoDeleteDone: true, deleteDoneAfterMs: 43_200_000 });
+  assert.throws(() => parseSettings({ tasks: { autoDeleteDone: 'yes' } }), /tasks.autoDeleteDone/);
+  assert.throws(() => parseSettings({ tasks: { deleteDoneAfterDays: 0 } }), /tasks.deleteDoneAfterDays/);
+});

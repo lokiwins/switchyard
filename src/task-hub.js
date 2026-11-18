@@ -161,6 +161,12 @@ export function createTaskHub({ file = createJsonFile(defaultStoreDir(), FILE), 
 
     reopen: (body) => edit(body, () => ({ closedAs: null, closedAt: null })),
 
+    /** Note when a task was first seen done by its merged PR (once), so done tasks can be deleted a while later. */
+    noteDoneSeen: (id) => change((tasks) => ({
+      tasks: tasks.map((t) => (t.id === id && !t.doneSeenAt ? { ...t, doneSeenAt: now() } : t)),
+      result: null,
+    })),
+
     async remove(body) {
       const id = body?.id;
       return change((tasks) => {

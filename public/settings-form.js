@@ -4,7 +4,9 @@
  */
 
 const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes']);
-const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays']);
+const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'tasks.deleteDoneAfterDays']);
+// Checkboxes: "true" or "false" in the form.
+const BOOLEANS = new Set(['tasks.autoDeleteDone']);
 // A prefix's trailing space is part of what's removed from a check's name.
 const UNTRIMMED = new Set(['ci.stripPrefixes']);
 
@@ -13,6 +15,7 @@ export const FIELD_NAMES = [
   'roots', 'appearance.theme', 'appearance.mode', 'appearance.terminal', 'terminal.app', 'editor.urlScheme',
   'agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays',
   'github.copilotReviewer', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
+  'tasks.autoDeleteDone', 'tasks.deleteDoneAfterDays',
 ];
 
 const valueAt = (values, name) => name.split('.').reduce((value, key) => value?.[key], values);
@@ -29,6 +32,7 @@ function readField(name, text) {
   if (LISTS.has(name)) {
     return text.split('\n').map((line) => (UNTRIMMED.has(name) ? line : line.trim())).filter((line) => line.trim() !== '');
   }
+  if (BOOLEANS.has(name)) return text === 'true';
   if (NUMBERS.has(name)) {
     const number = Number(text.trim());
     return text.trim() !== '' && Number.isFinite(number) ? number : text;
