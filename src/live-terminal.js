@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { ActionError } from './errors.js';
+import { TASK_SESSION } from './task-session.js';
 import { attachControlClient, hexKeys } from './tmux-control.js';
 
 /*
@@ -83,7 +84,18 @@ function requestedSize(body) {
 
 export function createLiveTerminals({
   actions, tmux, attach = attachControlClient, newToken = () => randomBytes(16).toString('hex'), resizeWaitMs = RESIZE_WAIT_MS,
+  taskSession = TASK_SESSION,
 }) {
+  /**
+   * New task windows start at the size the pane last had, so opening one
+   * doesn't resize it (Claude reprints its whole transcript a second or two
+   * after a width change). Only switchyard's own session: your own sessions'
+   * options are yours. (set-option takes no "=" exact-name target.)
+   */
+  function startNewWindowsAt(client, session, { cols, rows }) {
+    if (session === taskSession) client.command(`set-option -t ${session} default-size ${cols}x${rows}`);
+  }
+
   const open = new Map();
 
   /**
@@ -199,7 +211,7 @@ export function createLiveTerminals({
     }
 
     await keepCurrentWindowSize(session);
-    open.set(token, { client, pane, window: first.window, flow, followResize });
+    open.set(token, { client, session, pane, window: first.window, flow, followResize });
     // Quoted: an unquoted # starts a comment in tmux's command syntax.
     client.command(`refresh-client -B '${SIZE_SUBSCRIPTION}:${pane}:#{pane_width}x#{pane_height}'`);
     try {
@@ -227,6 +239,7 @@ export function createLiveTerminals({
      * tmux keeps another size (another client wins), it goes on at that one.
      */
     async function startingSize(wanted) {
+      if (wanted) startNewWindowsAt(client, session, wanted);
       if (!wanted || (wanted.cols === first.cols && wanted.rows === first.rows)) return first;
       client.command(`refresh-client -C ${first.window}:${wanted.cols}x${wanted.rows}`);
       // tmux reports size changes only now and then, so ask it directly until the window has it.
@@ -269,6 +282,7 @@ export function createLiveTerminals({
     const { cols, rows } = body;
     if (!inRange(cols, COLS) || !inRange(rows, ROWS)) throw new ActionError(400, 'Expected whole-number cols (20–500) and rows (5–200)');
     terminal.client.command(`refresh-client -C ${terminal.window}:${cols}x${rows}`);
+    startNewWindowsAt(terminal.client, terminal.session, { cols, rows });
     terminal.followResize({ cols, rows }).catch(() => {});
     return { requested: { cols, rows } };
   }
