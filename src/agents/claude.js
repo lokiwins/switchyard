@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { mapLimit } from '../exec.js';
-import { shellQuote } from '../shell.js';
+import { shellQuote, shellQuoteAlways } from '../shell.js';
 import { summarizeFile, transcriptDirName } from './claude-transcript.js';
 import { createHostDetector } from './host.js';
 import { createProcessStarts, isProcessAlive, startTimesMatch } from './process.js';
@@ -24,9 +24,17 @@ const MAX_PLAN_BYTES = 256 * 1024;
 /** A session that never got a prompt (opened, then /exit) has nothing to resume. */
 const isResumable = (transcript) => Boolean(transcript?.lastPrompt) || transcript?.endState === 'interrupted';
 
+const COMMAND = 'claude';
+
+/** Start Claude Code, on `prompt` when given (quoted even when it looks safe: zsh expands a leading "="). */
+const launchCommand = (prompt) => (prompt ? `${COMMAND} ${shellQuoteAlways(prompt)}` : COMMAND);
+
+/** Resume one of its sessions, from the folder it ran in. */
+const resumeInPlace = (sessionId) => `${COMMAND} --resume ${sessionId}`;
+
 /** `claude --resume` only finds sessions recorded for the current directory. */
 export function resumeCommand(cwd, sessionId) {
-  return `cd ${shellQuote(cwd)} && claude --resume ${sessionId}`;
+  return `cd ${shellQuote(cwd)} && ${resumeInPlace(sessionId)}`;
 }
 
 /**
@@ -123,7 +131,6 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
     const entries = await runningEntries();
     const hosts = await detectHosts(entries.map((entry) => entry.pid));
     const sessions = await Promise.all(entries.map(async (entry) => ({
-      agent: 'claude-code',
       pid: entry.pid,
       sessionId: entry.sessionId,
       name: entry.name ?? null,
@@ -161,7 +168,6 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
     if (transcripts.length === 0) return null;
     const newest = transcripts.reduce((a, b) => (b.mtime > a.mtime ? b : a));
     return {
-      agent: 'claude-code',
       sessionId: newest.sessionId,
       updatedAt: newest.mtime,
       resumeCommand: resumeCommand(cwd, newest.sessionId),
@@ -179,7 +185,6 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
       const transcript = await summarize(t.file, t.size);
       if (!isResumable(transcript)) return null;
       return {
-        agent: 'claude-code',
         sessionId: t.sessionId,
         updatedAt: transcript.lastActivityAt ?? t.mtime,
         endState: transcript.endState,
@@ -202,7 +207,6 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
       const transcript = await summarize(t.file, t.size);
       if (!transcript?.cwd || !isResumable(transcript)) return null;
       return {
-        agent: 'claude-code',
         sessionId: t.sessionId,
         cwd: transcript.cwd,
         endedAt: transcript.lastActivityAt ?? t.mtime,
@@ -214,5 +218,15 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
     return sessions.filter(Boolean).sort((a, b) => b.endedAt - a.endedAt);
   }
 
-  return { liveSessions, latestSession, recentSessions, endedSessions };
+  return {
+    id: 'claude',
+    label: 'Claude Code',
+    command: COMMAND,
+    launchCommand,
+    resumeCommand: resumeInPlace,
+    liveSessions,
+    latestSession,
+    recentSessions,
+    endedSessions,
+  };
 }

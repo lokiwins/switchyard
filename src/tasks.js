@@ -3,7 +3,6 @@ import { basename, dirname, join } from 'node:path';
 import { branchFromTask } from '../public/branch-name.js';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
-import { shellQuoteAlways } from './shell.js';
 import { TASK_SESSION, runInWindow } from './task-session.js';
 import { hasControlCharacters, windowNameFor } from './tmux.js';
 
@@ -20,7 +19,11 @@ const NO_PROMPT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
 
 const runGit = (args, options) => run('git', args, options);
 
-/** { repo, branch, prompt } from the New task form. The task is required; the branch, null when left empty, is optional. */
+/**
+ * { repo, branch, prompt, provider } from the New task form. The task is
+ * required; the branch, null when left empty, and the agent provider's id,
+ * null for the default, are optional.
+ */
 export function parseNewTask(body) {
   const repo = body?.repo;
   const branch = typeof body?.branch === 'string' ? body.branch.trim() : '';
@@ -33,7 +36,8 @@ export function parseNewTask(body) {
   if (branch && !BRANCH_PATTERN.test(branch)) {
     throw new ActionError(400, 'A branch name uses letters, digits, ".", "_", "-" and "/", and cannot start with "-"');
   }
-  return { repo, branch: branch || null, prompt };
+  if (body.provider !== undefined && body.provider !== null && typeof body.provider !== 'string') throw new ActionError(400, 'Expected provider to be an agent id');
+  return { repo, branch: branch || null, prompt, provider: body.provider ?? null };
 }
 
 /** Beside the main checkout, named <repo>-<last branch segment>, like "my-repo-login-bug" for "fix/login-bug". */
@@ -41,18 +45,14 @@ export function worktreePathFor(repo, branch) {
   return join(dirname(repo.mainPath), `${repo.name}-${branch.split('/').pop()}`);
 }
 
-export function claudeCommand(prompt) {
-  return `claude ${shellQuoteAlways(prompt)}`;
-}
-
 /**
  * New task: a worktree on a branch (named after the task unless you name
- * one), and a window in the switchyard tmux session running Claude Code on
- * the task. Repos must be ones switchyard discovered; git and tmux get every
+ * one), and a window in the switchyard tmux session running the agent (Claude
+ * Code unless another provider is asked for) on the task. Repos must be ones switchyard discovered; git and tmux get every
  * value as its own argument.
  */
 export function createTaskService({
-  stateService, tmux, starts = { track: () => {} }, git = runGit, exists = existsSync,
+  stateService, tmux, agents, starts = { track: () => {} }, git = runGit, exists = existsSync,
 }) {
   const gitIn = (dir, args, options) => git(['-C', dir, ...args], options);
 
@@ -124,10 +124,10 @@ export function createTaskService({
     await gitIn(dir, ['worktree', 'remove', path]).catch(() => {});
   }
 
-  /** Open the task's window and type claude into it; on failure, remove the worktree too, so a retry starts clean. */
-  async function startClaude(mainPath, path, name, prompt) {
+  /** Open the task's window and start the agent in it; on failure, remove the worktree too, so a retry starts clean. */
+  async function startAgent(provider, mainPath, path, name, prompt) {
     try {
-      return await runInWindow(tmux, { name, cwd: path, command: claudeCommand(prompt) });
+      return await runInWindow(tmux, { name, cwd: path, command: provider.launchCommand(prompt) });
     } catch (error) {
       await rollBack(mainPath, path);
       throw error;
@@ -135,7 +135,8 @@ export function createTaskService({
   }
 
   async function startTask(body) {
-    const { repo: mainPath, branch: chosen, prompt } = parseNewTask(body);
+    const { repo: mainPath, branch: chosen, prompt, provider: providerId } = parseNewTask(body);
+    const provider = providerId === null ? agents.default : agents.get(providerId);
     const state = await stateService.getState();
     const repo = state.repos.find((r) => r.mainPath === mainPath);
     if (!repo) throw new ActionError(404, 'That folder is not one of your repositories');
@@ -147,9 +148,9 @@ export function createTaskService({
     if (await tmux.hasWindow(TASK_SESSION, window)) throw new ActionError(409, `The ${TASK_SESSION} tmux session already has a window named ${window}`);
 
     await addWorktree(mainPath, path, branch);
-    const started = await startClaude(mainPath, path, window, prompt);
-    // Watched until its session shows up: Claude may first ask whether to trust the folder, or quit.
-    starts.track({ path, place: started.place, pane: started.pane });
+    const started = await startAgent(provider, mainPath, path, window, prompt);
+    // Watched until its session shows up: it may first ask whether to trust the folder, or quit.
+    starts.track({ path, place: started.place, pane: started.pane, command: provider.command });
     return { path, branch, session: TASK_SESSION, window };
   }
 

@@ -110,7 +110,7 @@ function latestOf(...timestamps) {
  * @param {() => Promise<Map<string, number>>} [deps.hiddenSessions] Ended sessions deleted from the lists, with when each ended.
  */
 export function createStateService({
-  config, claude, cache,
+  config, agents, cache,
   statusTracker = createStatusTracker(),
   github = { fetchBranchPrs, fetchPrDetails },
   prSnapshot = () => null,
@@ -172,8 +172,8 @@ export function createStateService({
   async function buildWorktree({ repo, remote, worktree, status, refs, prs, liveSessions, hidden, scan, sync }) {
     const isMain = worktree.path === repo.mainPath;
     const pr = remote ? await attachChecks(remote, matchPr(prs, worktree.branch, settings.git.isLongLivedBranch), scan, sync) : null;
-    const lastSession = await claude.latestSession(worktree.path);
-    const recentSessions = (await claude.recentSessions(worktree.path, {
+    const lastSession = await agents.latestSession(worktree.path);
+    const recentSessions = (await agents.recentSessions(worktree.path, {
       exclude: new Set(liveSessions.map((s) => s.sessionId)),
     })).filter((s) => !isHidden({ sessionId: s.sessionId, endedAt: s.updatedAt }, hidden));
     const lastCommit = worktree.branch ? refs.get(worktree.branch) ?? null : null;
@@ -356,11 +356,11 @@ export function createStateService({
 
     const worktreePaths = discovered.repos.flatMap((r) => r.worktrees.map((w) => w.path));
     const now = Date.now();
-    const liveSessions = (await claude.liveSessions()).map((s) => ({ ...s, parked: isParked(s, now, settings.agents.parkedAfterMs) }));
+    const liveSessions = (await agents.liveSessions()).map((s) => ({ ...s, parked: isParked(s, now, settings.agents.parkedAfterMs) }));
     const { byWorktree, unmatched } = groupSessions(liveSessions, worktreePaths);
     // Sessions you deleted from the lists stay off them; their transcripts are still there to resume.
     const hidden = await hiddenSessions();
-    const ended = (await claude.endedSessions({
+    const ended = (await agents.endedSessions({
       since: now - settings.agents.endedHistoryMs,
       liveSessionIds: new Set(liveSessions.map((s) => s.sessionId)),
     })).filter((s) => !isHidden(s, hidden));

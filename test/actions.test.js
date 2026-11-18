@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createActionService, editorUrl } from '../src/actions.js';
 import { assertSingleLine, createTerminal } from '../src/terminal.js';
+import { testAgents } from './support/agents.js';
 
 const ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const iterm = { kind: 'terminal', label: 'iTerm', app: 'iTerm', appName: 'iTerm' };
@@ -60,6 +61,7 @@ function setup({
   };
   const actions = createActionService({
     stateService: { getState: async () => fullState },
+    agents: testAgents(),
     terminal,
     tmux,
     terminalFor: () => terminal,
@@ -151,6 +153,14 @@ test('Open can start a new Claude session in a worktree', async () => {
   await actions.openWorktree({ path: '/w/feat', launch: 'claude' });
   assert.deepEqual(calls, [['open', 'cd /w/feat && claude']]);
   await rejectsWith(actions.openWorktree({ path: '/w/feat', launch: 'rm -rf ~' }), 400);
+});
+
+test('Open can start a new session of another agent, and nothing that is not an agent', async () => {
+  const { actions, calls } = setup();
+  await actions.openWorktree({ path: '/w/feat', launch: 'other' });
+  assert.deepEqual(calls, [['open', 'cd /w/feat && other-agent']]);
+  await rejectsWith(actions.openWorktree({ path: '/w/feat', launch: 'codex' }), 400);
+  await rejectsWith(actions.openWorktree({ path: '/w/feat', launch: 42 }), 400);
 });
 
 test("Open resumes a chosen session only if it is one of that worktree's sessions", async () => {
@@ -266,6 +276,13 @@ test('with tmux, Resume opens the session in a window of the switchyard session,
     ['new-window', { session: 'switchyard', name: 'old', cwd: '/w/old' }],
     ['tmux-type', '%9', 'claude --resume ended-session-1'],
   ]);
+});
+
+test('with tmux, a session is resumed with its own agent\'s command', async () => {
+  const ended = { sessionId: 'ended-session-2', cwd: '/w/old', provider: 'other', resumeCommand: "cd '/w/old' && other-agent --continue ended-session-2" };
+  const { actions, calls } = setup({ useTmux: true, state: { endedSessions: [ended] } });
+  await actions.resumeSession({ sessionId: 'ended-session-2' });
+  assert.deepEqual(calls.at(-1), ['tmux-type', '%9', 'other-agent --continue ended-session-2']);
 });
 
 test('with tmux, a resumed window takes the next free name', async () => {

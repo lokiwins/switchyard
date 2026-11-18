@@ -10,7 +10,6 @@ import { TASK_SESSION, freeWindowName, runInWindow } from './task-session.js';
 import { createTmux } from './tmux.js';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
-const WORKTREE_LAUNCHES = new Set(['shell', 'claude']);
 const MAX_REPLY_LENGTH = 2000;
 // Control characters would act as keys (Return submits, Esc interrupts) rather than text;
 // C1 controls and Unicode line separators are refused too, in case a terminal acts on them.
@@ -90,6 +89,8 @@ export function findWorktreePath(state, path) {
  */
 export function createActionService({
   stateService,
+  // The agent providers (see agents/providers.js): what starts a new session, and resumes one.
+  agents,
   terminal,
   tmux = createTmux(),
   // With tmux, resumed sessions open as tabs of the switchyard session, like new tasks.
@@ -133,7 +134,8 @@ export function createActionService({
       if (!SESSION_ID_PATTERN.test(session.sessionId)) throw new ActionError(400, 'Unexpected session id');
       if (typeof session.cwd !== 'string' || !folderExists(session.cwd)) throw new ActionError(409, `Its folder ${session.cwd ?? ''} no longer exists`);
       const name = await freeWindowName(tmux, session.cwd);
-      const { place } = await runInWindow(tmux, { name, cwd: session.cwd, command: `claude --resume ${session.sessionId}` });
+      const command = agents.forSession(session).resumeCommand(session.sessionId);
+      const { place } = await runInWindow(tmux, { name, cwd: session.cwd, command });
       return { host: 'tmux', window: place };
     }
     const driver = session.host?.kind === 'terminal' ? driverFor(session.host.app) : terminal;
@@ -478,15 +480,16 @@ export function createActionService({
     return session;
   }
 
-  /** The command for a new tab in a worktree: a shell or a new Claude session. */
+  /** The command for a new tab in a worktree: a shell, or a new session of the agent `launch` names. */
   function worktreeCommand(path, body) {
     const cd = `cd ${shellQuote(path)}`;
     const launch = body.launch ?? 'shell';
-    if (!WORKTREE_LAUNCHES.has(launch)) throw new ActionError(400, 'Expected launch to be "shell" or "claude"');
-    return launch === 'claude' ? `${cd} && claude` : cd;
+    if (launch === 'shell') return cd;
+    if (typeof launch !== 'string') throw new ActionError(400, 'Expected launch to be "shell" or an agent id');
+    return `${cd} && ${agents.get(launch).launchCommand()}`;
   }
 
-  /** Open a new tab in a worktree's folder, optionally starting or resuming a Claude session there. */
+  /** Open a new tab in a worktree's folder, optionally starting or resuming an agent session there. */
   async function openWorktree(body) {
     const state = await stateService.getState();
     const path = findWorktreePath(state, body?.path);

@@ -30,7 +30,7 @@ function setup() {
     ...real,
     takeWorktreeListChanges: () => { const taken = new Set(changed); changed.clear(); return taken; },
   };
-  const service = createStateService({ config: { roots: [root] }, claude, cache: createSwrCache(), statusTracker: tracker });
+  const service = createStateService({ config: { roots: [root] }, agents: claude, cache: createSwrCache(), statusTracker: tracker });
   const branchOf = (data, path) => data.repos.flatMap((r) => r.worktrees).find((w) => w.path === path)?.branch;
   return { service, changed, branchOf };
 }

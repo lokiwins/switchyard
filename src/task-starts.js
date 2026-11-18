@@ -62,8 +62,11 @@ export function parseTrustPrompt(screen) {
   return asks ? { options } : null;
 }
 
-// The command New task typed: claude and its quoted task, which may wrap onto more lines.
-const TYPED_COMMAND = /\bclaude\s+'/;
+// What New task types when no agent is named.
+const DEFAULT_COMMAND = 'claude';
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** The command New task typed: the agent's program, any options, then its quoted task, which may wrap onto more lines. */
+const typedPattern = (command) => new RegExp(`\\b${escapeRegExp(command)}\\s+(?:-\\S*\\s+)*'`);
 
 const endsCommand = (line) => line.endsWith("'");
 
@@ -74,40 +77,42 @@ const endsCommand = (line) => line.endsWith("'");
  * one after a prompt; its prompt is the lines from there up, below any echo.
  * Null when the command isn't there.
  */
-function typedCommand(lines) {
-  const matches = lines.flatMap((line, i) => (TYPED_COMMAND.test(line) ? [i] : []));
+function typedCommand(lines, pattern) {
+  const matches = lines.flatMap((line, i) => (pattern.test(line) ? [i] : []));
   if (matches.length === 0) return null;
-  const first = matches.findLast((i) => lines[i].search(TYPED_COMMAND) > 0) ?? matches.at(-1);
+  const first = matches.findLast((i) => lines[i].search(pattern) > 0) ?? matches.at(-1);
   const last = lines.findIndex((line, i) => i >= first && endsCommand(line));
   if (last < 0) return null;
-  const promptStart = lines.slice(0, first).findLastIndex((line) => TYPED_COMMAND.test(line) || endsCommand(line)) + 1;
+  const promptStart = lines.slice(0, first).findLastIndex((line) => pattern.test(line) || endsCommand(line)) + 1;
   return { first, last, promptLines: first - promptStart + 1 };
 }
 
 /**
- * What the shell said when claude failed to start ("claude: command not
+ * What the shell said when the agent failed to start ("claude: command not
  * found"): the lines between the command and the new prompt, which takes as
  * many lines as the first one did. Null when it said nothing.
  */
-function shellSaid(screen) {
+function shellSaid(screen, command) {
   const lines = screenLines(screen);
-  const command = typedCommand(lines);
-  if (!command) return null;
-  const said = lines.slice(command.last + 1, lines.length - command.promptLines).map((line) => line.trim());
+  const typed = typedCommand(lines, typedPattern(command));
+  if (!typed) return null;
+  const said = lines.slice(typed.last + 1, lines.length - typed.promptLines).map((line) => line.trim());
   return said.length > 0 ? said.join(' ') : null;
 }
 
 /**
- * Whether the shell is back at its prompt after the command New task typed:
- * lines follow the command, and the last ends as the prompt before it did
- * ("#", "$", "%", "❯"…), though a prompt's time or folder may have changed.
+ * Whether the shell is back at its prompt after the command New task typed
+ * (`command`, the agent's program): lines follow the command, and the last
+ * ends as the prompt before it did ("#", "$", "%", "❯"…), though a prompt's
+ * time or folder may have changed.
  */
-export function backAtPrompt(screen) {
+export function backAtPrompt(screen, command = DEFAULT_COMMAND) {
+  const pattern = typedPattern(command);
   const lines = screenLines(screen);
-  const command = typedCommand(lines);
-  if (!command || command.last === lines.length - 1) return false;
-  const typed = lines[command.first];
-  const promptEnd = typed.slice(0, typed.search(TYPED_COMMAND)).trim().at(-1);
+  const typed = typedCommand(lines, pattern);
+  if (!typed || typed.last === lines.length - 1) return false;
+  const line = lines[typed.first];
+  const promptEnd = line.slice(0, line.search(pattern)).trim().at(-1);
   return Boolean(promptEnd) && lines.at(-1).trim().endsWith(promptEnd);
 }
 
@@ -134,10 +139,10 @@ export function createTaskStarts({ tmux, onChange, now = Date.now, timers = glob
     timer = null;
   }
 
-  /** Start watching a task's pane. */
-  function track({ path, place, pane }) {
+  /** Start watching a task's pane, where `command` (the agent's program, claude by default) was typed. */
+  function track({ path, place, pane, command = DEFAULT_COMMAND }) {
     tracked.set(trimSlash(path), {
-      path, place, pane, state: 'starting', trust: null, detail: null, startedAt: now(), seenRunning: false, exitedAt: null,
+      path, place, pane, command, state: 'starting', trust: null, detail: null, startedAt: now(), seenRunning: false, exitedAt: null,
     });
     startTimer();
   }
@@ -158,10 +163,10 @@ export function createTaskStarts({ tmux, onChange, now = Date.now, timers = glob
     if (running) task.seenRunning = true;
     const screen = await tmux.screenText(task.pane).catch(() => '');
     // Back at the prompt on two looks running: the command ran and finished (claude failed outright, say).
-    task.atPrompt = !running && backAtPrompt(screen) ? (task.atPrompt ?? 0) + 1 : 0;
+    task.atPrompt = !running && backAtPrompt(screen, task.command) ? (task.atPrompt ?? 0) + 1 : 0;
     if (!running && (task.seenRunning || task.atPrompt >= 2 || now() - task.startedAt >= NOT_STARTED_MS)) {
       // Once claude has run, what's left on screen is its own, not the shell's.
-      exit(task, task.seenRunning ? null : shellSaid(screen));
+      exit(task, task.seenRunning ? null : shellSaid(screen, task.command));
       return true;
     }
     task.trust = running ? parseTrustPrompt(screen) : null;
