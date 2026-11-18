@@ -879,6 +879,32 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 
 /* A task's details pane (Tasks page). */
 .task-pane-body { display: grid; gap: 18px; align-content: start; }
+/* Compare attempts: one card per attempt, side by side as room allows. */
+.attempt-pane { width: min(1120px, calc(100vw - 24px)); }
+.attempt-pane .pane-heading { margin-right: auto; }
+.attempt-pane-body { overflow: auto; }
+.attempt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; align-items: start; }
+.attempt-card {
+  display: grid; gap: 10px; padding: 14px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--pane-edge) 70%, transparent);
+  background: color-mix(in srgb, var(--pane-shine) 4%, transparent);
+}
+.attempt-card.is-picked { border-color: var(--pane-ok); }
+.attempt-card.is-gone { opacity: 0.6; }
+.attempt-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.attempt-card-title { margin: 0; font-size: 14px; font-weight: 700; color: var(--pane-text); text-transform: none; letter-spacing: 0; }
+.attempt-branch { margin: 0; font-size: 11px; color: var(--pane-dim); overflow-wrap: anywhere; }
+.attempt-stats { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--pane-text); }
+.attempt-stats a { color: var(--pane-accent); }
+.attempt-state.is-working { color: var(--pane-ok); }
+.attempt-state.is-needs-you { color: var(--pane-wait); }
+.attempt-state.is-not-running { color: var(--pane-dim); }
+.pane-pill.is-picked { color: var(--pane-ok); }
+.attempt-card-head .pane-pill + .pane-pill { margin-left: 0; }
+.attempt-files summary { cursor: pointer; font-size: 12px; color: var(--pane-accent); }
+.attempt-file-list { margin: 6px 0 0; padding: 0; list-style: none; font-size: 11px; color: var(--pane-dim); max-height: 180px; overflow: auto; }
+.attempt-file-list li { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.attempt-card-actions { display: flex; justify-content: flex-end; }
 .pane-form { display: grid; gap: 12px; }
 .pane-field { display: grid; gap: 4px; font-size: 11px; color: var(--pane-dim); }
 .pane-field .pane-input { font-size: 13px; }

@@ -240,3 +240,13 @@ test("a plan approval's plan is read from the file it names in the plans folder"
   await writeFile(join(plansDir, 'huge.md'), 'x'.repeat(300 * 1024));
   assert.equal(await readPlan(plansDir, 'huge.md'), null, 'too big to send to the page');
 });
+
+test('summarizeTranscript says how full the context was on the last call, leaving out subagents\' own calls', () => {
+  const usage = (input, read, written) => ({ input_tokens: input, cache_read_input_tokens: read, cache_creation_input_tokens: written, output_tokens: 9 });
+  const summary = summarizeTranscript([
+    line({ type: 'assistant', message: { content: [{ type: 'text', text: 'hi' }], usage: usage(100, 20000, 300) } }),
+    line({ type: 'assistant', isSidechain: true, message: { content: [], usage: usage(5, 999999, 0) } }),
+  ]);
+  assert.equal(summary.contextTokens, 20400);
+  assert.equal(summarizeTranscript([line({ type: 'user', message: { content: 'ask' } })]).contextTokens, null);
+});

@@ -99,7 +99,7 @@ test('a worktree with uncommitted changes or unmerged commits is left for you to
   const result = await cleanup.afterClose(TASK);
   assert.equal(calls.some((c) => c.includes(`worktree remove ${WIP}`)), false);
   assert.deepEqual(result.choices, [{
-    path: WIP, repoName: 'shop', branch: 'sy-abc123-wip', taskId: TASK.id, taskTitle: TASK.title, changes: 2, unmerged: 2,
+    path: WIP, repoName: 'shop', branch: 'sy-abc123-wip', taskId: TASK.id, taskTitle: TASK.title, changes: 2, unmerged: 2, why: 'closed',
   }]);
   assert.deepEqual(cleanup.pending(), result.choices);
 });
@@ -164,4 +164,21 @@ test('Delete is refused for a worktree nobody asked about, or one a session is r
   await assert.rejects(cleanup.choose({ path: 42 }), (e) => e.status === 400);
   // Delete is never what a missing answer means.
   await assert.rejects(cleanup.choose({ path: WIP }), (e) => e.status === 400);
+});
+
+test('putting away some of a task\'s worktrees (the attempts not picked) leaves the rest of it alone', async () => {
+  const { cleanup, ended, forgotten, calls } = setup();
+  const result = await cleanup.putAwayWorktrees({ ...TASK, attached: [{ sessionId: 'main-live' }] }, { branches: ['sy-abc123-wip'] });
+  assert.deepEqual(result.choices.map((c) => c.path), [WIP]);
+  assert.deepEqual(result.removed, []);
+  // FIX is still the task's, and a session saved on the task stays running.
+  assert.deepEqual(ended, []);
+  assert.equal(calls.some((c) => c.includes(`-C ${FIX}`) || c.includes(`remove ${FIX}`)), false);
+  assert.deepEqual(forgotten, []);
+});
+
+test('a worktree left from an attempt not picked says so, not that the task is closed', async () => {
+  const { cleanup } = setup();
+  const result = await cleanup.putAwayWorktrees(TASK, { branches: ['sy-abc123-wip'] });
+  assert.equal(result.choices[0].why, 'not-picked');
 });

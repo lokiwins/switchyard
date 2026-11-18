@@ -5,6 +5,7 @@ import { isTypingReply } from './session-controls.js';
 import { renderToolCards } from './task-views.js';
 import { newTaskForm, renderGroups } from './hub-views.js';
 import { openTaskPane } from './task-pane.js';
+import { openAttemptPane } from './attempt-pane.js';
 import { groupTasks, matchesHubTask } from './task-state.js';
 import { cleanupSummary, renderWorktreeChoices } from './worktree-choices.js';
 
@@ -36,8 +37,11 @@ async function getJson(url) {
   return body.data;
 }
 
-/** Run a change to a task, then show the tasks as they are now. Resolves whether it worked. */
-/** Post a change and say how it went. `done` is the toast, or a function of the server's answer that gives it. */
+/**
+ * Run a change to a task, say how it went, then show the tasks as they are
+ * now. `done` is the toast, or a function of the server's answer that gives
+ * it. Resolves whether it worked.
+ */
 async function change(url, body, done) {
   let result;
   try {
@@ -87,6 +91,10 @@ const actions = {
   reopen: (task) => change('/api/hub/tasks/reopen', { id: task.id }, `Reopened: ${task.title}`),
   remove: (task) => closing(task, 'delete', () => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`)),
   open: (task) => openTaskPane(task, { save: (fields) => change('/api/hub/tasks/update', { id: task.id, ...fields }, `Saved: ${fields.title.trim()}`) }),
+  compare: (task) => openAttemptPane(task, {
+    load: () => getJson(`/api/hub/tasks/attempts?id=${encodeURIComponent(task.id)}`),
+    pick: (attempt) => change('/api/hub/tasks/pick', { id: task.id, branch: attempt.branch }, `Picked attempt ${attempt.n}: ${task.title}`),
+  }),
   async start(task, repo, attempts = 1) {
     // Shown as starting at once; New task can take a few seconds (a fetch, a checkout), and each attempt is one.
     ui.creating.set(task.id, attempts);
