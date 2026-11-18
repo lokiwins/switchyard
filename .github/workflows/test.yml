@@ -35,6 +35,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
-          # No dependencies, so nothing to cache.
+          # One small dependency (yaml): installing it is quicker than caching it.
           package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
       - run: npm test

@@ -126,3 +126,17 @@ test('applyEdits refuses provider settings switchyard would refuse', () => {
   rejectsWith(() => applyEdits({}, { providers: { claude: { enabled: false, program: 'claude', options: '' } } }), 400, /turned off/);
   rejectsWith(() => applyEdits({}, { providers: { codex: { enabled: true } } }), 400);
 });
+
+test('check commands are edited as YAML text and kept in config.json as JSON', () => {
+  assert.equal(editableSettings({}).checks.commands, '');
+  const file = { checks: { commands: { 'billing-api': { lint: 'npm run lint', test: 'npm test' } } } };
+  assert.equal(editableSettings(file).checks.commands, 'billing-api:\n  lint: npm run lint\n  test: npm test\n');
+  const saved = applyEdits({}, { checks: { commands: 'storefront:\n  test: npm test\n', timeoutMinutes: 10 } });
+  assert.deepEqual(saved, { checks: { commands: { storefront: { test: 'npm test' } } } });
+  assert.deepEqual(applyEdits(saved, { checks: { commands: '  ', timeoutMinutes: 10 } }), {});
+});
+
+test('check commands with a YAML mistake, or that switchyard would refuse, are refused with why', () => {
+  rejectsWith(() => applyEdits({}, { checks: { commands: 'a:\n  t: x\n  t: y', timeoutMinutes: 10 } }), 400, /line 3/i);
+  rejectsWith(() => applyEdits({}, { checks: { commands: 'a:\n  "my check": x', timeoutMinutes: 10 } }), 400, /my check/);
+});

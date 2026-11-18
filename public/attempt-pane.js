@@ -2,7 +2,8 @@ import { h, liveTime } from './dom.js';
 import {
   changeSummary, commitSummary, contextSummary, fileLine, stateLabel,
 } from './attempt-cards.js';
-import { checkControl } from './check-view.js';
+import { checksControl } from './check-view.js';
+import { anyRunning, failedNow } from './check-status.js';
 
 /*
  * Compare attempts: a task's attempts side by side (see src/attempt-compare.js),
@@ -36,14 +37,14 @@ function filesList(changes) {
  */
 function pickButton(attempt, onPick) {
   let armed = false;
-  const failed = attempt.check?.state === 'failed' && !attempt.check.outOfDate;
+  const failed = (attempt.checks ?? []).some(failedNow);
   const button = h('button', {
     type: 'button',
     class: 'btn btn-sm',
     onclick: async () => {
       if (!armed) {
         armed = true;
-        button.textContent = failed ? 'Its check failed. Keep it anyway, put the others away' : 'Keep this one, put the others away';
+        button.textContent = failed ? 'A check failed. Keep it anyway, put the others away' : 'Keep this one, put the others away';
         button.classList.add('btn-danger');
         return;
       }
@@ -54,7 +55,7 @@ function pickButton(attempt, onPick) {
 }
 
 function card(attempt, {
-  picked, onPick, canCheck, onRunCheck,
+  picked, onPick, checkNames, onRunCheck,
 }) {
   const head = h('header', { class: 'attempt-card-head' },
     h('h3', { class: 'attempt-card-title' }, `Attempt ${attempt.n}`),
@@ -77,14 +78,14 @@ function card(attempt, {
     branch,
     h('ul', { class: 'attempt-stats' }, stats.map((stat) => h('li', {}, stat))),
     filesList(attempt.changes),
-    checkControl(attempt.check, { canRun: canCheck, onRun: () => onRunCheck(attempt) }),
+    checksControl(attempt.checks, { names: checkNames, onRun: (name) => onRunCheck(attempt, name) }),
     !picked && h('div', { class: 'attempt-card-actions' }, pickButton(attempt, onPick)));
 }
 
 /**
  * Open Compare attempts for `task`. `load()` resolves to the attempts (see
  * attempt-compare.js); `pick(attempt)` resolves whether picking worked, and
- * the pane closes when it did. `runCheck(path)` starts an attempt's check,
+ * the pane closes when it did. `runCheck(path, name?)` starts an attempt's check (or all of them),
  * and the pane looks again until it's done.
  */
 export function openAttemptPane(task, { load, pick, runCheck }) {
@@ -99,8 +100,8 @@ export function openAttemptPane(task, { load, pick, runCheck }) {
   }
 
   let soon = null;
-  async function onRunCheck(attempt) {
-    if (await runCheck(attempt.path)) await show();
+  async function onRunCheck(attempt, name) {
+    if (await runCheck(attempt.path, name)) await show();
   }
 
   async function show() {
@@ -109,10 +110,10 @@ export function openAttemptPane(task, { load, pick, runCheck }) {
       const data = await load();
       if (!dialog.open) return;
       grid.replaceChildren(...data.attempts.map((attempt) => card(attempt, {
-        picked: data.picked, onPick, canCheck: data.canCheck, onRunCheck,
+        picked: data.picked, onPick, checkNames: data.checkNames, onRunCheck,
       })));
       // While a check runs, look again shortly, so its result shows when it's done.
-      if (data.attempts.some((a) => a.check?.state === 'running')) soon = setTimeout(show, CHECK_POLL_MS);
+      if (data.attempts.some((a) => anyRunning(a.checks))) soon = setTimeout(show, CHECK_POLL_MS);
     } catch (error) {
       grid.replaceChildren(h('p', { class: 'pane-note' }, `Couldn't compare the attempts: ${error.message}`));
     }

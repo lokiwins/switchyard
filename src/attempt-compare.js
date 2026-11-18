@@ -39,7 +39,7 @@ const untrackedIn = (status) => status.split('\n').filter((line) => line.startsW
  *   putAwayWorktrees: (task: object, options: { branches: string[] }) => Promise<object>, git?: Function, now?: () => number }} deps
  */
 export function createAttemptCompare({
-  taskHub, getState, putAwayWorktrees, git = runGit, now = Date.now, checks = { results: async () => ({}), repos: () => [] },
+  taskHub, getState, putAwayWorktrees, git = runGit, now = Date.now, checks = { results: async () => ({}), names: () => ({}) },
 }) {
   const gitIn = (dir, args) => git(['-C', dir, ...args]);
 
@@ -100,10 +100,10 @@ export function createAttemptCompare({
       Promise.all(group.branches.map((branch, i) => describe(branch, i + 1, repo, group.startedAt))),
       checks.results({ repos }),
     ]);
-    // Each attempt's latest check (see checks.js), and whether its repo has a check to run.
-    const attempts = described.map((a) => (a.present ? { ...a, check: results[a.path] ?? null } : a));
+    // Each attempt's latest checks (see checks.js), and the checks its repo has to run.
+    const attempts = described.map((a) => (a.present ? { ...a, checks: results[a.path] ?? [] } : a));
     return {
-      taskId: task.id, picked: group.picked ?? null, startedAt: group.startedAt, canCheck: Boolean(repo && checks.repos().includes(repo.name)), attempts,
+      taskId: task.id, picked: group.picked ?? null, startedAt: group.startedAt, checkNames: (repo && checks.names()[repo.name]) ?? [], attempts,
     };
   }
 

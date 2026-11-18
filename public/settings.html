@@ -137,9 +137,9 @@
         <div class="panel-head"><h2 id="checks-title">Checks</h2></div>
         <div class="setting-row">
           <label class="setting">
-            <span class="setting-label">Check commands</span>
-            <textarea name="checks.commands" rows="4" spellcheck="false" placeholder="billing-api: npm test"></textarea>
-            <span class="setting-hint">One line per repo: its folder name, a colon, then the command Run check runs in a worktree of it. Checks only warn; nothing is blocked when one fails.</span>
+            <span class="setting-label">Check commands (YAML)</span>
+            <textarea name="checks.commands" rows="7" spellcheck="false" class="mono" placeholder="billing-api:&#10;  lint: npm run lint&#10;  test: npm test&#10;storefront: npm test"></textarea>
+            <span class="setting-hint">Each repo's folder name, then its checks indented under it as <code>name: command</code>, or just one command. Quote a command with <code>: </code> or <code>#</code> in it. Checks only warn; nothing is blocked when one fails.</span>
           </label>
           <label class="setting">
             <span class="setting-label">Stop a check after (minutes)</span>

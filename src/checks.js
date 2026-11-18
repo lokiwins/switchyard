@@ -5,11 +5,12 @@ import { run } from './exec.js';
 import { createJsonFile, defaultStoreDir } from './json-store.js';
 
 /*
- * Run check: the command Settings › Checks gives a worktree's repo (say
- * "npm test"), run in the worktree, so its pass or fail shows on the task
- * and on each attempt's card. Results are kept in checks.json; one is out
- * of date once the worktree's commit or files change after it ran. Checks
- * only warn: nothing is refused because one failed.
+ * Run check: a worktree's repo has named checks in Settings › Checks (say
+ * lint: npm run lint, test: npm test). Run runs one in the worktree; Run all
+ * runs each in turn. Its pass or fail shows on the task and on each
+ * attempt's card. Results are kept in checks.json, by worktree then check;
+ * one is out of date once the worktree's commit or files change after it
+ * ran. Checks only warn: nothing is refused because one failed.
  */
 
 // The end of a check's output is kept, where the failures usually are.
@@ -51,22 +52,29 @@ export function runShellCommand({ command, cwd, timeoutMs, onOutput }) {
 }
 
 /**
- * @param {{ file?: { read, write }, settings: () => { commands: Record<string, string>, timeoutMs: number },
+ * @param {{ file?: { read, write }, settings: () => { commands: Record<string, { name: string, command: string }[]>, timeoutMs: number },
  *   getState: () => Promise<{ repos: object[] }>, runCommand?: Function, git?: Function, now?: () => number, onChange?: () => void }} deps
  */
 export function createChecks({
   file = createJsonFile(defaultStoreDir(), FILE), settings, getState, runCommand = runShellCommand, git = runGit, now = Date.now, onChange = () => {},
 }) {
+  // { [worktree path]: { [check name]: result } }
   let results = null;
   let saving = Promise.resolve();
 
-  /** The kept results; a check that was running when switchyard stopped never finished. */
+  const isBusy = (result) => result?.state === 'running' || result?.state === 'queued';
+
+  /**
+   * The kept results. A check running or waiting when switchyard stopped never
+   * finished; one saved before checks had names is the check called "check".
+   */
   async function load() {
     if (results) return results;
     const saved = (await file.read()).checks ?? {};
-    results = Object.fromEntries(Object.entries(saved).map(([path, result]) => [path, result.state === 'running'
-      ? { ...result, state: 'interrupted', detail: 'switchyard restarted while it ran' }
-      : result]));
+    const interrupted = (result) => (isBusy(result) ? { ...result, state: 'interrupted', detail: 'switchyard restarted while it ran' } : result);
+    results = Object.fromEntries(Object.entries(saved).map(([path, byName]) => [path, typeof byName.state === 'string'
+      ? { check: interrupted(byName) }
+      : Object.fromEntries(Object.entries(byName).map(([name, result]) => [name, interrupted(result)]))]));
     return results;
   }
 
@@ -78,7 +86,7 @@ export function createChecks({
     return saving;
   }
 
-  /** The worktree's commit and files, so a later change shows the result is out of date. */
+  /** The worktree's commit and files, so a later change shows a result is out of date. */
   async function fingerprint(path) {
     const [head, status] = await Promise.all([
       git(['-C', path, 'rev-parse', 'HEAD']),
@@ -87,67 +95,100 @@ export function createChecks({
     return createHash('sha1').update(head.trim()).update('\0').update(status).digest('hex');
   }
 
-  async function finish(path, outcome, output) {
+  const set = (path, name, result) => { results[path] = { ...results[path], [name]: result }; };
+
+  /** Run one check to the end, keeping its result. */
+  async function runOne(path, check) {
+    set(path, check.name, { name: check.name, command: check.command, state: 'running', startedAt: now() });
+    onChange();
+    save();
+    let output = '';
+    const onOutput = (text) => { output = (output + text).slice(-MAX_OUTPUT); };
     const timeoutMs = settings().timeoutMs;
+    const outcome = await runCommand({ command: check.command, cwd: path, timeoutMs, onOutput })
+      .catch((error) => { onOutput(`${error.message}\n`); return { exitCode: null, timedOut: false }; });
     const passed = outcome.exitCode === 0 && !outcome.timedOut;
-    const print = await fingerprint(path).catch(() => null);
-    results[path] = {
-      ...results[path],
+    set(path, check.name, {
+      ...results[path][check.name],
       state: passed ? 'passed' : 'failed',
       exitCode: outcome.exitCode,
       finishedAt: now(),
       output,
-      fingerprint: print,
+      fingerprint: await fingerprint(path).catch(() => null),
       ...(outcome.timedOut ? { detail: `Stopped after ${duration(timeoutMs)}` } : {}),
-    };
-    // The page reads results from here, so it can hear now; the file catches up.
+    });
+    // The page reads results from here, so it can hear now; the file catches up (saves queue up in order).
     onChange();
-    await save();
+    save();
   }
 
-  /** Run check on a worktree: starts its repo's command and resolves at once, as running. */
-  async function start(body) {
-    const path = body?.path;
-    if (typeof path !== 'string') throw new ActionError(400, 'Expected { path: "<worktree path>" }');
-    const repo = (await getState()).repos.find((r) => r.worktrees.some((w) => w.path === path));
-    if (!repo) throw new ActionError(404, 'That folder is not one of your worktrees');
-    const command = settings().commands[repo.name];
-    if (!command) throw new ActionError(409, `${repo.name} has no check command; add one in Settings › Checks`);
-    await load();
-    if (results[path]?.state === 'running') throw new ActionError(409, 'Its check is already running');
-
-    const result = {
-      path, repoName: repo.name, command, state: 'running', startedAt: now(),
-    };
-    results[path] = result;
-    await save();
-    onChange();
-    let output = '';
-    const onOutput = (text) => { output = (output + text).slice(-MAX_OUTPUT); };
-    runCommand({ command, cwd: path, timeoutMs: settings().timeoutMs, onOutput })
-      .then((outcome) => finish(path, outcome, output))
-      .catch((error) => finish(path, { exitCode: null, timedOut: false }, `${output}${error.message}\n`));
-    return result;
+  /** Run `queue` in turn; a check that couldn't even be started still lets the rest run. */
+  async function runInTurn(path, queue) {
+    for (const check of queue) {
+      try {
+        await runOne(path, check);
+      } catch (error) {
+        set(path, check.name, { ...results[path][check.name], state: 'failed', detail: error.message, finishedAt: now() });
+        onChange();
+      }
+    }
   }
 
   /**
-   * Every worktree's latest check, by path, saying whether it's out of date;
-   * worktrees that are gone are left out. `repos`, when the caller has them, saves looking again.
+   * Run check on a worktree: the check called `name`, or, without one, all of
+   * its repo's checks in turn (Run all). Resolves at once, with what's running and waiting.
+   */
+  async function start(body) {
+    const { path, name } = body ?? {};
+    if (typeof path !== 'string' || (name !== undefined && typeof name !== 'string')) throw new ActionError(400, 'Expected { path: "<worktree path>", name?: "<check>" }');
+    const repo = (await getState()).repos.find((r) => r.worktrees.some((w) => w.path === path));
+    if (!repo) throw new ActionError(404, 'That folder is not one of your worktrees');
+    const all = settings().commands[repo.name] ?? [];
+    if (all.length === 0) throw new ActionError(409, `${repo.name} has no checks; add some in Settings › Checks`);
+    const queue = name === undefined ? all : all.filter((c) => c.name === name);
+    if (queue.length === 0) throw new ActionError(404, `${repo.name} has no check called ${name}; its checks are ${all.map((c) => c.name).join(', ')}`);
+    await load();
+    if (Object.values(results[path] ?? {}).some(isBusy)) throw new ActionError(409, 'A check is already running in that worktree');
+
+    for (const check of queue.slice(1)) set(path, check.name, { name: check.name, command: check.command, state: 'queued', startedAt: now() });
+    const first = queue[0];
+    set(path, first.name, { name: first.name, command: first.command, state: 'running', startedAt: now() });
+    runInTurn(path, queue);
+    await save();
+    return { path, repoName: repo.name, checks: queue.map((c) => results[path][c.name]) };
+  }
+
+  /**
+   * Each worktree's latest results, by path: a list in the order its repo's
+   * checks are now, each saying whether it's out of date. Worktrees that are
+   * gone, and checks the repo no longer has, are left out. `repos`, when the
+   * caller has them, saves looking again.
    */
   async function current({ repos } = {}) {
     await load();
-    const paths = new Set((repos ?? (await getState()).repos).flatMap((r) => r.worktrees.map((w) => w.path)));
-    const entries = await Promise.all(Object.entries(results).filter(([path]) => paths.has(path)).map(async ([path, result]) => {
-      const finished = result.state === 'passed' || result.state === 'failed';
-      const outOfDate = finished && Boolean(result.fingerprint) && await fingerprint(path).then((print) => print !== result.fingerprint, () => false);
-      const { fingerprint: _print, ...shown } = result;
-      return [path, { ...shown, outOfDate }];
-    }));
-    return Object.fromEntries(entries);
+    const known = repos ?? (await getState()).repos;
+    const commands = settings().commands;
+    const prints = new Map();
+    const printOf = (path) => {
+      if (!prints.has(path)) prints.set(path, fingerprint(path).catch(() => null));
+      return prints.get(path);
+    };
+    const entries = await Promise.all(known.flatMap((repo) => repo.worktrees.map(async ({ path }) => {
+      const byName = results[path];
+      if (!byName) return null;
+      const shown = await Promise.all((commands[repo.name] ?? []).filter((c) => byName[c.name]).map(async (c) => {
+        const { fingerprint: print, ...result } = byName[c.name];
+        const finished = result.state === 'passed' || result.state === 'failed';
+        const outOfDate = finished && Boolean(print) && (await printOf(path)) !== null && (await printOf(path)) !== print;
+        return { ...result, name: c.name, outOfDate };
+      }));
+      return shown.length > 0 ? [path, shown] : null;
+    })));
+    return Object.fromEntries(entries.filter(Boolean));
   }
 
-  /** The repos that have a check command. */
-  const repos = () => Object.keys(settings().commands);
+  /** Each repo's check names, in order. */
+  const names = () => Object.fromEntries(Object.entries(settings().commands).map(([repo, checks]) => [repo, checks.map((c) => c.name)]));
 
-  return { start, results: current, repos };
+  return { start, results: current, names };
 }

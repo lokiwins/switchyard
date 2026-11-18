@@ -150,15 +150,28 @@ test('checks: none by default, with a 10 minute timeout', () => {
   assert.deepEqual(parseSettings({}).checks, { commands: {}, timeoutMs: 10 * 60 * 1000 });
 });
 
-test('checks: one "repo: command" line per repo, read into a command per repo', () => {
-  const checks = parseSettings({ checks: { commands: ['billing-api: npm test', '  storefront:   npm run lint && npm test  '], timeoutMinutes: 2.5 } }).checks;
-  assert.deepEqual(checks.commands, { 'billing-api': 'npm test', storefront: 'npm run lint && npm test' });
+test('checks: named checks per repo, in the order written', () => {
+  const checks = parseSettings({ checks: { commands: { 'billing-api': { lint: 'npm run lint', test: 'npm test' }, storefront: { test: ' npm test ' } }, timeoutMinutes: 2.5 } }).checks;
+  assert.deepEqual(checks.commands, {
+    'billing-api': [{ name: 'lint', command: 'npm run lint' }, { name: 'test', command: 'npm test' }],
+    storefront: [{ name: 'test', command: 'npm test' }],
+  });
   assert.equal(checks.timeoutMs, 150_000);
 });
 
-test('checks: a line without a repo or a command, a repo twice, or a bad timeout is refused', () => {
-  for (const commands of [['npm test'], ['billing-api:'], [': npm test'], ['my repo: npm test'], ['a: x', 'a: y'], [`a: ${'x'.repeat(600)}`]]) {
-    assert.throws(() => parseSettings({ checks: { commands } }), (e) => e instanceof SettingsError && /checks\.commands/.test(e.message), JSON.stringify(commands));
+test('checks: a repo given just a command has one check called "check"; the earlier "repo: command" lines still work', () => {
+  assert.deepEqual(parseSettings({ checks: { commands: { storefront: 'npm test' } } }).checks.commands, { storefront: [{ name: 'check', command: 'npm test' }] });
+  assert.deepEqual(parseSettings({ checks: { commands: ['billing-api: npm run lint && npm test'] } }).checks.commands, { 'billing-api': [{ name: 'check', command: 'npm run lint && npm test' }] });
+});
+
+test('checks: bad repo or check names, empty or overlong commands, too many checks, or a bad timeout are refused', () => {
+  const refused = [
+    { 'my repo': { test: 'x' } }, { a: { 'my check': 'x' } }, { a: { test: '' } }, { a: { test: '   ' } }, { a: { test: 42 } }, { a: { test: null } },
+    { a: ['x'] }, { a: {} }, { a: { test: 'x'.repeat(2001) } }, { a: Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`c${i}`, 'x'])) },
+    'npm test', ['npm test'], ['a: x', 'a: y'],
+  ];
+  for (const commands of refused) {
+    assert.throws(() => parseSettings({ checks: { commands } }), (e) => e instanceof SettingsError && /checks\.commands/.test(e.message), JSON.stringify(commands).slice(0, 80));
   }
   assert.throws(() => parseSettings({ checks: { timeoutMinutes: 0 } }), /checks\.timeoutMinutes/);
   assert.throws(() => parseSettings({ checks: { timeoutMinutes: 121 } }), /checks\.timeoutMinutes/);

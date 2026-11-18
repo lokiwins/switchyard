@@ -667,6 +667,8 @@ details.hub-group[open] > summary::before { content: "▾"; }
 .check-status.is-failed > summary { color: var(--red); background: var(--red-soft); }
 .check-status.is-running > summary { color: var(--amber); background: var(--amber-soft); }
 .check-status.is-stale > summary { color: var(--gray-500); }
+.checks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.checks:has(.check-status[open]) { flex-basis: 100%; }
 .check-status[open] { flex-basis: 100%; }
 .check-body { display: grid; gap: var(--space-2); margin-top: var(--space-2); justify-items: start; }
 .check-output { justify-self: stretch; }
