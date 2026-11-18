@@ -1,7 +1,7 @@
 import { h } from './dom.js';
 
 /*
- * After a task is closed or deleted, its work is put away (see
+ * After a task is closed or deleted, or one of its attempts is picked, its work is put away (see
  * src/task-cleanup.js). This says what happened, and asks about each worktree
  * that was kept because it has uncommitted changes or unmerged commits: keep
  * it, or delete it.
@@ -18,6 +18,11 @@ export function cleanupSummary(cleanup) {
     cleanup.removed.length > 0 && `removed ${count(cleanup.removed.length, 'worktree')}`,
     cleanup.choices.length > 0 && `${count(cleanup.choices.length, 'worktree')} ${cleanup.choices.length === 1 ? 'needs' : 'need'} your choice`,
   ].filter(Boolean).join(' · ');
+}
+
+/** Why it asks: "<task> is closed.", or that another of its attempts was picked. */
+export function whyAsked(choice) {
+  return choice.why === 'not-picked' ? `${choice.taskTitle}: you picked another attempt.` : `${choice.taskTitle} is closed.`;
 }
 
 /** What's in a kept worktree that deleting it would touch. */
@@ -42,7 +47,7 @@ export function renderWorktreeChoices(choices, onChoose) {
     };
     return h('div', { class: 'worktree-choice', role: 'group', 'aria-label': `Keep or delete ${folderName(choice.path)}` },
       h('p', { class: 'worktree-choice-text' },
-        h('strong', {}, choice.taskTitle), ' is closed. Its worktree ',
+        h('strong', {}, whyAsked(choice)), ' Its worktree ',
         h('code', { title: choice.path }, folderName(choice.path)),
         choice.branch ? [' on ', h('code', {}, choice.branch)] : '',
         ` has ${whatsLeft(choice)}. Keep it, or delete it?`),

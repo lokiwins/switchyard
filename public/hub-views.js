@@ -3,6 +3,7 @@ import { closeDropdown, dropdown } from './actions.js';
 import { linkLine } from './task-link-views.js';
 import { trustButtons } from './agent-views.js';
 import { STATE_LABELS, dueOnLabel, ticketLabel, trackerOf } from './task-state.js';
+import { canCompare } from './attempt-cards.js';
 import { matchesTicket, taskFromTicket, unlinkedTickets } from './ticket-import.js';
 
 /*
@@ -260,12 +261,20 @@ function detailLine(task) {
   return h('span', { class: 'row-detail muted', title: task.notes }, firstLine);
 }
 
+/** Compare N: the task's attempts side by side, to pick one (see attempt-pane.js). */
+function compareButton(task, actions) {
+  const count = task.attempts.branches.length;
+  return h('button', {
+    type: 'button', class: 'btn btn-sm', title: `Compare the ${count} attempts side by side and pick one`, onclick: () => actions.compare(task),
+  }, `Compare ${count}`);
+}
+
 function rowActions(task, context) {
   // Already on its way out; a second click would only close it twice.
   if (task.closing) return null;
   if (task.start?.state === 'asking-trust') return trustButtons(task.start);
   const canStart = task.state === 'not-started' && context.caps?.tmux && context.repos.length > 0;
-  return [canStart && startMenu(task, context), taskMenu(task, context.actions)];
+  return [canStart && startMenu(task, context), canCompare(task) && compareButton(task, context.actions), taskMenu(task, context.actions)];
 }
 
 function taskRow(task, context) {

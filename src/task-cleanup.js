@@ -73,13 +73,13 @@ export function createTaskCleanup({
     return { ended, errors };
   }
 
-  /** Remove a clean worktree, or note it for you to choose about. */
-  async function putAway(task, repo, worktree) {
+  /** Remove a clean worktree, or note it for you to choose about, saying `why`: the task closed, or another attempt was picked. */
+  async function putAway(task, repo, worktree, why) {
     const mainBranch = repo.worktrees.find((w) => w.isMain)?.branch ?? null;
     const [changes, unmerged] = await Promise.all([changedFiles(worktree.path), unmergedCommits(worktree, mainBranch)]);
     if (changes > 0 || unmerged > 0) {
       const choice = {
-        path: worktree.path, repoName: repo.name, branch: worktree.branch ?? null, taskId: task.id, taskTitle: task.title, changes, unmerged,
+        path: worktree.path, repoName: repo.name, branch: worktree.branch ?? null, taskId: task.id, taskTitle: task.title, changes, unmerged, why,
       };
       choices.set(worktree.path, { ...choice, mainPath: repo.mainPath });
       return { choice };
@@ -98,9 +98,26 @@ export function createTaskCleanup({
    */
   async function afterClose(task) {
     const state = await getState();
+    return putAwayIn(task, state, taskWorktrees(task, state.repos), { attached: new Set(attachedSessionIds(task)), why: 'closed' });
+  }
+
+  /**
+   * Put away some of a task's worktrees, by branch (the attempts not picked),
+   * the same way; the task's other worktrees and its saved sessions stay.
+   */
+  async function putAwayWorktrees(task, { branches }) {
+    const state = await getState();
+    const chosen = new Set(branches);
+    const worktrees = taskWorktrees(task, state.repos).filter(({ worktree }) => chosen.has(worktree.branch));
+    return putAwayIn(task, state, worktrees, { attached: new Set(), why: 'not-picked' });
+  }
+
+  /**
+   * End `worktrees`' sessions, and ones saved on the task (`attached`); list
+   * them off; remove or ask about each worktree, saying `why` it's asked.
+   */
+  async function putAwayIn(task, state, worktrees, { attached, why }) {
     const result = { ended: [], hidden: 0, removed: [], choices: [], errors: [] };
-    const attached = new Set(attachedSessionIds(task));
-    const worktrees = taskWorktrees(task, state.repos);
     const paths = new Set(worktrees.map(({ worktree }) => worktree.path));
 
     // Sessions saved on the task, wherever they run (main, say): end them; their checkout stays.
@@ -115,7 +132,7 @@ export function createTaskCleanup({
       result.errors.push(...errors);
       if (errors.length > 0) continue;
       try {
-        const outcome = await putAway(task, repo, worktree);
+        const outcome = await putAway(task, repo, worktree, why);
         if (outcome.removed) result.removed.push(outcome.removed);
         if (outcome.choice) result.choices.push(outcome.choice);
       } catch (error) {
@@ -155,5 +172,7 @@ export function createTaskCleanup({
     return { removed: path };
   }
 
-  return { afterClose, pending, choose };
+  return {
+    afterClose, putAwayWorktrees, pending, choose,
+  };
 }

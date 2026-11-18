@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { currentActivity, lastReply } from './claude-activity.js';
+import { contextSize } from './context-tokens.js';
 
 const TAIL_BYTES = 256 * 1024;
 const SCAN_CHUNK_BYTES = 1024 * 1024;
@@ -105,6 +106,8 @@ export function summarizeTranscript(lines) {
     agentName: lastOf((e) => e.type === 'agent-name')?.agentName ?? null,
     prLinks: [...new Map(prLinks.map((pr) => [pr.number, pr])).values()],
     endState: classifyEnding(entries),
+    // How full the context was on the last call, as Claude reported it (subagents' own calls left out); null before any.
+    contextTokens: contextSize(lastOf((e) => e.type === 'assistant' && !e.isSidechain && e.message?.usage)?.message.usage),
   };
 }
 
