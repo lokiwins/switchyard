@@ -97,6 +97,9 @@ const SINGLE_CHECK = 'check';
 const MAX_CHECK_COMMAND = 2000;
 const MAX_CHECKS_PER_REPO = 20;
 const MAX_CHECK_MINUTES = 120;
+// When a check runs by itself (see check-triggers.js): never, after an agent's turn, or on a new commit.
+export const CHECK_RUNS = ['manual', 'after-turn', 'on-commit'];
+const CHECK_OPTIONS = ['command', 'run', 'timeout'];
 
 /** The earlier ["repo: command", …] lines, as { repo: command }. */
 function fromLines(lines) {
@@ -116,20 +119,38 @@ function checkCommand(value, where) {
   return value.trim();
 }
 
-/** { repo: { name: command } | command } as { repo: [{ name, command }] }, in the order written. */
+/** A check: just its command, or { command, run?, timeout? (minutes) }. */
+function checkOptions(value, where) {
+  if (typeof value === 'string') return { command: checkCommand(value, where), run: 'manual', timeoutMs: null };
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) fail('checks.commands', `has no command for ${where}`);
+  const unknown = Object.keys(value).filter((key) => !CHECK_OPTIONS.includes(key));
+  if (unknown.length > 0) fail('checks.commands', `gives ${where} ${unknown.join(', ')}; a check takes ${CHECK_OPTIONS.join(', ')}`);
+  const run = value.run ?? 'manual';
+  if (!CHECK_RUNS.includes(run)) fail('checks.commands', `gives ${where} run: ${JSON.stringify(run)}; use ${CHECK_RUNS.join(', ')}`);
+  let timeoutMs = null;
+  if (value.timeout !== undefined) {
+    if (typeof value.timeout !== 'number' || !(value.timeout > 0) || value.timeout > MAX_CHECK_MINUTES) {
+      fail('checks.commands', `gives ${where} a timeout that isn't a number of minutes from 0 to ${MAX_CHECK_MINUTES}`);
+    }
+    timeoutMs = value.timeout * MINUTE_MS;
+  }
+  return { command: checkCommand(value.command, where), run, timeoutMs };
+}
+
+/** { repo: { name: command | { command, run, timeout } } | command } as { repo: [{ name, command, run, timeoutMs }] }, in the order written. */
 function checkCommands(value) {
   const byRepo = Array.isArray(value) ? fromLines(value) : value;
   if (typeof byRepo !== 'object' || byRepo === null) fail('checks.commands', 'must give each repo its checks, such as { "billing-api": { "test": "npm test" } }');
   return Object.fromEntries(Object.entries(byRepo).map(([repo, checks]) => {
     if (!CHECK_NAME.test(repo)) fail('checks.commands', `has ${JSON.stringify(repo)}, which isn't a repo folder name`);
-    if (typeof checks === 'string') return [repo, [{ name: SINGLE_CHECK, command: checkCommand(checks, repo) }]];
+    if (typeof checks === 'string') return [repo, [{ name: SINGLE_CHECK, ...checkOptions(checks, repo) }]];
     if (typeof checks !== 'object' || checks === null || Array.isArray(checks)) fail('checks.commands', `must give ${repo} named checks, such as test: npm test`);
     const entries = Object.entries(checks);
     if (entries.length === 0) fail('checks.commands', `gives ${repo} no checks`);
     if (entries.length > MAX_CHECKS_PER_REPO) fail('checks.commands', `gives ${repo} more than ${MAX_CHECKS_PER_REPO} checks`);
     return [repo, entries.map(([name, command]) => {
       if (!CHECK_NAME.test(name)) fail('checks.commands', `has a check called ${JSON.stringify(name)} for ${repo}; use letters, digits, ".", "_" and "-"`);
-      return { name, command: checkCommand(command, `${repo} ${name}`) };
+      return { name, ...checkOptions(command, `${repo} ${name}`) };
     })];
   }));
 }

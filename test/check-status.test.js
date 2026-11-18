@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkLabel, hasFailedCheck } from '../public/check-status.js';
+import { checkLabel, hasFailedCheck, ranBy } from '../public/check-status.js';
 
 test('a check\'s label and tone, by its name: running, waiting, passed, failed with its exit code or why, interrupted', () => {
   assert.deepEqual(checkLabel({ name: 'lint', state: 'running' }), { text: 'lint: checking…', tone: 'is-running' });
@@ -24,4 +24,11 @@ test('a task has a failed check when any of its worktrees\' current checks faile
   assert.equal(hasFailedCheck({ work: [work([{ state: 'passed', outOfDate: false }, { state: 'failed', outOfDate: false }])] }), true);
   assert.equal(hasFailedCheck({ work: [work([{ state: 'failed', outOfDate: true }])] }), false, 'out of date: it may pass now');
   assert.equal(hasFailedCheck({ work: [work([]), work([{ state: 'running' }]), { path: '/x' }] }), false);
+});
+
+test('what started a check, when it ran by itself', () => {
+  assert.equal(ranBy({ trigger: 'after-turn' }), 'ran by itself after an agent turn');
+  assert.equal(ranBy({ trigger: 'on-commit' }), 'ran by itself on a new commit');
+  assert.equal(ranBy({ trigger: 'manual' }), null);
+  assert.equal(ranBy({}), null);
 });

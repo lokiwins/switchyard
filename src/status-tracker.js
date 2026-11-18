@@ -50,6 +50,8 @@ export function createStatusTracker({
   // Repos whose worktree list (which worktrees, on which branch) may have changed since it was last taken.
   const listsChanged = new Set();
   let eventCount = 0;
+  // Told when a repo's refs or a worktree's HEAD change: a commit, a checkout (see onRefsChanged).
+  const refListeners = [];
   let layout = { repos: [], worktrees: [], gitDirs: new Map(), roots: [] };
 
   const markChanged = (paths, refsOf = null) => {
@@ -103,6 +105,9 @@ export function createStatusTracker({
     const { mainPath, rel } = inGitDir(absPath);
     markChanged(affected(absPath), mainPath && REPO_WIDE_GIT_PATHS.test(rel) ? mainPath : null);
     if (mainPath && WORKTREE_LIST_PATHS.test(rel)) listsChanged.add(mainPath);
+    if (mainPath && (REPO_WIDE_GIT_PATHS.test(rel) || rel === 'HEAD' || /^worktrees\/[^/]+\/HEAD$/.test(rel))) {
+      refListeners.forEach((listener) => listener(mainPath));
+    }
   }
 
   function startWatching(root) {
@@ -230,5 +235,10 @@ export function createStatusTracker({
     watchers.clear();
   }
 
-  return { track, statuses, branchRefs, takeWorktreeListChanges, close };
+  /** Call `listener(mainPath)` when one of a repo's refs or HEADs changes, as a commit does; the index and edits don't count. */
+  const onRefsChanged = (listener) => { refListeners.push(listener); };
+
+  return {
+    track, statuses, branchRefs, takeWorktreeListChanges, onRefsChanged, close,
+  };
 }

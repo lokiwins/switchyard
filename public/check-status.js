@@ -26,3 +26,8 @@ export const hasFailedCheck = (task) => (task.work ?? []).some((w) => (w.checks 
 
 /** Whether any of these checks is running or waiting to, so the page looks again soon. */
 export const anyRunning = (checks = []) => checks.some((c) => c.state === 'running' || c.state === 'queued');
+
+const TRIGGERS = { 'after-turn': 'ran by itself after an agent turn', 'on-commit': 'ran by itself on a new commit' };
+
+/** What started a check that ran by itself (see src/check-triggers.js); null for one you ran. */
+export const ranBy = (check) => TRIGGERS[check?.trigger] ?? null;

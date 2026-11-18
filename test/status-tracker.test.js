@@ -340,3 +340,18 @@ test('worktree lists: a config change (say, a new origin URL) marks its repo', a
   fs.fire(MAIN, '.git/config');
   assert.deepEqual([...tracker.takeWorktreeListChanges()], [MAIN]);
 });
+
+test('onRefsChanged hears a repo\'s commits (its refs, a worktree\'s HEAD), not edits or the index', async () => {
+  const { fs, tracker, scan } = setup();
+  const heard = [];
+  tracker.onRefsChanged((mainPath) => heard.push(mainPath));
+  await scan();
+  for (const file of ['.git/refs/heads/feat', '.git/packed-refs', '.git/HEAD', '.git/worktrees/app-feat/HEAD']) {
+    heard.length = 0;
+    fs.fire(MAIN, file);
+    assert.deepEqual(heard, [MAIN], file);
+  }
+  heard.length = 0;
+  for (const file of ['.git/index', '.git/worktrees/app-feat/index', 'src/app.js', '.git/objects/ab/cdef', '.git/logs/HEAD']) fs.fire(MAIN, file);
+  assert.deepEqual(heard, []);
+});
