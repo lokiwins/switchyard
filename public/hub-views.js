@@ -214,7 +214,10 @@ function taskMenu(task, actions) {
 // The repo you last started a task in, shared with New task on the Agents page.
 const REPO_PREF = 'switchyard.newTaskRepo';
 
-/** Start ▾: pick the repo, then Start: Claude on the task in a new worktree, in the switchyard tmux session. */
+// How many attempts Start ▾ offers: each its own worktree and agent on the same task (see src/hub-start.js).
+const ATTEMPT_CHOICES = [1, 2, 3, 4];
+
+/** Start ▾: pick the repo and how many attempts, then Start: the agent on the task in new worktrees, in the switchyard tmux session. */
 function startMenu(task, { repos, actions }) {
   const sorted = [...repos].sort((a, b) => a.name.localeCompare(b.name));
   const remembered = readPref(REPO_PREF, null);
@@ -223,15 +226,18 @@ function startMenu(task, { repos, actions }) {
     onsubmit: async (event) => {
       event.preventDefault();
       const repo = form.elements.repo.value;
+      const attempts = Number(form.elements.attempts.value);
       writePref(REPO_PREF, repo);
       closeDropdown(form);
-      await actions.start(task, repo);
+      await actions.start(task, repo, attempts);
     },
   },
   h('label', { class: 'task-field' }, h('span', {}, 'Repository'),
     h('select', { name: 'repo', required: true }, sorted.map((r) => h('option', { value: r.mainPath, selected: r.mainPath === remembered }, r.name)))),
+  h('label', { class: 'task-field' }, h('span', {}, 'Attempts'),
+    h('select', { name: 'attempts' }, ATTEMPT_CHOICES.map((n) => h('option', { value: String(n) }, n === 1 ? '1 (one worktree)' : `${n} side by side`)))),
   h('div', { class: 'task-actions' },
-    h('p', { class: 'reply-hint' }, 'Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session.'),
+    h('p', { class: 'reply-hint' }, 'Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session. With more attempts, each gets its own worktree (-try1, -try2…) and the same task, so you can keep the best.'),
     h('button', { type: 'submit', class: 'btn btn-sm' }, 'Start')));
   return dropdown({ key: `start-${task.id}`, label: 'Start ▾', title: 'Start Claude on this task', className: 'btn btn-sm', panelClass: 'reply-panel', focusInput: false }, form);
 }
@@ -239,7 +245,7 @@ function startMenu(task, { repos, actions }) {
 /** The row's one line: how a start is going, or the first line of the notes. */
 function detailLine(task) {
   const { start } = task;
-  if (task.creating) return h('span', { class: 'row-detail is-pending' }, 'Creating the worktree…');
+  if (task.creating) return h('span', { class: 'row-detail is-pending' }, task.creating > 1 ? `Creating ${task.creating} worktrees, one per attempt…` : 'Creating the worktree…');
   if (task.closing) {
     const doing = { done: 'Marking it done', dropped: 'Dropping it', delete: 'Deleting it' }[task.closing];
     return h('span', { class: 'row-detail is-pending' }, task.work.length > 0 ? `${doing}: ending its sessions and putting its worktrees away…` : `${doing}…`);

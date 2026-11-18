@@ -18,7 +18,7 @@ const STARTING_POLL_MS = 1_500;
 const CLOCK_MS = 5_000;
 
 const ui = {
-  tools: null, data: null, query: '', loading: false, loads: 0, doneOpen: false, creating: new Set(), closing: new Map(), soon: null,
+  tools: null, data: null, query: '', loading: false, loads: 0, doneOpen: false, creating: new Map(), closing: new Map(), soon: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -37,6 +37,7 @@ async function getJson(url) {
 }
 
 /** Run a change to a task, then show the tasks as they are now. Resolves whether it worked. */
+/** Post a change and say how it went. `done` is the toast, or a function of the server's answer that gives it. */
 async function change(url, body, done) {
   let result;
   try {
@@ -45,11 +46,12 @@ async function change(url, body, done) {
     toast(error.message);
     return false;
   }
-  // Closing or deleting a task puts its work away: say what went, and what couldn't.
-  const errors = result?.cleanup?.errors ?? [];
+  const said = typeof done === 'function' ? done(result) : done;
+  // Closing or deleting a task puts its work away, and attempts may not all start: say what went, and what couldn't.
+  const errors = [...(result?.cleanup?.errors ?? []), ...(result?.errors ?? [])];
   const summary = cleanupSummary(result?.cleanup);
-  if (errors.length > 0) toast(`${done}. ${errors.join(' ')}`);
-  else if (done) toast(summary ? `${done} · ${summary}` : done);
+  if (errors.length > 0) toast(`${said}. ${errors.join(' ')}`);
+  else if (said) toast(summary ? `${said} · ${summary}` : said);
   await loadTasks();
   return true;
 }
@@ -85,12 +87,13 @@ const actions = {
   reopen: (task) => change('/api/hub/tasks/reopen', { id: task.id }, `Reopened: ${task.title}`),
   remove: (task) => closing(task, 'delete', () => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`)),
   open: (task) => openTaskPane(task, { save: (fields) => change('/api/hub/tasks/update', { id: task.id, ...fields }, `Saved: ${fields.title.trim()}`) }),
-  async start(task, repo) {
-    // Shown as starting at once; New task can take a few seconds (a fetch, a checkout).
-    ui.creating.add(task.id);
+  async start(task, repo, attempts = 1) {
+    // Shown as starting at once; New task can take a few seconds (a fetch, a checkout), and each attempt is one.
+    ui.creating.set(task.id, attempts);
     renderTasks();
+    const started = (result) => (result?.attempts ? `Started ${result.attempts.length} of ${attempts} attempts: ${task.title}` : null);
     try {
-      await change('/api/hub/tasks/start', { id: task.id, repo });
+      await change('/api/hub/tasks/start', { id: task.id, repo, ...(attempts > 1 ? { attempts } : {}) }, started);
     } finally {
       ui.creating.delete(task.id);
       renderTasks();
@@ -120,7 +123,7 @@ function renderTasks() {
   }
   const tasks = shown.map((task) => ({
     ...task,
-    ...(ui.creating.has(task.id) ? { creating: true } : {}),
+    ...(ui.creating.has(task.id) ? { creating: ui.creating.get(task.id) } : {}),
     ...(ui.closing.has(task.id) ? { closing: ui.closing.get(task.id) } : {}),
   }));
   const groups = groupTasks(tasks, Date.now(), data.taskStarts);

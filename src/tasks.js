@@ -151,7 +151,7 @@ export function createTaskService({
     const started = await startAgent(provider, mainPath, path, window, prompt);
     // Watched until its session shows up: it may first ask whether to trust the folder, or quit.
     starts.track({ path, place: started.place, pane: started.pane, command: provider.command });
-    return { path, branch, session: TASK_SESSION, window };
+    return { path, branch, session: TASK_SESSION, window, provider: provider.id };
   }
 
   return { startTask };

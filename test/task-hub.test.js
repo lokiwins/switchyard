@@ -141,3 +141,14 @@ test('an update keeps where the task is attached', async () => {
   const updated = await hub.update({ id: task.id, title: 'Kept' });
   assert.deepEqual(updated.attached, [{ repo: '/code/shop', branch: 'feat/a' }]);
 });
+
+test('recordAttempts keeps the attempt group on the task (set only by the server), and update never touches it', async () => {
+  const { hub } = setup();
+  const made = await hub.create({ title: 'Try it three ways' });
+  const group = { provider: 'claude', repo: '/code/shop', branches: ['b-try1', 'b-try2'], startedAt: NOW };
+  await hub.recordAttempts(made.id, group);
+  assert.deepEqual((await hub.list())[0].attempts, group);
+  await hub.update({ id: made.id, title: 'Renamed', attempts: null });
+  assert.deepEqual((await hub.list())[0].attempts, group);
+  await rejectsWith(hub.recordAttempts('sy-gone00', group), 404);
+});
