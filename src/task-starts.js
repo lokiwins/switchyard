@@ -65,8 +65,13 @@ export function parseTrustPrompt(screen) {
 // What New task types when no agent is named.
 const DEFAULT_COMMAND = 'claude';
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** The command New task typed: the agent's program, any options, then its quoted task, which may wrap onto more lines. */
-const typedPattern = (command) => new RegExp(`\\b${escapeRegExp(command)}\\s+(?:-\\S*\\s+)*'`);
+/**
+ * The command New task typed: the agent's program (maybe a full path to it),
+ * any options, then its quoted task, which may wrap onto more lines. It
+ * starts at the line's start or after a space, so the text before it is
+ * the shell's prompt.
+ */
+const typedPattern = (command) => new RegExp(`(?:^|\\s)(?:[^\\s']*/)?${escapeRegExp(command)}\\s+(?:[^\\s']+\\s+)*'`);
 
 const endsCommand = (line) => line.endsWith("'");
 
@@ -161,7 +166,8 @@ export function createTaskStarts({ tmux, onChange, now = Date.now, timers = glob
     }
     const running = !isShell(command);
     if (running) task.seenRunning = true;
-    const screen = await tmux.screenText(task.pane).catch(() => '');
+    // Joined, so a command or an error too wide for the pane reads as the one line it was.
+    const screen = await tmux.screenText(task.pane, { joined: true }).catch(() => '');
     // Back at the prompt on two looks running: the command ran and finished (claude failed outright, say).
     task.atPrompt = !running && backAtPrompt(screen, task.command) ? (task.atPrompt ?? 0) + 1 : 0;
     if (!running && (task.seenRunning || task.atPrompt >= 2 || now() - task.startedAt >= NOT_STARTED_MS)) {

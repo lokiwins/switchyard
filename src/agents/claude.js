@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, join } from 'node:path';
 import { mapLimit } from '../exec.js';
 import { shellQuote, shellQuoteAlways } from '../shell.js';
 import { summarizeFile, transcriptDirName } from './claude-transcript.js';
@@ -24,17 +25,15 @@ const MAX_PLAN_BYTES = 256 * 1024;
 /** A session that never got a prompt (opened, then /exit) has nothing to resume. */
 const isResumable = (transcript) => Boolean(transcript?.lastPrompt) || transcript?.endState === 'interrupted';
 
-const COMMAND = 'claude';
+// How Claude Code runs when Settings say nothing else.
+const DEFAULT_RUN = Object.freeze({ program: 'claude', options: [] });
 
-/** Start Claude Code, on `prompt` when given (quoted even when it looks safe: zsh expands a leading "="). */
-const launchCommand = (prompt) => (prompt ? `${COMMAND} ${shellQuoteAlways(prompt)}` : COMMAND);
-
-/** Resume one of its sessions, from the folder it ran in. */
-const resumeInPlace = (sessionId) => `${COMMAND} --resume ${sessionId}`;
-
-/** `claude --resume` only finds sessions recorded for the current directory. */
-export function resumeCommand(cwd, sessionId) {
-  return `cd ${shellQuote(cwd)} && ${resumeInPlace(sessionId)}`;
+/**
+ * `claude --resume` only finds sessions recorded for the current directory.
+ * `run` is how Claude is started: the program and any options Settings add.
+ */
+export function resumeCommand(cwd, sessionId, run = 'claude') {
+  return `cd ${shellQuote(cwd)} && ${run} --resume ${sessionId}`;
 }
 
 /**
@@ -79,8 +78,27 @@ export async function readPlan(plansDir, file) {
   }
 }
 
-/** `readScreen(host)` gives the text a session's tmux pane or terminal tab shows; without it, no screen prompts are read. */
-export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = null }) {
+/**
+ * `readScreen(host)` gives the text a session's tmux pane or terminal tab
+ * shows; without it, no screen prompts are read. `settings()` gives how to
+ * run Claude, { program, options: [word…] } (see providers in settings.js),
+ * read each time so a saved change applies at once.
+ */
+export function createClaudeProvider({
+  claudeDir, listTmuxPanes, readScreen = null, settings = () => DEFAULT_RUN, home = homedir(),
+}) {
+  /** The program (with ~/ expanded) and options, as typed before anything else. Settings only allow plain words here. */
+  function run() {
+    const { program, options } = settings();
+    const path = program.startsWith('~/') ? join(home, program.slice(2)) : program;
+    return [path, ...options].join(' ');
+  }
+  /** Start Claude Code, on `prompt` when given (quoted even when it looks safe: zsh expands a leading "="). */
+  const launchCommand = (prompt) => (prompt ? `${run()} ${shellQuoteAlways(prompt)}` : run());
+  /** Resume one of its sessions, from the folder it ran in. */
+  const resumeInPlace = (sessionId) => `${run()} --resume ${sessionId}`;
+  const resumeHere = (cwd, sessionId) => resumeCommand(cwd, sessionId, run());
+
   const sessionsDir = join(claudeDir, 'sessions');
   const projectsDir = join(claudeDir, 'projects');
   const plansDir = join(claudeDir, 'plans');
@@ -145,7 +163,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
       statusUpdatedAt: entry.statusUpdatedAt ?? entry.updatedAt ?? null,
       // Which app (iTerm, VS Code…) or tmux session it runs in, so Jump and Reply know how to get there.
       host: hosts.get(entry.pid) ?? null,
-      resumeCommand: resumeCommand(entry.cwd, entry.sessionId),
+      resumeCommand: resumeHere(entry.cwd, entry.sessionId),
       transcript: await summarize(transcriptPath(entry.cwd, entry.sessionId)),
     })));
     return Promise.all(sessions.map(async (session) => {
@@ -170,7 +188,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
     return {
       sessionId: newest.sessionId,
       updatedAt: newest.mtime,
-      resumeCommand: resumeCommand(cwd, newest.sessionId),
+      resumeCommand: resumeHere(cwd, newest.sessionId),
       transcript: await summarize(newest.file, newest.size),
     };
   }
@@ -188,7 +206,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
         sessionId: t.sessionId,
         updatedAt: transcript.lastActivityAt ?? t.mtime,
         endState: transcript.endState,
-        resumeCommand: resumeCommand(cwd, t.sessionId),
+        resumeCommand: resumeHere(cwd, t.sessionId),
         transcript,
       };
     });
@@ -211,7 +229,7 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
         cwd: transcript.cwd,
         endedAt: transcript.lastActivityAt ?? t.mtime,
         endState: transcript.endState,
-        resumeCommand: resumeCommand(transcript.cwd, t.sessionId),
+        resumeCommand: resumeHere(transcript.cwd, t.sessionId),
         transcript,
       };
     });
@@ -221,7 +239,10 @@ export function createClaudeProvider({ claudeDir, listTmuxPanes, readScreen = nu
   return {
     id: 'claude',
     label: 'Claude Code',
-    command: COMMAND,
+    // What a new task's pane is watched for: the program's own name.
+    get command() {
+      return basename(settings().program);
+    },
     launchCommand,
     resumeCommand: resumeInPlace,
     liveSessions,

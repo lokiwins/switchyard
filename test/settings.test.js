@@ -113,3 +113,35 @@ test('done tasks are kept unless you turn on deleting them, after a number of da
   assert.throws(() => parseSettings({ tasks: { autoDeleteDone: 'yes' } }), /tasks.autoDeleteDone/);
   assert.throws(() => parseSettings({ tasks: { deleteDoneAfterDays: 0 } }), /tasks.deleteDoneAfterDays/);
 });
+
+test('providers: Claude Code is on and the default, running claude with no extra options', () => {
+  assert.deepEqual(parseSettings({}).providers, { default: 'claude', claude: { enabled: true, program: 'claude', options: [] } });
+});
+
+test('providers: a program path and extra options, split into words; settings left out keep their defaults', () => {
+  const providers = parseSettings({ providers: { claude: { program: '~/.local/bin/claude', options: '  --model opus   --permission-mode acceptEdits ' } } }).providers;
+  assert.deepEqual(providers.claude, { enabled: true, program: '~/.local/bin/claude', options: ['--model', 'opus', '--permission-mode', 'acceptEdits'] });
+  assert.equal(parseSettings({ providers: { claude: { program: '/opt/tools/claude-2.1' } } }).providers.claude.program, '/opt/tools/claude-2.1');
+});
+
+test('providers: a program is a bare name or a full path; nothing a shell would read as more than a program', () => {
+  for (const program of ['', 'claude --model x', 'bin/claude', '-claude', 'claude;rm', '$(claude)', '/my tools/claude', '~user/claude', 42]) {
+    assert.throws(() => parseSettings({ providers: { claude: { program } } }), (e) => e instanceof SettingsError && /providers\.claude\.program/.test(e.message), String(program));
+  }
+});
+
+test('providers: options are plain words, no quotes or shell syntax', () => {
+  for (const options of ["--append-system-prompt 'be brief'", '--model "opus"', '--x $HOME', '--a; rm -rf ~', '--a | tee', '`x`', 'a\nb', 42]) {
+    assert.throws(() => parseSettings({ providers: { claude: { options } } }), (e) => e instanceof SettingsError && /providers\.claude\.options/.test(e.message), String(options));
+  }
+  assert.throws(() => parseSettings({ providers: { claude: { options: `--x ${'y'.repeat(600)}` } } }), /providers\.claude\.options/);
+});
+
+test('providers: the default is a provider that is turned on; unknown providers and keys are refused', () => {
+  assert.throws(() => parseSettings({ providers: { default: 'codex' } }), /providers\.default/);
+  assert.throws(() => parseSettings({ providers: { claude: { enabled: false } } }), /providers\.default.*turned off|turned off/);
+  assert.throws(() => parseSettings({ providers: { claude: { enabled: 'no' } } }), /providers\.claude\.enabled/);
+  assert.throws(() => parseSettings({ providers: { codex: { enabled: true } } }), /providers\.codex/);
+  assert.throws(() => parseSettings({ providers: { claude: { model: 'opus' } } }), /providers\.claude\.model/);
+  assert.throws(() => parseSettings({ providers: { claude: 'on' } }), /providers\.claude/);
+});

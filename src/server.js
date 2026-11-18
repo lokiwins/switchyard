@@ -644,9 +644,12 @@ async function main() {
     },
   });
   // The agent CLIs switchyard runs and watches; Claude Code for now, more can be added alongside it.
+  // Settings › Agent providers choose the default, turn providers off, and say how each runs; read each time, so saves apply at once.
   const agents = createAgentProviders([
-    createClaudeProvider({ claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux) }),
-  ]);
+    createClaudeProvider({
+      claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux), settings: () => config.settings.providers.claude,
+    }),
+  ], { settings: () => config.settings.providers });
   const stateService = createStateService({
     config,
     hiddenSessions: sessionRemoval.hidden,

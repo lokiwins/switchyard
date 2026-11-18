@@ -15,6 +15,9 @@ import { ActionError } from '../errors.js';
  *
  * The registry lists sessions from every provider together, each one saying
  * which provider it came from, so actions on it go back to that provider.
+ * Settings (providers in settings.js) choose the default and turn providers
+ * off; they're read each time, so a saved change applies at once. One that's
+ * off isn't listed, offered or started.
  */
 
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
@@ -34,9 +37,10 @@ const newestFirst = (key) => (a, b) => (b[key] ?? 0) - (a[key] ?? 0);
 
 /**
  * @param {object[]} providers In the order they're offered; the first is the default unless `defaultId` names another.
- * @param {{ defaultId?: string }} [options]
+ * @param {{ defaultId?: string, settings?: () => ({ default?: string } & Record<string, { enabled?: boolean }>) }} [options]
+ *   `settings()` gives the providers section of Settings; without it every provider is on.
  */
-export function createAgentProviders(providers, { defaultId } = {}) {
+export function createAgentProviders(providers, { defaultId, settings = () => ({}) } = {}) {
   if (!Array.isArray(providers) || providers.length === 0) throw new Error('At least one agent provider is needed');
   providers.forEach(checkProvider);
   const byId = new Map();
@@ -47,23 +51,37 @@ export function createAgentProviders(providers, { defaultId } = {}) {
   const fallback = defaultId === undefined ? providers[0] : byId.get(defaultId);
   if (!fallback) throw new Error(`The default agent provider ${defaultId} is not one of ${[...byId.keys()].join(', ')}`);
 
-  /** The provider called `id`; a 400 for any other, as ids come from requests. */
+  const isOn = (provider) => settings()[provider.id]?.enabled !== false;
+  const enabled = () => providers.filter(isOn);
+  /** Settings' default when it's on; else the built-in one, or the first that's on. */
+  function currentDefault() {
+    const chosen = byId.get(settings().default);
+    if (chosen && isOn(chosen)) return chosen;
+    return isOn(fallback) ? fallback : enabled()[0] ?? fallback;
+  }
+
+  /** The provider called `id`; a 400 for any other, and a 409 for one turned off, as ids come from requests. */
   function get(id) {
     const provider = byId.get(id);
     if (!provider) throw new ActionError(400, `Unknown agent ${JSON.stringify(id)}; expected one of ${[...byId.keys()].join(', ')}`);
+    if (!isOn(provider)) throw new ActionError(409, `${provider.label} is turned off in Settings`);
     return provider;
   }
 
   /** The provider a session came from (sessions listed before providers had names are the default's). */
-  const forSession = (session) => (session?.provider === undefined ? fallback : get(session.provider));
+  const forSession = (session) => (session?.provider === undefined ? currentDefault() : get(session.provider));
 
   const tagged = (provider) => (session) => ({ ...session, provider: provider.id });
-  /** Each provider's answer, its sessions tagged with where they came from. */
-  const fromEach = (ask) => Promise.all(providers.map(async (p) => (await ask(p)).map(tagged(p))));
+  /** Each provider's answer (those turned on), its sessions tagged with where they came from. */
+  const fromEach = (ask) => Promise.all(enabled().map(async (p) => (await ask(p)).map(tagged(p))));
 
   return {
-    list: providers.map(({ id, label }) => ({ id, label })),
-    default: fallback,
+    get list() {
+      return enabled().map(({ id, label }) => ({ id, label }));
+    },
+    get default() {
+      return currentDefault();
+    },
     get,
     forSession,
     liveSessions: async () => (await fromEach((p) => p.liveSessions())).flat(),

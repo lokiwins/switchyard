@@ -19,17 +19,25 @@ export const EDITABLE = {
   git: ['longLivedBranches'],
   ci: ['holdPatterns', 'stripPrefixes'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
+  // The default, then each provider's settings ({ enabled, program, options }), edited as a whole.
+  providers: Object.keys(DEFAULTS.providers),
 };
 
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const invalid = (message) => new ActionError(400, message);
 
+/** A setting's value as the page shows it: the file's, else the default; one made of settings (a provider's) is filled key by key. */
+function shown(value, fallback) {
+  if (isObject(fallback)) return { ...fallback, ...(isObject(value) ? value : {}) };
+  return value ?? fallback;
+}
+
 /** What the page shows: config.json's values, with the default for each one it leaves out. */
 export function editableSettings(file) {
   const sections = Object.fromEntries(Object.entries(EDITABLE).map(([name, keys]) => [
     name,
-    Object.fromEntries(keys.map((key) => [key, file[name]?.[key] ?? DEFAULTS[name][key]])),
+    Object.fromEntries(keys.map((key) => [key, shown(file[name]?.[key], DEFAULTS[name][key])])),
   ]));
   return { roots: Array.isArray(file.roots) ? [...file.roots] : [], ...sections };
 }
@@ -47,8 +55,13 @@ function editSection(current, name, edits) {
   const next = { ...(isObject(current) ? current : {}) };
   for (const [key, value] of Object.entries(edits)) {
     if (!EDITABLE[name].includes(key)) throw invalid(`"${name}.${key}" is not a setting the page can change`);
-    if (same(value, DEFAULTS[name][key])) delete next[key];
-    else next[key] = value;
+    const fallback = DEFAULTS[name][key];
+    // A group of settings (a provider's) keeps only what differs from its defaults.
+    const kept = isObject(fallback) && isObject(value)
+      ? Object.fromEntries(Object.entries(value).filter(([inner, v]) => !same(v, fallback[inner])))
+      : value;
+    if (same(kept, fallback) || (isObject(fallback) && isObject(kept) && Object.keys(kept).length === 0)) delete next[key];
+    else next[key] = kept;
   }
   return next;
 }

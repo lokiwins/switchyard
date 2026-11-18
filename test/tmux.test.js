@@ -195,6 +195,8 @@ test('screenText reads what a pane shows now, with its colours', async () => {
   const { exec, calls } = fakeExec({ 'capture-pane': ' ❯ 1. Yes\n' });
   assert.equal(await createTmux({ exec }).screenText('%3'), ' ❯ 1. Yes\n');
   assert.deepEqual(calls, [['tmux', 'capture-pane', '-p', '-e', '-t', '%3']]);
+  await createTmux({ exec }).screenText('%3', { joined: true });
+  assert.deepEqual(calls.at(-1), ['tmux', 'capture-pane', '-p', '-e', '-J', '-t', '%3'], 'joined: lines the pane wrapped come back whole');
 });
 
 test('confirm presses Enter in the pane', async () => {

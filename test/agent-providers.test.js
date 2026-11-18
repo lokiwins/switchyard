@@ -85,3 +85,33 @@ test('Claude is a provider: it launches claude with the task quoted, and resumes
   assert.equal(claude.resumeCommand('abc12345-6789'), 'claude --resume abc12345-6789');
   assert.equal(agents.default, claude);
 });
+
+test('Claude runs the program and extra options from Settings, read each time, for new and resumed sessions', () => {
+  let settings = { enabled: true, program: '~/.local/bin/claude', options: ['--model', 'opus'] };
+  const claude = createClaudeProvider({ claudeDir: '/nowhere', home: '/Users/me', settings: () => settings });
+  assert.equal(claude.launchCommand('Fix it'), "/Users/me/.local/bin/claude --model opus 'Fix it'");
+  assert.equal(claude.launchCommand(), '/Users/me/.local/bin/claude --model opus');
+  assert.equal(claude.resumeCommand('abc12345'), '/Users/me/.local/bin/claude --model opus --resume abc12345');
+  // What a new task's pane is watched for: the program's own name.
+  assert.equal(claude.command, 'claude');
+  settings = { enabled: true, program: '/opt/bin/claude-next', options: [] };
+  assert.equal(claude.launchCommand('Go'), "/opt/bin/claude-next 'Go'");
+  assert.equal(claude.command, 'claude-next');
+});
+
+test('Settings choose the default provider and turn providers off: an off one is not listed, offered or started', async () => {
+  let settings = { default: 'beta', alpha: { enabled: false }, beta: { enabled: true } };
+  const agents = createAgentProviders([
+    fakeProvider('alpha', { live: [{ sessionId: 'a1' }], ended: [{ sessionId: 'a2', endedAt: 1 }] }),
+    fakeProvider('beta', { live: [{ sessionId: 'b1' }] }),
+  ], { settings: () => settings });
+  assert.equal(agents.default.id, 'beta');
+  assert.deepEqual(agents.list.map((p) => p.id), ['beta']);
+  assert.deepEqual((await agents.liveSessions()).map((s) => s.sessionId), ['b1']);
+  assert.deepEqual(await agents.endedSessions({ since: 0, liveSessionIds: new Set() }), []);
+  assert.throws(() => agents.get('alpha'), (e) => e.status === 409 && /turned off in Settings/.test(e.message));
+  // Turned back on in Settings: it's there again, without a restart.
+  settings = { default: 'alpha', alpha: { enabled: true }, beta: { enabled: true } };
+  assert.equal(agents.default.id, 'alpha');
+  assert.deepEqual((await agents.liveSessions()).map((s) => s.sessionId), ['a1', 'b1']);
+});

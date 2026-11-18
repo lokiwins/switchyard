@@ -1,12 +1,12 @@
 /*
- * The Settings form's fields, by name ("section.key", or "roots"), to and
- * from the settings the server sends and takes.
+ * The Settings form's fields, by name ("section.key", "providers.<id>.key",
+ * or "roots"), to and from the settings the server sends and takes.
  */
 
 const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes']);
 const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'tasks.deleteDoneAfterDays']);
 // Checkboxes: "true" or "false" in the form.
-const BOOLEANS = new Set(['tasks.autoDeleteDone']);
+const BOOLEANS = new Set(['tasks.autoDeleteDone', 'providers.claude.enabled']);
 // A prefix's trailing space is part of what's removed from a check's name.
 const UNTRIMMED = new Set(['ci.stripPrefixes']);
 
@@ -16,6 +16,7 @@ export const FIELD_NAMES = [
   'agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays',
   'github.copilotReviewer', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
   'tasks.autoDeleteDone', 'tasks.deleteDoneAfterDays',
+  'providers.default', 'providers.claude.enabled', 'providers.claude.program', 'providers.claude.options',
 ];
 
 const valueAt = (values, name) => name.split('.').reduce((value, key) => value?.[key], values);
@@ -45,9 +46,10 @@ export function editsFromFields(fields) {
   const edits = {};
   for (const name of FIELD_NAMES) {
     const value = readField(name, fields[name] ?? '');
-    const [section, key] = name.split('.');
+    const [section, key, inner] = name.split('.');
     if (!key) edits[section] = value;
-    else edits[section] = { ...edits[section], [key]: value };
+    else if (!inner) edits[section] = { ...edits[section], [key]: value };
+    else edits[section] = { ...edits[section], [key]: { ...edits[section]?.[key], [inner]: value } };
   }
   return edits;
 }

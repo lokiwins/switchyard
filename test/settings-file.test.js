@@ -111,3 +111,18 @@ test('a save waits for what depends on the settings to catch up before it answer
   assert.deepEqual(order, ['live', 'caught up', 'answered']);
   assert.equal(view.values.agents.parkedAfterHours, 6);
 });
+
+test('a provider\'s settings are edited as a whole, filled from its defaults, and left out when they are the defaults', () => {
+  const claudeDefaults = { enabled: true, program: 'claude', options: '' };
+  assert.deepEqual(editableSettings({}).providers, { default: 'claude', claude: claudeDefaults });
+  assert.deepEqual(editableSettings({ providers: { claude: { options: '--model opus' } } }).providers.claude, { ...claudeDefaults, options: '--model opus' });
+  const changed = applyEdits({}, { providers: { default: 'claude', claude: { ...claudeDefaults, options: '--model opus' } } });
+  assert.deepEqual(changed, { providers: { claude: { options: '--model opus' } } });
+  assert.deepEqual(applyEdits(changed, { providers: { default: 'claude', claude: claudeDefaults } }), {});
+});
+
+test('applyEdits refuses provider settings switchyard would refuse', () => {
+  rejectsWith(() => applyEdits({}, { providers: { claude: { enabled: true, program: 'claude; rm -rf ~', options: '' } } }), 400, /program/);
+  rejectsWith(() => applyEdits({}, { providers: { claude: { enabled: false, program: 'claude', options: '' } } }), 400, /turned off/);
+  rejectsWith(() => applyEdits({}, { providers: { codex: { enabled: true } } }), 400);
+});
