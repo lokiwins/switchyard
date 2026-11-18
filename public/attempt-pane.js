@@ -2,6 +2,7 @@ import { h, liveTime } from './dom.js';
 import {
   changeSummary, commitSummary, contextSummary, fileLine, stateLabel,
 } from './attempt-cards.js';
+import { checkControl } from './check-view.js';
 
 /*
  * Compare attempts: a task's attempts side by side (see src/attempt-compare.js),
@@ -11,6 +12,8 @@ import {
  */
 
 const PR_STATES = { OPEN: 'open', MERGED: 'merged', CLOSED: 'closed' };
+// How often the pane looks again while a check runs.
+const CHECK_POLL_MS = 2000;
 const PICK_NOTE = 'Pick keeps that attempt as the task\'s work. The others\' sessions end and their worktrees are put away; one with changes or commits asks Keep or Delete first. Branches stay.';
 
 function prLink(pr) {
@@ -27,16 +30,20 @@ function filesList(changes) {
     h('ul', { class: 'attempt-file-list mono' }, changes.files.map((file) => h('li', { title: file.path }, fileLine(file)))));
 }
 
-/** Pick this one, asking once more: the first click says what will happen, the second does it. */
+/**
+ * Pick this one, asking once more: the first click says what will happen (and
+ * that its check failed, when it did; checks only warn), the second does it.
+ */
 function pickButton(attempt, onPick) {
   let armed = false;
+  const failed = attempt.check?.state === 'failed' && !attempt.check.outOfDate;
   const button = h('button', {
     type: 'button',
     class: 'btn btn-sm',
     onclick: async () => {
       if (!armed) {
         armed = true;
-        button.textContent = 'Keep this one, put the others away';
+        button.textContent = failed ? 'Its check failed. Keep it anyway, put the others away' : 'Keep this one, put the others away';
         button.classList.add('btn-danger');
         return;
       }
@@ -46,7 +53,9 @@ function pickButton(attempt, onPick) {
   return button;
 }
 
-function card(attempt, { picked, onPick }) {
+function card(attempt, {
+  picked, onPick, canCheck, onRunCheck,
+}) {
   const head = h('header', { class: 'attempt-card-head' },
     h('h3', { class: 'attempt-card-title' }, `Attempt ${attempt.n}`),
     attempt.present && h('span', { class: `pane-pill attempt-state is-${attempt.state}` }, stateLabel(attempt.state)),
@@ -68,15 +77,17 @@ function card(attempt, { picked, onPick }) {
     branch,
     h('ul', { class: 'attempt-stats' }, stats.map((stat) => h('li', {}, stat))),
     filesList(attempt.changes),
+    checkControl(attempt.check, { canRun: canCheck, onRun: () => onRunCheck(attempt) }),
     !picked && h('div', { class: 'attempt-card-actions' }, pickButton(attempt, onPick)));
 }
 
 /**
  * Open Compare attempts for `task`. `load()` resolves to the attempts (see
  * attempt-compare.js); `pick(attempt)` resolves whether picking worked, and
- * the pane closes when it did.
+ * the pane closes when it did. `runCheck(path)` starts an attempt's check,
+ * and the pane looks again until it's done.
  */
-export function openAttemptPane(task, { load, pick }) {
+export function openAttemptPane(task, { load, pick, runCheck }) {
   const grid = h('div', { class: 'attempt-grid' }, h('p', { class: 'pane-note' }, 'Looking at each attempt…'));
   const close = () => dialog.close();
 
@@ -87,16 +98,31 @@ export function openAttemptPane(task, { load, pick }) {
     else grid.querySelectorAll('button').forEach((b) => { b.disabled = false; });
   }
 
+  let soon = null;
+  async function onRunCheck(attempt) {
+    if (await runCheck(attempt.path)) await show();
+  }
+
   async function show() {
+    clearTimeout(soon);
     try {
       const data = await load();
-      grid.replaceChildren(...data.attempts.map((attempt) => card(attempt, { picked: data.picked, onPick })));
+      if (!dialog.open) return;
+      grid.replaceChildren(...data.attempts.map((attempt) => card(attempt, {
+        picked: data.picked, onPick, canCheck: data.canCheck, onRunCheck,
+      })));
+      // While a check runs, look again shortly, so its result shows when it's done.
+      if (data.attempts.some((a) => a.check?.state === 'running')) soon = setTimeout(show, CHECK_POLL_MS);
     } catch (error) {
       grid.replaceChildren(h('p', { class: 'pane-note' }, `Couldn't compare the attempts: ${error.message}`));
     }
   }
 
-  const dialog = h('dialog', { class: 'glass-pane attempt-pane', 'aria-label': `Compare attempts: ${task.title}`, onclose: () => dialog.remove() },
+  const dialog = h('dialog', {
+    class: 'glass-pane attempt-pane',
+    'aria-label': `Compare attempts: ${task.title}`,
+    onclose: () => { clearTimeout(soon); dialog.remove(); },
+  },
     h('header', { class: 'pane-header' },
       h('span', { class: 'pane-dot', 'aria-hidden': 'true' }),
       h('div', { class: 'pane-heading' },

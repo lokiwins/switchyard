@@ -3,6 +3,7 @@ import { TERMINAL_IDS } from '../public/terminal-themes.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+const MINUTE_MS = 60 * 1000;
 
 /**
  * Generic defaults. Workplace-specific values (your CI's approval job names,
@@ -49,6 +50,12 @@ export const DEFAULTS = Object.freeze({
     autoDeleteDone: false,
     deleteDoneAfterDays: 7,
   }),
+  checks: Object.freeze({
+    // "repo: command" lines: the command Run check runs in a worktree of that repo, e.g. "billing-api: npm test".
+    commands: Object.freeze([]),
+    // A check still running after this long is stopped, and counts as failed.
+    timeoutMinutes: 10,
+  }),
   // The agent CLIs (see src/agents/providers.js): which one is used when none is named, and how each is run.
   providers: Object.freeze({
     default: 'claude',
@@ -71,6 +78,7 @@ const SECTION_KEYS = {
   appearance: ['theme', 'mode', 'terminal'],
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
+  checks: ['commands', 'timeoutMinutes'],
   providers: ['default', ...Object.keys(DEFAULTS.providers).filter((key) => key !== 'default')],
 };
 const PROVIDER_IDS = SECTION_KEYS.providers.slice(1);
@@ -80,6 +88,23 @@ const PROGRAM = /^(?:[A-Za-z0-9_][A-Za-z0-9._-]*|(?:~|)\/[A-Za-z0-9._\/-]+)$/;
 // An option is a plain word: nothing a shell would treat as quoting, expansion or another command.
 const OPTION_WORD = /^[A-Za-z0-9_@%+=:,.\/~-]+$/;
 const MAX_OPTIONS_LENGTH = 500;
+// "repo: command": a repo's folder name, then the shell command its check runs.
+const CHECK_LINE = /^\s*([A-Za-z0-9._-]+)\s*:\s*(\S.*?)\s*$/;
+const MAX_CHECK_COMMAND = 500;
+const MAX_CHECK_MINUTES = 120;
+
+/** "repo: command" lines as { repo: command }. */
+function checkCommands(lines) {
+  const commands = {};
+  for (const line of stringList(lines, 'checks.commands')) {
+    const [, repo, command] = CHECK_LINE.exec(line) ?? [];
+    if (!repo) fail('checks.commands', `must be lines of "repo: command", such as "billing-api: npm test" (got ${JSON.stringify(line)})`);
+    if (command.length > MAX_CHECK_COMMAND) fail('checks.commands', `has a command for ${repo} longer than ${MAX_CHECK_COMMAND} characters`);
+    if (Object.hasOwn(commands, repo)) fail('checks.commands', `names ${repo} twice`);
+    commands[repo] = command;
+  }
+  return commands;
+}
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];
 
 export class SettingsError extends Error {}
@@ -193,6 +218,9 @@ export function parseSettings(file = {}) {
   const editor = section(file, 'editor');
   const appearance = section(file, 'appearance');
   const tasks = section(file, 'tasks');
+  const checks = section(file, 'checks');
+  const checkMinutes = positiveNumber(checks.timeoutMinutes, 'checks.timeoutMinutes');
+  if (checkMinutes > MAX_CHECK_MINUTES) fail('checks.timeoutMinutes', `must be at most ${MAX_CHECK_MINUTES}`);
   if (typeof tasks.autoDeleteDone !== 'boolean') fail('tasks.autoDeleteDone', 'must be true or false');
 
   if (!TERMINAL_CHOICES.includes(terminal.app)) fail('terminal.app', `must be one of: ${TERMINAL_CHOICES.join(', ')}`);
@@ -229,6 +257,7 @@ export function parseSettings(file = {}) {
       autoDeleteDone: tasks.autoDeleteDone,
       deleteDoneAfterMs: positiveNumber(tasks.deleteDoneAfterDays, 'tasks.deleteDoneAfterDays') * DAY_MS,
     },
+    checks: { commands: checkCommands(checks.commands), timeoutMs: checkMinutes * MINUTE_MS },
     providers: providers(file),
   };
 }

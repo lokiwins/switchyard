@@ -30,6 +30,7 @@ import { createTaskTools } from './task-tools.js';
 import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
 import { createAttemptCompare } from './attempt-compare.js';
+import { createChecks } from './checks.js';
 import { createTicketDetails } from './ticket-details.js';
 import { createGithubIssues, repoChoices } from './github-issues.js';
 import { linkHubTasks, linkTasks, sessionHubTasks, tagWorktrees, taskForBranch, worktreeHubTasks } from './task-links.js';
@@ -227,6 +228,7 @@ const POST_ROUTES = {
   '/api/hub/tasks/worktree-choice': chooseWorktree,
   '/api/hub/tasks/start': ({ hubStarter }, body) => hubStarter.start(body),
   '/api/hub/tasks/pick': pickAttempt,
+  '/api/checks/run': ({ checks }, body) => checks.start(body),
   '/api/hub/ticket/status': ({ ticketDetails }, body) => ticketDetails.setStatus(body),
   '/api/task-tools/connect': ({ taskTools }, body) => taskTools.connect(body),
   '/api/task-tools/disconnect': ({ taskTools }, body) => taskTools.disconnect(body),
@@ -338,7 +340,7 @@ async function tasksPayload({ taskTools, stateService, capabilities }, { force }
 
 /** Your own tasks, each with the worktrees working on it (their PRs and sessions), and what the page's buttons can do. */
 async function hubPayload({
-  taskHub, taskCleanup, stateService, approvals, taskStarts, capabilities,
+  taskHub, taskCleanup, stateService, approvals, taskStarts, capabilities, checks,
 }, { force }) {
   const [tasks, sessions] = await Promise.all([
     taskHub.list(),
@@ -358,6 +360,9 @@ async function hubPayload({
     taskStarts: taskStarts.list(sessions.liveSessions ?? []),
     // Worktrees closed tasks left with changes or unmerged commits, waiting for Keep or Delete.
     worktreeChoices: taskCleanup.pending(),
+    // Run check: each worktree's latest result (see checks.js), and the repos that have a command to run.
+    checks: await checks.results({ repos: sessions.repos }),
+    checkRepos: checks.repos(),
     capabilities,
     checkedAt: Date.now(),
   };
@@ -720,13 +725,18 @@ async function main() {
     endSession: actions.endSession,
     forgetSessions: sessionRemoval.forget,
   });
+  const checks = createChecks({
+    settings: () => config.settings.checks,
+    getState: () => stateService.getSessions({ force: true }),
+  });
   const attemptCompare = createAttemptCompare({
+    checks,
     // Fresh, so attempts started a moment ago are there; PRs come from what the last full scan cached.
     taskHub, getState: () => stateService.getSessions({ force: true }), putAwayWorktrees: taskCleanup.putAwayWorktrees,
   });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, sessionRemoval, taskCleanup, attemptCompare, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
+    sessionGraphs, sessionRemoval, taskCleanup, attemptCompare, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const doneTaskSweep = createDoneTaskSweep({

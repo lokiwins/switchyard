@@ -19,6 +19,7 @@ export const EDITABLE = {
   git: ['longLivedBranches'],
   ci: ['holdPatterns', 'stripPrefixes'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
+  checks: ['commands', 'timeoutMinutes'],
   // The default, then each provider's settings ({ enabled, program, options }), edited as a whole.
   providers: Object.keys(DEFAULTS.providers),
 };
