@@ -1,6 +1,6 @@
 import { ActionError } from './errors.js';
 import { isCopilotLogin, requestCopilotReview } from './github.js';
-import { BACKGROUND_FACTOR, createPrSync } from './pr-sync.js';
+import { BACKGROUND_FACTOR, RETURN_FRESH_MS, createPrSync } from './pr-sync.js';
 import { DEFAULT_SETTINGS } from './settings.js';
 
 // How often the scheduler looks for due refreshes, and how long a page or badge
@@ -191,10 +191,13 @@ export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sy
     timer = null;
   }
 
-  /** Stream page updates to `listener`; refreshes anything that went stale while nobody watched. */
+  /**
+   * Stream page updates to `listener`. Opening the page (or coming back to it)
+   * re-checks anything older than a few seconds: you may have just changed it on GitHub.
+   */
   function subscribe(listener) {
     listeners.add(listener);
-    prSync.ensureLoaded().then(() => prSync.tick()).catch(() => {});
+    prSync.ensureLoaded().then(() => prSync.tick({ freshWithin: RETURN_FRESH_MS })).catch(() => {});
     return () => listeners.delete(listener);
   }
 
