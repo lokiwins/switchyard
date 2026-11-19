@@ -2,7 +2,9 @@ import { h, readPref, writePref } from './dom.js';
 import { closeDropdown, dropdown } from './actions.js';
 import { linkLine } from './task-link-views.js';
 import { trustButtons } from './agent-views.js';
-import { STATE_LABELS, dueOnLabel, ticketLabel, trackerOf } from './task-state.js';
+import { STATE_LABELS, ticketLabel, trackerOf } from './task-state.js';
+import { patchChildren } from './keyed.js';
+import { canStart, parentWorkFor, rowDue, taskRowParts } from './task-row-parts.js';
 import { hasFailedCheck } from './check-status.js';
 import { matchesTicket, taskFromTicket, unlinkedTickets } from './ticket-import.js';
 
@@ -177,6 +179,7 @@ const PUTS_AWAY = 'Its running sessions end and its worktrees are removed; one w
 
 /** Mark done, drop, reopen or delete: the row's ⋯ menu. Delete asks once more inside the menu. */
 function taskMenu(task, actions) {
+  const now = () => currentTask(task);
   const item = (label, title, run) => h('button', {
     type: 'button',
     class: 'menu-item',
@@ -202,20 +205,27 @@ function taskMenu(task, actions) {
         return;
       }
       closeDropdown(button);
-      await actions.remove(task);
+      await actions.remove(now());
     },
   }, h('span', { class: 'menu-title' }, 'Delete…'));
-  return dropdown({ key: `task-${task.id}`, label: '⋯', title: 'More', className: 'btn btn-action', focusInput: false },
-    closed ? item('Reopen', 'Put it back with your open tasks', () => actions.reopen(task)) : [
+  const menu = dropdown({ key: `task-${task.id}`, label: '⋯', title: 'More', className: 'btn btn-action', focusInput: false },
+    closed ? item('Reopen', 'Put it back with your open tasks', () => actions.reopen(now())) : [
       // Checks only warn: a failed one is named here, and Mark done still works.
       hasFailedCheck(task)
-        ? item('Mark done anyway (check failed)', `Its latest check failed. Done anyway, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(task, 'done'))
-        : item('Mark done', `Done, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(task, 'done')),
-      item('Drop', `Not doing it after all. ${PUTS_AWAY}`, () => actions.close(task, 'dropped')),
+        ? item('Mark done anyway (check failed)', `Its latest check failed. Done anyway, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(now(), 'done'))
+        : item('Mark done', `Done, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(now(), 'done')),
+      item('Drop', `Not doing it after all. ${PUTS_AWAY}`, () => actions.close(now(), 'dropped')),
       // One level deep: a subtask has none of its own.
-      !task.parentId && item('Add subtask…', 'A task of its own under this one, with its own worktree, branched from this task\'s branch', () => actions.addSubtask(task)),
+      !task.parentId && item('Add subtask…', 'A task of its own under this one, with its own worktree, branched from this task\'s branch', () => actions.addSubtask(now())),
     ],
     remove);
+  // The menu is kept across redraws, so Delete's "Click again" must not still be armed the next time it opens.
+  menu.addEventListener('toggle', () => {
+    if (menu.open || !remove.dataset.confirm) return;
+    delete remove.dataset.confirm;
+    remove.querySelector('.menu-title').textContent = 'Delete…';
+  });
+  return menu;
 }
 
 // The repo you last started a task in, shared with New task on the Agents page.
@@ -228,7 +238,7 @@ const REPO_PREF = 'switchyard.newTaskRepo';
  */
 function startMenu(task, { repos, actions, parent }) {
   const sorted = [...repos].sort((a, b) => a.name.localeCompare(b.name));
-  const parentWork = parent?.work.find((w) => w.branch && sorted.some((r) => r.name === w.repoName)) ?? null;
+  const parentWork = parentWorkFor(parent, sorted);
   const parentRepo = parentWork && sorted.find((r) => r.name === parentWork.repoName).mainPath;
   const remembered = parentRepo ?? readPref(REPO_PREF, null);
   const form = h('form', {
@@ -238,7 +248,7 @@ function startMenu(task, { repos, actions, parent }) {
       const repo = form.elements.repo.value;
       writePref(REPO_PREF, repo);
       closeDropdown(form);
-      await actions.start(task, repo);
+      await actions.start(currentTask(task), repo);
     },
   },
   h('label', { class: 'task-field' }, h('span', {}, 'Repository'),
@@ -272,41 +282,92 @@ function rowActions(task, context) {
   // Already on its way out; a second click would only close it twice.
   if (task.closing) return null;
   if (task.start?.state === 'asking-trust') return trustButtons(task.start);
-  const canStart = task.state === 'not-started' && context.caps?.tmux && context.repos.length > 0;
-  return [canStart && startMenu(task, context), taskMenu(task, context.actions)];
+  return [canStart(task, context) && startMenu(task, context), taskMenu(task, context.actions)];
 }
 
-function taskRow(task, context) {
-  const { now, caps, approvals } = context;
-  const due = task.state === 'done' || task.state === 'dropped' ? null : dueOnLabel(task.dueOn, now);
-  return h('li', { class: `list-row hub-row is-${task.state}${task.work.length ? ' has-links' : ''}` },
-    stateBadge(task.state),
-    h('div', { class: 'row-who' },
+// The tasks as last drawn, by id. A kept button acts on its task as it is now, not as it was when the button was built.
+let latestTasks = new Map();
+const currentTask = (task) => latestTasks.get(task.id) ?? task;
+
+/** A keyed item (see keyed.js) whose element is filled by `update`, both when it's new and when it's kept. */
+const filledItem = (key, sig, make, update) => ({
+  key,
+  sig,
+  build: () => {
+    const element = make();
+    update(element);
+    return element;
+  },
+  update,
+});
+
+/** How each part of a row is built, by its key (see task-row-parts.js). */
+function buildPart(key, task, context) {
+  if (key === 'state') return stateBadge(task.state);
+  if (key === 'who') {
+    return h('div', { class: 'row-who' },
       h('button', {
-        type: 'button', class: 'row-title row-title-btn', title: 'Details: edit it, and read its tickets', onclick: () => context.actions.open(task),
+        type: 'button', class: 'row-title row-title-btn', title: 'Details: edit it, and read its tickets', onclick: () => context.actions.open(currentTask(task)),
       }, task.title),
-      h('span', { class: 'row-where' }, h('span', { class: 'mono' }, task.id), ticketLinks(task.links))),
-    detailLine(task),
-    h('span', { class: `task-due${due?.tone ? ` ${due.tone}` : ''}` }, due?.text ?? ''),
-    h('div', { class: 'actions' }, rowActions(task, context)),
-    task.work.length > 0 && h('div', { class: 'task-links', 'aria-label': 'Work on this task' }, task.work.map((link) => linkLine(link, caps, approvals, { onRunCheck: context.actions.runCheck }))),
-    task.subtasks?.length > 0 && h('ul', { class: 'subtasks', 'aria-label': `Subtasks of ${task.title}` }, task.subtasks.map((sub) => taskRow(sub, { ...context, parent: task }))));
+      h('span', { class: 'row-where' }, h('span', { class: 'mono' }, task.id), ticketLinks(task.links)));
+  }
+  if (key === 'detail') return detailLine(task);
+  if (key === 'due') {
+    const due = rowDue(task, context.now);
+    return h('span', { class: `task-due${due?.tone ? ` ${due.tone}` : ''}` }, due?.text ?? '');
+  }
+  if (key === 'actions') return h('div', { class: 'actions' }, rowActions(task, context));
+  const link = task.work.find((w) => `link:${w.path}` === key);
+  return linkLine(link, context.caps, context.approvals, { onRunCheck: context.actions.runCheck });
 }
 
-/** The groups, each a heading and its tasks; Done is folded away until opened. */
-export function renderGroups(groups, {
+/** Bring a row up to date in place: only the parts whose data changed are built again. */
+function patchTaskRow(row, task, context) {
+  row.className = `list-row hub-row is-${task.state}${task.work.length ? ' has-links' : ''}`;
+  const parts = taskRowParts(task, context);
+  const item = ({ key, sig }) => ({ key, sig, build: () => buildPart(key, task, context) });
+  const links = parts.filter((p) => p.key.startsWith('link:'));
+  const subtasks = task.subtasks ?? [];
+  patchChildren(row, [
+    ...parts.filter((p) => !p.key.startsWith('link:')).map(item),
+    links.length > 0 && filledItem('links', 'links',
+      () => h('div', { class: 'task-links', 'aria-label': 'Work on this task' }),
+      (el) => patchChildren(el, links.map(item))),
+    subtasks.length > 0 && filledItem('subtasks', task.title,
+      () => h('ul', { class: 'subtasks', 'aria-label': `Subtasks of ${task.title}` }),
+      (el) => patchRows(el, subtasks, { ...context, parent: task })),
+  ].filter(Boolean));
+}
+
+const rowItem = (task, context) => filledItem(task.id, 'row', () => h('li', {}), (row) => patchTaskRow(row, task, context));
+
+/** Make `list`'s rows the tasks', keeping each task's row and the parts of it that didn't change. */
+function patchRows(list, tasks, context) {
+  patchChildren(list, tasks.map((task) => rowItem(task, context)));
+}
+
+/**
+ * Draw the groups into `container`, each a heading and its tasks; Done is folded away until opened.
+ * Everything that didn't change is kept as it is (see keyed.js), so an open menu, a reply being
+ * typed or a selection survives a redraw caused by some other change.
+ */
+export function renderGroups(container, groups, {
   now = Date.now(), caps, actions, repos = [], approvals = [], doneOpen, onDoneToggle,
 }) {
+  latestTasks = new Map(groups.flatMap((group) => group.tasks.flatMap((task) => [task, ...(task.subtasks ?? [])])).map((task) => [task.id, task]));
   const context = {
     now, caps, actions, repos, approvals,
   };
-  return groups.map((group) => {
-    const list = h('ul', { class: 'list' }, group.tasks.map((task) => taskRow(task, context)));
-    const heading = [group.label, h('span', { class: 'hub-count' }, String(group.tasks.length))];
-    if (group.key !== 'done') {
-      return h('section', { class: `hub-group is-${group.key}`, 'aria-label': group.label }, h('h3', { class: 'hub-group-head' }, heading), list);
-    }
-    return h('details', { class: 'hub-group is-done', open: doneOpen, ontoggle: (event) => onDoneToggle(event.currentTarget.open) },
-      h('summary', { class: 'hub-group-head' }, heading), list);
-  });
+  patchChildren(container, groups.map((group) => filledItem(group.key, group.label,
+    () => {
+      const head = h(group.key === 'done' ? 'summary' : 'h3', { class: 'hub-group-head' }, group.label, h('span', { class: 'hub-count' }));
+      const list = h('ul', { class: 'list' });
+      if (group.key !== 'done') return h('section', { class: `hub-group is-${group.key}`, 'aria-label': group.label }, head, list);
+      return h('details', { class: 'hub-group is-done', open: doneOpen, ontoggle: (event) => onDoneToggle(event.currentTarget.open) }, head, list);
+    },
+    (section) => {
+      section.querySelector(':scope > .hub-group-head > .hub-count').textContent = String(group.tasks.length);
+      if (group.key === 'done' && section.open !== doneOpen) section.open = doneOpen;
+      patchRows(section.querySelector(':scope > ul.list'), group.tasks, context);
+    })));
 }
