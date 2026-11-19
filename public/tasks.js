@@ -146,14 +146,14 @@ function renderTasks() {
   lookAgainIfStarting(groups);
   // Replacing the rows would take away the reply box you're typing in; the next look catches up.
   if (isTypingReply()) return;
-  $('tasks').replaceChildren(...renderGroups(groups, {
+  renderGroups($('tasks'), groups, {
     caps: data.capabilities,
     actions,
     repos: data.repos,
     approvals: data.approvals,
     doneOpen: ui.doneOpen || Boolean(ui.query),
     onDoneToggle: (open) => { ui.doneOpen = open; },
-  }));
+  });
 }
 
 /** Arriving from a session's "Task" link (/tasks#sy-…): open that task's details, once. */
