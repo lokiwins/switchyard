@@ -3,7 +3,7 @@ import { closeDropdown, dropdown } from './actions.js';
 import { linkLine } from './task-link-views.js';
 import { trustButtons } from './agent-views.js';
 import { STATE_LABELS, ticketLabel, trackerOf } from './task-state.js';
-import { patchChildren } from './keyed.js';
+import { filledItem, patchChildren } from './keyed.js';
 import { canStart, parentWorkFor, rowDue, taskRowParts } from './task-row-parts.js';
 import { hasFailedCheck } from './check-status.js';
 import { matchesTicket, taskFromTicket, unlinkedTickets } from './ticket-import.js';
@@ -288,18 +288,6 @@ function rowActions(task, context) {
 // The tasks as last drawn, by id. A kept button acts on its task as it is now, not as it was when the button was built.
 let latestTasks = new Map();
 const currentTask = (task) => latestTasks.get(task.id) ?? task;
-
-/** A keyed item (see keyed.js) whose element is filled by `update`, both when it's new and when it's kept. */
-const filledItem = (key, sig, make, update) => ({
-  key,
-  sig,
-  build: () => {
-    const element = make();
-    update(element);
-    return element;
-  },
-  update,
-});
 
 /** How each part of a row is built, by its key (see task-row-parts.js). */
 function buildPart(key, task, context) {

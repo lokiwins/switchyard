@@ -1,5 +1,7 @@
 import { editorLink, openMenu } from './actions.js';
 import { copyButton, h, liveTime, shellQuote, shortPath, timeAgo } from './dom.js';
+import { filledItem, patchChildren, plainItem } from './keyed.js';
+import { prCardParts } from './row-parts.js';
 
 export const STAGES = {
   'merge-conflict': { label: 'Merge conflict', tone: 'red', group: 'fix' },
@@ -44,13 +46,17 @@ export function prTiles(data) {
   ];
 }
 
+/** The tiles as keyed items (see keyed.js): one is kept while it reads the same, so keyboard focus on it survives an update. */
 export function renderPrTiles(tiles, current, onSelect) {
-  return tiles.map((tile) => h('button', {
-    type: 'button',
-    class: ['tile', tile.tone && `tone-${tile.tone}`, tile.value > 0 && 'has-value'].filter(Boolean).join(' '),
-    'aria-pressed': String(current === tile.filter && tile.filter !== 'all'),
-    onclick: () => onSelect(current === tile.filter ? 'all' : tile.filter),
-  }, h('div', { class: 'value' }, tile.value), h('div', { class: 'label' }, tile.label)));
+  return tiles.map((tile) => {
+    const pressed = current === tile.filter && tile.filter !== 'all';
+    return plainItem(`${tile.filter}:${tile.label}`, JSON.stringify([tile, pressed, current]), () => h('button', {
+      type: 'button',
+      class: ['tile', tile.tone && `tone-${tile.tone}`, tile.value > 0 && 'has-value'].filter(Boolean).join(' '),
+      'aria-pressed': String(pressed),
+      onclick: () => onSelect(current === tile.filter ? 'all' : tile.filter),
+    }, h('div', { class: 'value' }, tile.value), h('div', { class: 'label' }, tile.label)));
+  });
 }
 
 /* ---------- PR card pieces ---------- */
@@ -144,33 +150,54 @@ function renderCopilotButton(pr, onCopilot) {
   }, last ? '↻ Copilot review' : 'Copilot review');
 }
 
-export function renderPrCard(pr, { showAuthor = false, onCopilot = null, caps = null } = {}) {
+/**
+ * A PR's card, kept for as long as the PR is listed: only the parts whose data changed are built
+ * again (see row-parts.js), so GitHub being checked again doesn't close an open Open ▾ menu.
+ */
+function prCardItem(pr, { showAuthor = false, onCopilot = null, caps = null }) {
   const stage = STAGES[pr.stage] ?? STAGES.unknown;
-  return h('li', {}, h('article', { class: 'pr' },
-    h('div', { class: 'pr-line' },
+  const build = {
+    line: () => h('div', { class: 'pr-line' },
       h('span', { class: `pill ${stage.tone}` }, stage.label),
       h('a', { class: 'pr-title', href: pr.url, target: '_blank', rel: 'noopener', title: pr.title }, pr.title),
       h('span', { class: 'pr-ref' }, `${pr.repo.split('/').pop()}#${pr.number}`)),
-    renderMeta(pr, { showAuthor }),
-    pr.error
-      ? h('div', { class: 'pr-signals' }, h('span', { class: 'sig red' }, `Could not load details: ${pr.error}`))
-      : h('div', { class: 'pr-signals' }, renderChecks(pr.checks), renderReviews(pr), renderLocal(pr, caps)),
-    h('div', { class: 'pr-side' }, renderCopilotButton(pr, onCopilot))));
+    meta: () => renderMeta(pr, { showAuthor }),
+    error: () => h('span', { class: 'sig red' }, `Could not load details: ${pr.error}`),
+    // Several signals in one part; `display: contents` keeps them laid out as before.
+    checks: () => h('span', { class: 'sig-group' }, renderChecks(pr.checks)),
+    reviews: () => renderReviews(pr),
+    local: () => renderLocal(pr, caps),
+    side: () => h('div', { class: 'pr-side' }, renderCopilotButton(pr, onCopilot)),
+  };
+  const parts = prCardParts(pr, { showAuthor, canAskCopilot: Boolean(onCopilot), caps });
+  const item = ({ key, sig }) => plainItem(key, sig, build[key]);
+  const signals = parts.filter((p) => ['error', 'checks', 'reviews', 'local'].includes(p.key));
+  return filledItem(`${pr.repo}#${pr.number}`, 'card', () => h('li', {}, h('article', { class: 'pr' })), (li) => {
+    patchChildren(li.firstElementChild, [
+      item(parts.find((p) => p.key === 'line')),
+      item(parts.find((p) => p.key === 'meta')),
+      filledItem('signals', 'signals', () => h('div', { class: 'pr-signals' }), (div) => patchChildren(div, signals.map(item))),
+      item(parts.find((p) => p.key === 'side')),
+    ]);
+  });
 }
 
+/** A PR list as keyed items, for patchChildren. */
 export function renderPrList(prs, { emptyText, showAuthor, onCopilot, caps }) {
-  if (prs.length === 0) return [h('div', { class: 'empty' }, emptyText)];
-  return [h('ul', { class: 'list pr-list' }, prs.map((pr) => renderPrCard(pr, { showAuthor, onCopilot, caps })))];
+  if (prs.length === 0) return [plainItem('empty', emptyText, () => h('div', { class: 'empty' }, emptyText))];
+  return [filledItem('list', 'list', () => h('ul', { class: 'list pr-list' }),
+    (ul) => patchChildren(ul, prs.map((pr) => prCardItem(pr, { showAuthor, onCopilot, caps }))))];
 }
 
+/** The team's review requests as keyed items, for patchChildren. */
 export function renderTeamList(prs) {
-  if (prs.length === 0) return [h('li', { class: 'muted' }, 'Nothing waiting on your teams.')];
-  return prs.map((pr) => h('li', { class: 'team-row' },
+  if (prs.length === 0) return [plainItem('empty', 'empty', () => h('li', { class: 'muted' }, 'Nothing waiting on your teams.'))];
+  return prs.map((pr) => plainItem(pr.url, JSON.stringify(pr), () => h('li', { class: 'team-row' },
     h('a', { href: pr.url, target: '_blank', rel: 'noopener', class: 'team-title' }, pr.title),
     h('span', { class: 'pr-meta' },
       h('span', { class: 'mono' }, `${pr.repo.split('/').pop()}#${pr.number}`),
       pr.isDraft && h('span', { class: 'sep' }, 'draft'),
       pr.author && h('span', { class: 'sep' }, pr.author),
       pr.commentsCount > 0 && h('span', { class: 'sep' }, `${pr.commentsCount} comment${pr.commentsCount > 1 ? 's' : ''}`),
-      h('span', { class: 'sep' }, `updated ${timeAgo(Date.parse(pr.updatedAt))}`))));
+      liveTime(Date.parse(pr.updatedAt), 'updated ', { class: 'sep' })))));
 }

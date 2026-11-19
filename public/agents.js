@@ -1,6 +1,7 @@
-import { h, readPref, timeAgo, toast, writePref } from './dom.js';
+import { h, readPref, refreshLiveTimes, timeAgo, toast, writePref } from './dom.js';
+import { filledItem, patchChildren, plainItem } from './keyed.js';
 import { canShowTerminalSessions, sessionSearchText } from './session-text.js';
-import { locateSession, renderLiveList, renderPendingRow } from './agent-views.js';
+import { liveListItems, locateSession, pendingRowItem } from './agent-views.js';
 import { actionButton, post } from './actions.js';
 import { renderEnded } from './ended-views.js';
 import { deleteAllButton } from './session-delete.js';
@@ -13,6 +14,8 @@ import { EXITED_SHOW_MS, settlePending } from './pending-tasks.js';
 // this often; with it, it only checks in after this long without an update, in case one was missed.
 const POLL_MS = 4_000;
 const STREAM_POLL_MS = 15_000;
+// How often the rows' "5m ago" times are brought up to date.
+const CLOCK_MS = 5_000;
 const FILTER_PREF = 'switchyard.agentFilter';
 
 // Tasks just started from New task show under these filters: as working once they start, or as waiting on you
@@ -90,19 +93,23 @@ function tiles(state) {
   ];
 }
 
+// The tiles and filter buttons are kept while they read the same, so keyboard focus on one survives an update.
 function renderTiles(state) {
-  $('tiles').replaceChildren(...tiles(state).map((tile) => h('button', {
-    type: 'button',
-    class: ['tile', tile.tone && `tone-${tile.tone}`, tile.value > 0 && 'has-value'].filter(Boolean).join(' '),
-    'aria-pressed': String(ui.filter === tile.filter),
-    onclick: () => setFilter(ui.filter === tile.filter ? 'all' : tile.filter),
-  }, h('div', { class: 'value' }, tile.value), h('div', { class: 'label' }, tile.label))));
+  patchChildren($('tiles'), tiles(state).map((tile) => {
+    const pressed = ui.filter === tile.filter;
+    return plainItem(tile.filter, JSON.stringify([tile, pressed]), () => h('button', {
+      type: 'button',
+      class: ['tile', tile.tone && `tone-${tile.tone}`, tile.value > 0 && 'has-value'].filter(Boolean).join(' '),
+      'aria-pressed': String(pressed),
+      onclick: () => setFilter(ui.filter === tile.filter ? 'all' : tile.filter),
+    }, h('div', { class: 'value' }, tile.value), h('div', { class: 'label' }, tile.label)));
+  }));
 }
 
 function renderViews() {
-  $('views').replaceChildren(...Object.entries(FILTERS).map(([key, f]) => h('button', {
+  patchChildren($('views'), Object.entries(FILTERS).map(([key, f]) => plainItem(key, String(ui.filter === key), () => h('button', {
     type: 'button', role: 'radio', 'aria-checked': String(ui.filter === key), onclick: () => setFilter(key),
-  }, f.label)));
+  }, f.label))));
 }
 
 function renderErrors(errors) {
@@ -140,7 +147,7 @@ function pendingRows() {
   return pendingTasks()
     .filter(shows)
     .filter((t) => matches([t.prompt, t.repoName, t.branch, t.path], ui.query))
-    .map((t) => renderPendingRow(t, now));
+    .map((t) => pendingRowItem(t, now));
 }
 
 function renderRunning(state, filter) {
@@ -151,7 +158,7 @@ function renderRunning(state, filter) {
   if (isTypingReply()) return;
   const sessions = state.liveSessions.filter((s) => filter.live(s) && liveMatches(state, s));
   const starting = pendingRows();
-  const list = sessions.length === 0 && starting.length > 0 ? [] : renderLiveList(state, sessions, {
+  const list = sessions.length === 0 && starting.length > 0 ? [] : liveListItems(state, sessions, {
     showParked: ui.showParked || ui.filter === 'parked',
     // The Parked filter always shows them all, so there's nothing to toggle there.
     onToggleParked: ui.filter === 'parked' ? null : () => {
@@ -161,11 +168,13 @@ function renderRunning(state, filter) {
     details,
     emptyText: ui.query || ui.filter !== 'all' ? 'No running sessions match.' : 'No agent sessions are running.',
   });
-  $('running').replaceChildren(
-    hookHint(state, sessions) ?? '',
-    starting.length > 0 ? h('ul', { class: 'list pending-list' }, starting) : '',
+  // Only what changed is built again (see keyed.js): an open menu or a reply in a row that didn't change stays as it is.
+  const hint = hookHint(state, sessions);
+  patchChildren($('running'), [
+    hint && plainItem('hint', 'hint', () => hint),
+    starting.length > 0 && filledItem('starting', 'list', () => h('ul', { class: 'list pending-list' }), (ul) => patchChildren(ul, starting)),
     ...list,
-  );
+  ].filter(Boolean));
 }
 
 function renderEndedPanel(state, filter) {
@@ -180,8 +189,10 @@ function renderEndedPanel(state, filter) {
   );
   // Every listed one, shown or collapsed: all of them, or just what the filter and search picked.
   const everything = !ui.query && (ui.filter === 'all' || ui.filter === 'ended');
-  $('ended-actions').replaceChildren(deleteAllButton(sessions, everything ? 'Delete all ended' : `Delete these ${sessions.length}`) ?? '');
-  $('ended').replaceChildren(...renderEnded(sessions, {
+  const label = everything ? 'Delete all ended' : `Delete these ${sessions.length}`;
+  const deleteAll = sessions.length > 0 && plainItem('delete-all', JSON.stringify([label, sessions.map((s) => s.sessionId)]), () => deleteAllButton(sessions, label));
+  patchChildren($('ended-actions'), [deleteAll].filter(Boolean));
+  patchChildren($('ended'), renderEnded(sessions, {
     expanded: ui.showAllEnded,
     onToggle: () => {
       ui.showAllEnded = !ui.showAllEnded;
@@ -281,6 +292,7 @@ document.addEventListener('visibilitychange', () => {
   openStream();
   return load();
 });
+setInterval(() => refreshLiveTimes(), CLOCK_MS);
 setInterval(() => {
   if (document.hidden) return;
   if (!streaming() || Date.now() - ui.receivedAt > STREAM_POLL_MS) load();

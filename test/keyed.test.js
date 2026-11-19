@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { patchChildren } from '../public/keyed.js';
+import { filledItem, patchChildren } from '../public/keyed.js';
 
 /** Just enough of the DOM for patchChildren: element children, insertBefore and remove. */
 class FakeElement {
@@ -114,4 +114,15 @@ test('patchChildren: two items with the same key each get an element; none goes 
   patchChildren(parent, itemsOf([['a', 1], ['a', 1]], []));
   assert.equal(parent.kids.length, 2);
   assert.notEqual(parent.kids[0], parent.kids[1]);
+});
+
+test('filledItem: a new element is filled as it is built, and a kept one is filled again in place', () => {
+  const parent = new FakeParent();
+  const filled = [];
+  const item = (n) => filledItem('list', 'list', () => new FakeElement('list'), (el) => filled.push([el, n]));
+  patchChildren(parent, [item(1)]);
+  const [first] = parent.kids;
+  patchChildren(parent, [item(2)]);
+  assert.deepEqual(filled.map(([el, n]) => [el === first, n]), [[true, 1], [true, 2]], 'the same element, filled each time');
+  assert.equal(parent.kids[0], first);
 });

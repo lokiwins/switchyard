@@ -1,4 +1,5 @@
-import { copyButton, h, shellQuote, shortPath, timeAgo } from './dom.js';
+import { copyButton, h, shortPath } from './dom.js';
+import { filledItem, patchChildren, plainItem } from './keyed.js';
 import { editorLink, resumeButton } from './actions.js';
 import { sessionDetail, sessionTitle } from './session-text.js';
 import { graphLink } from './session-controls.js';
@@ -33,7 +34,7 @@ export function renderEndedRow(session, details = null, caps = null) {
     detail: sessionDetail(session),
     detailOpen: details?.isOpen(session.sessionId) ?? false,
     onDetailToggle: details ? () => details.toggle(session.sessionId) : null,
-    time: timeAgo(session.endedAt),
+    since: session.endedAt,
     timeHint: `Ended ${new Date(session.endedAt).toLocaleString()}`,
     actions: [
       taskLink(session.task),
@@ -53,17 +54,22 @@ export function renderEndedRow(session, details = null, caps = null) {
  * collapse behind a toggle unless `collapse` is off.
  */
 export function renderEnded(sessions, { expanded, onToggle, details = null, collapse = true, emptyText = null, caps = null }) {
-  if (sessions.length === 0) return emptyText ? [h('div', { class: 'empty' }, emptyText)] : [];
+  if (sessions.length === 0) return emptyText ? [plainItem('empty', emptyText, () => h('div', { class: 'empty' }, emptyText))] : [];
   const interrupted = sessions.filter((s) => s.needsAttention);
   const others = sessions.filter((s) => !s.needsAttention);
-  const row = (s) => renderEndedRow(s, details, caps);
-  if (!collapse) return [h('ul', { class: 'list' }, [...interrupted, ...others].map(row))];
+  // An ended session changes rarely; its row is built again only when it does (or its detail is opened).
+  const row = (s) => {
+    const open = details?.isOpen(s.sessionId) ?? false;
+    return plainItem(s.sessionId, JSON.stringify([s, open, caps]), () => renderEndedRow(s, details, caps));
+  };
+  const list = (shown) => filledItem('list', 'list', () => h('ul', { class: 'list' }), (ul) => patchChildren(ul, shown.map(row)));
+  if (!collapse) return [list([...interrupted, ...others])];
   const collapsedCount = Math.max(0, COLLAPSED_LIMIT - interrupted.length);
   const canCollapse = others.length > collapsedCount;
   const shownOthers = expanded ? others : others.slice(0, collapsedCount);
+  const toggleText = expanded ? 'Show fewer' : `Show ${others.length - collapsedCount} more`;
   return [
-    h('ul', { class: 'list' }, [...interrupted, ...shownOthers].map(row)),
-    canCollapse && h('button', { type: 'button', class: 'list-toggle', onclick: onToggle },
-      expanded ? 'Show fewer' : `Show ${others.length - collapsedCount} more`),
+    list([...interrupted, ...shownOthers]),
+    canCollapse && plainItem('toggle', toggleText, () => h('button', { type: 'button', class: 'list-toggle', onclick: onToggle }, toggleText)),
   ].filter(Boolean);
 }
