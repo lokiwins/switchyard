@@ -37,10 +37,10 @@ export function timeAgo(timestamp, now = Date.now()) {
 /** A "<prefix> 5m ago" label that refreshLiveTimes keeps current without re-rendering. */
 export function liveTime(timestamp, prefix = '', attrs = {}) {
   return h('span', {
+    title: timestamp ? new Date(timestamp).toLocaleString() : undefined,
     ...attrs,
     'data-since': timestamp ?? '',
     'data-prefix': prefix,
-    title: timestamp ? new Date(timestamp).toLocaleString() : undefined,
   }, `${prefix}${timeAgo(timestamp)}`);
 }
 

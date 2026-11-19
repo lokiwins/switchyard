@@ -60,3 +60,18 @@ export function patchChildren(parent, items) {
     if (!stay.has(i)) parent.insertBefore(nodes[i], nodes[i + 1] ?? null);
   }
 }
+
+/** An item whose element `make` creates empty and `update` fills, both when it's new and when it's kept. */
+export const filledItem = (key, sig, make, update) => ({
+  key,
+  sig,
+  build: () => {
+    const element = make();
+    update(element);
+    return element;
+  },
+  update,
+});
+
+/** An item for one element that stands alone, built again whenever `sig` changes. */
+export const plainItem = (key, sig, build) => ({ key, sig, build });

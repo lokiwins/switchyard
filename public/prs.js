@@ -1,4 +1,5 @@
 import { h, liveTime, readPref, refreshLiveTimes, toast, writePref } from './dom.js';
+import { patchChildren } from './keyed.js';
 import { applyNav, startNavBadges } from './nav.js';
 import {
   FILTERS, matchesQuery, prTiles, renderPrList, renderPrTiles, renderTeamList,
@@ -60,24 +61,25 @@ function render() {
   if (!data) return;
   renderStatus();
   renderErrors(data.errors);
-  $('tiles').replaceChildren(...renderPrTiles(prTiles(data), ui.filter, setFilter));
+  // Only what changed is built again (see keyed.js): an open menu or focus in a card that didn't change stays as it is.
+  patchChildren($('tiles'), renderPrTiles(prTiles(data), ui.filter, setFilter));
 
   const filtered = ui.filter === 'all' ? '' : ` matching “${FILTERS[ui.filter].label}”`;
-  $('authored').replaceChildren(...renderPrList(visible(data.authored), {
+  patchChildren($('authored'), renderPrList(visible(data.authored), {
     emptyText: data.authored.length ? `No PRs${filtered}.` : 'You have no open pull requests.',
     showAuthor: false,
     onCopilot: requestCopilotReview,
     caps: data.capabilities,
   }));
   $('review-count').textContent = `${data.reviewRequested.length} open`;
-  $('review').replaceChildren(...renderPrList(visible(data.reviewRequested), {
+  patchChildren($('review'), renderPrList(visible(data.reviewRequested), {
     emptyText: data.reviewRequested.length ? `No review requests${filtered}.` : 'No one is waiting on your review.',
     showAuthor: true,
     caps: data.capabilities,
   }));
   const team = data.teamReviewRequested.filter((pr) => matchesQuery(pr, ui.query));
   $('team-count').textContent = `${team.length} open`;
-  $('team').replaceChildren(...renderTeamList(team));
+  patchChildren($('team'), renderTeamList(team));
 }
 
 /** "● Live · GitHub checked 12s ago" while the stream is connected. */

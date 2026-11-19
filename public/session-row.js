@@ -1,4 +1,4 @@
-import { h } from './dom.js';
+import { h, liveTime } from './dom.js';
 
 /** A small status badge, optionally led by a status dot. */
 export function statusBadge({ tone = '', dot = null, label, hint }) {
@@ -12,19 +12,36 @@ export function statusBadge({ tone = '', dot = null, label, hint }) {
  * the same way: status, who/where, what it's doing or said, time, actions.
  */
 export function sessionRow({
-  badge, title, titleHint, where, detail, note = null, time, timeHint, actions, className, detailOpen = false, onDetailToggle = null,
+  badge, title, titleHint, where, detail, note = null, since, timeHint, actions, className, detailOpen = false, onDetailToggle = null,
 }) {
-  const detailLine = renderDetail(detail, { open: detailOpen, onToggle: onDetailToggle });
-  return h('li', { class: ['list-row', className].filter(Boolean).join(' ') },
+  return h('li', { class: rowClass(className) },
     badge,
-    h('div', { class: 'row-who' },
-      h('span', { class: 'row-title', title: titleHint ?? title }, title),
-      where && h('span', { class: 'row-where' }, where)),
-    // A note goes on its own line under the detail, as the folder does under the title.
-    note ? h('div', { class: 'row-detail-cell' }, detailLine, h('span', { class: 'row-note', title: note }, note)) : detailLine,
-    h('span', { class: 'row-time', title: timeHint }, time),
-    h('div', { class: 'actions' }, actions));
+    rowWho({ title, titleHint, where }),
+    rowDetail({ detail, note, open: detailOpen, onToggle: onDetailToggle }),
+    rowTime({ since, hint: timeHint }),
+    rowActions(actions));
 }
+
+/* The parts of a row, for a page that keeps the parts that didn't change (see row-parts.js). */
+
+export const rowClass = (className) => ['list-row', className].filter(Boolean).join(' ');
+
+export function rowWho({ title, titleHint, where }) {
+  return h('div', { class: 'row-who' },
+    h('span', { class: 'row-title', title: titleHint ?? title }, title),
+    where && h('span', { class: 'row-where' }, where));
+}
+
+export function rowDetail({ detail, note = null, open = false, onToggle = null }) {
+  const detailLine = renderDetail(detail, { open, onToggle });
+  // A note goes on its own line under the detail, as the folder does under the title.
+  return note ? h('div', { class: 'row-detail-cell' }, detailLine, h('span', { class: 'row-note', title: note }, note)) : detailLine;
+}
+
+/** "5m ago", kept current by the page's clock (refreshLiveTimes) rather than by drawing the row again. */
+export const rowTime = ({ since, hint }) => liveTime(since, '', { class: 'row-time', title: hint });
+
+export const rowActions = (actions) => h('div', { class: 'actions' }, actions);
 
 /** A session's one-line detail; with onToggle it becomes a button that expands it in place. */
 function renderDetail(detail, { open, onToggle }) {

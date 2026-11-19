@@ -60,6 +60,7 @@ export const STATIC_FILES = {
   '/views.js': 'views.js',
   '/worktree-age.js': 'worktree-age.js',
   '/keyed.js': 'keyed.js',
+  '/row-parts.js': 'row-parts.js',
   '/styles.css': 'styles.css',
   '/themes.css': 'themes.css',
   // Sent with the Settings default filled in (see theme-boot.js), not as it is on disk.
