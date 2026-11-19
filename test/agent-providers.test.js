@@ -115,3 +115,13 @@ test('Settings choose the default provider and turn providers off: an off one is
   assert.equal(agents.default.id, 'alpha');
   assert.deepEqual((await agents.liveSessions()).map((s) => s.sessionId), ['a1', 'b1']);
 });
+
+test('Claude can start with an MCP config file and a settings file, given after the task so no option swallows it', () => {
+  const claude = createClaudeProvider({ claudeDir: '/nowhere' });
+  assert.equal(claude.takesMcpConfig, true);
+  // --mcp-config takes several values: it comes last, so nothing after it is read as one more config.
+  assert.equal(
+    claude.launchCommand('Lead it', { mcpConfig: '/c/leads/sy-abc123.mcp.json', settings: '/c/leads/sy-abc123.settings.json' }),
+    "claude 'Lead it' --settings '/c/leads/sy-abc123.settings.json' --mcp-config '/c/leads/sy-abc123.mcp.json'",
+  );
+});

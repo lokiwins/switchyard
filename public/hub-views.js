@@ -235,6 +235,7 @@ const REPO_PREF = 'switchyard.newTaskRepo';
  * Start ▾: pick the repo, then Start: the agent on the task in a new
  * worktree, in the switchyard tmux session. A subtask offers its parent's
  * repo first, where it starts from the parent's branch (see src/hub-start.js).
+ * A top-level task can start as lead, able to start workers on its subtasks.
  */
 function startMenu(task, { repos, actions, parent }) {
   const sorted = [...repos].sort((a, b) => a.name.localeCompare(b.name));
@@ -246,14 +247,19 @@ function startMenu(task, { repos, actions, parent }) {
     onsubmit: async (event) => {
       event.preventDefault();
       const repo = form.elements.repo.value;
+      const lead = Boolean(form.elements.lead?.checked);
       writePref(REPO_PREF, repo);
       closeDropdown(form);
-      await actions.start(currentTask(task), repo);
+      await actions.start(currentTask(task), repo, { lead });
     },
   },
   h('label', { class: 'task-field' }, h('span', {}, 'Repository'),
     h('select', { name: 'repo', required: true }, sorted.map((r) => h('option', { value: r.mainPath, selected: r.mainPath === remembered }, r.name)))),
   parentWork && h('p', { class: 'reply-hint' }, 'In ', h('strong', {}, parentWork.repoName), ' it starts from ', h('code', {}, parentWork.branch), ', its parent\'s branch, so its work can be merged back there.'),
+  // Only a top-level task leads: its workers are its subtasks, one level deep.
+  !task.parentId && h('label', { class: 'task-check' },
+    h('input', { type: 'checkbox', name: 'lead' }),
+    h('span', {}, h('strong', {}, 'Start as lead'), ': Claude can start workers on subtasks of this task with switchyard\'s tools, and asks you before using them.')),
   h('div', { class: 'task-actions' },
     h('p', { class: 'reply-hint' }, 'Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session.'),
     h('button', { type: 'submit', class: 'btn btn-sm' }, 'Start')));

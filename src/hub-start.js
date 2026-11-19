@@ -20,10 +20,15 @@ export function branchForHubTask(task) {
   return `${key}-${branchFromTask(task.title)}`;
 }
 
-/** What Claude is told: the title, the notes on one line, then the ticket links to read. */
-export function promptForHubTask(task) {
+// What a lead is told besides its task; the tools' own descriptions say the rest.
+const LEAD_NOTE = 'You lead this task: you can hand parts of it to worker agents with switchyard\'s start_worker tool '
+  + '(each gets a subtask of this task, with its own worktree and branch off yours) and check on them with list_workers. '
+  + 'Merge their branches into yours when they are done.';
+
+/** What Claude is told: the title, the notes on one line, then the ticket links to read; and, for a lead, that it leads. */
+export function promptForHubTask(task, { lead = false } = {}) {
   const notes = task.notes.split(/\s*\n\s*/).filter(Boolean).join(' ');
-  const parts = [task.title, notes, task.links.length > 0 && `Tickets: ${task.links.join(' ')}`].filter(Boolean);
+  const parts = [task.title, notes, task.links.length > 0 && `Tickets: ${task.links.join(' ')}`, lead && LEAD_NOTE].filter(Boolean);
   const prompt = parts.join('. ').replace(/\.\.\s/g, '. ');
   if (prompt.length > MAX_PROMPT) throw new ActionError(400, `The task, its notes and links come to more than ${MAX_PROMPT} characters; shorten the notes to start it`);
   return prompt;
@@ -37,28 +42,43 @@ function parentBranch(tasks, task, repos, repoPath) {
   return taskWorktrees(parent, [repo])[0]?.worktree.branch ?? null;
 }
 
+/** Whether to start as the task's lead: true, or false when left out. Only a top-level task leads. */
+function parseLead(body, task) {
+  const lead = body.lead ?? false;
+  if (typeof lead !== 'boolean') throw new ActionError(400, 'Expected lead to be true or false');
+  if (lead && task.parentId) throw new ActionError(400, 'A subtask can\'t lead: workers are one level deep');
+  return lead;
+}
+
 /**
  * @param {{ taskHub: { list }, newTask: { startTask }, rediscover?: () => Promise<unknown>,
- *   getRepos?: () => Promise<object[]> }} deps `getRepos()` gives the repos and their worktrees, to find a parent's branch.
+ *   getRepos?: () => Promise<object[]>, writeLeadConfig?: (taskId: string) => Promise<string> }} deps
+ *   `getRepos()` gives the repos and their worktrees, to find a parent's branch; `writeLeadConfig(id)` writes
+ *   the files a lead starts with and gives their paths, { mcpConfig, settings } (see lead-access.js).
  */
 export function createHubStarter({
-  taskHub, newTask, rediscover = async () => {}, getRepos = async () => [],
+  taskHub, newTask, rediscover = async () => {}, getRepos = async () => [], writeLeadConfig = null,
 }) {
   return {
+    /** Start a task; with `lead`, as its lead, able to start workers through switchyard's MCP tools. */
     async start(body) {
       const tasks = await taskHub.list();
       const task = tasks.find((t) => t.id === body?.id);
       if (!task) throw new ActionError(404, 'That task is not there any more');
       if (task.closedAs) throw new ActionError(409, `That task is ${task.closedAs}; Reopen it to start it`);
+      const lead = parseLead(body, task);
+      if (lead && !writeLeadConfig) throw new ActionError(501, 'Starting as lead is not set up');
       // A subtask started in its parent's repo begins from the parent's branch, so its work can be merged back there.
       const base = task.parentId ? parentBranch(tasks, task, await getRepos(), body.repo) : null;
+      const prompt = promptForHubTask(task, { lead });
+      const options = lead ? await writeLeadConfig(task.id) : {};
       const started = await newTask.startTask({
         repo: body.repo,
         branch: branchForHubTask(task),
-        prompt: promptForHubTask(task),
+        prompt,
         ...(body.provider !== undefined ? { provider: body.provider } : {}),
         ...(base ? { base } : {}),
-      });
+      }, options);
       // The repo list is cached for a minute; look again now so the new worktree shows under the task.
       await rediscover().catch(() => {});
       return started;

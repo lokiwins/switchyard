@@ -93,8 +93,15 @@ export function createClaudeProvider({
     const path = program.startsWith('~/') ? join(home, program.slice(2)) : program;
     return [path, ...options].join(' ');
   }
-  /** Start Claude Code, on `prompt` when given (quoted even when it looks safe: zsh expands a leading "="). */
-  const launchCommand = (prompt) => (prompt ? `${run()} ${shellQuoteAlways(prompt)}` : run());
+  /**
+   * Start Claude Code, on `prompt` when given (quoted even when it looks safe: zsh expands a leading "="),
+   * with a settings file and an MCP config file when given. Those come after the task, the MCP config last:
+   * --mcp-config takes several values, so anything after it would be read as one more.
+   */
+  const launchCommand = (prompt, { mcpConfig, settings } = {}) => [
+    run(), prompt && shellQuoteAlways(prompt),
+    settings && `--settings ${shellQuoteAlways(settings)}`, mcpConfig && `--mcp-config ${shellQuoteAlways(mcpConfig)}`,
+  ].filter(Boolean).join(' ');
   /** Resume one of its sessions, from the folder it ran in. */
   const resumeInPlace = (sessionId) => `${run()} --resume ${sessionId}`;
   const resumeHere = (cwd, sessionId) => resumeCommand(cwd, sessionId, run());
@@ -244,6 +251,8 @@ export function createClaudeProvider({
       return basename(settings().program);
     },
     launchCommand,
+    // A lead (see hub-start.js) is started with switchyard's MCP config and settings.
+    takesMcpConfig: true,
     resumeCommand: resumeInPlace,
     liveSessions,
     latestSession,
