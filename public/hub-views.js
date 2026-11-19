@@ -188,6 +188,7 @@ function taskMenu(task, actions) {
     },
   }, h('span', { class: 'menu-title' }, label));
   const closed = task.closedAs;
+  const subtasks = task.subtasks?.length ?? 0;
   const remove = h('button', {
     type: 'button',
     class: 'menu-item',
@@ -197,7 +198,7 @@ function taskMenu(task, actions) {
       const button = event.currentTarget;
       if (!button.dataset.confirm) {
         button.dataset.confirm = 'yes';
-        button.querySelector('.menu-title').textContent = 'Click again to delete';
+        button.querySelector('.menu-title').textContent = subtasks > 0 ? `Click again to delete it and its ${subtasks === 1 ? 'subtask' : `${subtasks} subtasks`}` : 'Click again to delete';
         return;
       }
       closeDropdown(button);
@@ -211,6 +212,8 @@ function taskMenu(task, actions) {
         ? item('Mark done anyway (check failed)', `Its latest check failed. Done anyway, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(task, 'done'))
         : item('Mark done', `Done, without a merged PR to say so. ${PUTS_AWAY}`, () => actions.close(task, 'done')),
       item('Drop', `Not doing it after all. ${PUTS_AWAY}`, () => actions.close(task, 'dropped')),
+      // One level deep: a subtask has none of its own.
+      !task.parentId && item('Add subtask…', 'A task of its own under this one, with its own worktree, branched from this task\'s branch', () => actions.addSubtask(task)),
     ],
     remove);
 }
@@ -218,10 +221,16 @@ function taskMenu(task, actions) {
 // The repo you last started a task in, shared with New task on the Agents page.
 const REPO_PREF = 'switchyard.newTaskRepo';
 
-/** Start ▾: pick the repo, then Start: the agent on the task in a new worktree, in the switchyard tmux session. */
-function startMenu(task, { repos, actions }) {
+/**
+ * Start ▾: pick the repo, then Start: the agent on the task in a new
+ * worktree, in the switchyard tmux session. A subtask offers its parent's
+ * repo first, where it starts from the parent's branch (see src/hub-start.js).
+ */
+function startMenu(task, { repos, actions, parent }) {
   const sorted = [...repos].sort((a, b) => a.name.localeCompare(b.name));
-  const remembered = readPref(REPO_PREF, null);
+  const parentWork = parent?.work.find((w) => w.branch && sorted.some((r) => r.name === w.repoName)) ?? null;
+  const parentRepo = parentWork && sorted.find((r) => r.name === parentWork.repoName).mainPath;
+  const remembered = parentRepo ?? readPref(REPO_PREF, null);
   const form = h('form', {
     class: 'task-form',
     onsubmit: async (event) => {
@@ -234,6 +243,7 @@ function startMenu(task, { repos, actions }) {
   },
   h('label', { class: 'task-field' }, h('span', {}, 'Repository'),
     h('select', { name: 'repo', required: true }, sorted.map((r) => h('option', { value: r.mainPath, selected: r.mainPath === remembered }, r.name)))),
+  parentWork && h('p', { class: 'reply-hint' }, 'In ', h('strong', {}, parentWork.repoName), ' it starts from ', h('code', {}, parentWork.branch), ', its parent\'s branch, so its work can be merged back there.'),
   h('div', { class: 'task-actions' },
     h('p', { class: 'reply-hint' }, 'Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session.'),
     h('button', { type: 'submit', class: 'btn btn-sm' }, 'Start')));
@@ -279,7 +289,8 @@ function taskRow(task, context) {
     detailLine(task),
     h('span', { class: `task-due${due?.tone ? ` ${due.tone}` : ''}` }, due?.text ?? ''),
     h('div', { class: 'actions' }, rowActions(task, context)),
-    task.work.length > 0 && h('div', { class: 'task-links', 'aria-label': 'Work on this task' }, task.work.map((link) => linkLine(link, caps, approvals, { onRunCheck: context.actions.runCheck }))));
+    task.work.length > 0 && h('div', { class: 'task-links', 'aria-label': 'Work on this task' }, task.work.map((link) => linkLine(link, caps, approvals, { onRunCheck: context.actions.runCheck }))),
+    task.subtasks?.length > 0 && h('ul', { class: 'subtasks', 'aria-label': `Subtasks of ${task.title}` }, task.subtasks.map((sub) => taskRow(sub, { ...context, parent: task }))));
 }
 
 /** The groups, each a heading and its tasks; Done is folded away until opened. */

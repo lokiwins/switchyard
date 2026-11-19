@@ -47,8 +47,8 @@ function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths =
 const rejectsWith = (promise, status) => assert.rejects(promise, (error) => error.status === status);
 
 test('parseNewTask takes a repo, a one-line task and an optional branch', () => {
-  assert.deepEqual(parseNewTask({ repo: MAIN, branch: ' fix/login ', prompt: ' Fix the login bug ' }), { repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug', provider: null });
-  assert.deepEqual(parseNewTask({ repo: MAIN, branch: '  ', prompt: 'Fix it' }), { repo: MAIN, branch: null, prompt: 'Fix it', provider: null });
+  assert.deepEqual(parseNewTask({ repo: MAIN, branch: ' fix/login ', prompt: ' Fix the login bug ' }), { repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug', provider: null, base: null });
+  assert.deepEqual(parseNewTask({ repo: MAIN, branch: '  ', prompt: 'Fix it' }), { repo: MAIN, branch: null, prompt: 'Fix it', provider: null, base: null });
   assert.equal(parseNewTask({ repo: MAIN, prompt: 'Fix it' }).branch, null);
 });
 
@@ -101,7 +101,7 @@ test('startTask refuses an agent it does not know, before making anything', asyn
 
 test('startTask creates a branch from the default branch, a worktree, and a switchyard tmux window running claude', async () => {
   const { tasks, calls } = setup();
-  const result = await tasks.startTask({ repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug', provider: null });
+  const result = await tasks.startTask({ repo: MAIN, branch: 'fix/login', prompt: 'Fix the login bug', provider: null, base: null });
   assert.deepEqual(result, { path: '/w/my-repo-login', branch: 'fix/login', session: 'switchyard', window: 'my-repo-login', provider: 'claude' });
   assert.deepEqual(calls.filter(([kind, , , command]) => kind !== 'git' || command === 'fetch' || command === 'worktree'), [
     ['git', '-C', MAIN, 'fetch', '--quiet', 'origin', 'main'],
@@ -209,4 +209,19 @@ test('a task that fails to start is not watched', async () => {
   const { tasks, calls } = setup({ failTmux: 'type' });
   await rejectsWith(tasks.startTask({ repo: MAIN, branch: 'b', prompt: 'p' }), 502);
   assert.equal(calls.some(([kind]) => kind === 'track'), false);
+});
+
+test('startTask can branch from a given local branch (a subtask from its parent\'s), without fetching', async () => {
+  const { tasks, calls } = setup({ refs: { 'refs/heads/sy-parent-cart': true } });
+  await tasks.startTask({ repo: MAIN, branch: 'sy-child-totals', prompt: 'Fix the totals', base: 'sy-parent-cart' });
+  assert.ok(calls.some((call) => call.join(' ') === `git -C ${MAIN} worktree add --no-track -b sy-child-totals /w/my-repo-sy-child-totals sy-parent-cart`), calls.map((c) => c.join(' ')).join('\n'));
+  assert.equal(calls.some((call) => call.includes('fetch')), false);
+});
+
+test('startTask refuses a base branch that is not there, or not a branch name', async () => {
+  const { tasks, calls } = setup();
+  await rejectsWith(tasks.startTask({ repo: MAIN, branch: 'b', prompt: 'Fix it', base: 'sy-parent-cart' }), 409);
+  assert.equal(calls.some(([kind, , , command]) => kind === 'new-window' || command === 'worktree'), false);
+  assert.throws(() => parseNewTask({ repo: MAIN, prompt: 'Fix it', base: '-x' }), (e) => e.status === 400);
+  assert.throws(() => parseNewTask({ repo: MAIN, prompt: 'Fix it', base: 42 }), (e) => e.status === 400);
 });

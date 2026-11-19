@@ -141,3 +141,41 @@ test('an update keeps where the task is attached', async () => {
   const updated = await hub.update({ id: task.id, title: 'Kept' });
   assert.deepEqual(updated.attached, [{ repo: '/code/shop', branch: 'feat/a' }]);
 });
+
+test('a subtask names its parent; the parent must be there, open, and not a subtask itself', async () => {
+  const { hub } = setup();
+  const parent = await hub.create({ title: 'Ship the cart' });
+  const child = await hub.create({ title: 'Fix the totals', parentId: parent.id });
+  assert.equal(child.parentId, parent.id);
+  await rejectsWith(hub.create({ title: 'Grandchild', parentId: child.id }), 400, /subtask/);
+  await rejectsWith(hub.create({ title: 'Orphan', parentId: 'sy-gone00' }), 404);
+  await rejectsWith(hub.create({ title: 'Bad', parentId: 42 }), 400);
+  await hub.close({ id: parent.id, as: 'done' });
+  await rejectsWith(hub.create({ title: 'Late', parentId: parent.id }), 409, /done/);
+  // An update never moves a task to another parent.
+  const updated = await hub.update({ id: child.id, title: 'Fix the totals again', parentId: null });
+  assert.equal(updated.parentId, parent.id);
+});
+
+test('closing a task closes its open subtasks the same way, and says which', async () => {
+  const { hub } = setup();
+  const parent = await hub.create({ title: 'Ship the cart' });
+  const open = await hub.create({ title: 'Fix the totals', parentId: parent.id });
+  const done = await hub.create({ title: 'Add tax', parentId: parent.id });
+  await hub.close({ id: done.id, as: 'done' });
+  const closed = await hub.closeWithSubtasks({ id: parent.id, as: 'dropped' });
+  assert.deepEqual(closed.map((t) => [t.id, t.closedAs]), [[parent.id, 'dropped'], [open.id, 'dropped']]);
+  const byId = Object.fromEntries((await hub.list()).map((t) => [t.id, t.closedAs]));
+  assert.deepEqual([byId[open.id], byId[done.id]], ['dropped', 'done'], 'a subtask already closed keeps how it closed');
+});
+
+test('deleting a task deletes its subtasks, and says which', async () => {
+  const { hub } = setup();
+  const parent = await hub.create({ title: 'Ship the cart' });
+  const child = await hub.create({ title: 'Fix the totals', parentId: parent.id });
+  const other = await hub.create({ title: 'Unrelated' });
+  const removed = await hub.removeWithSubtasks({ id: parent.id });
+  assert.deepEqual(removed.map((t) => t.id).sort(), [parent.id, child.id].sort());
+  assert.deepEqual((await hub.list()).map((t) => t.id), [other.id]);
+  await rejectsWith(hub.removeWithSubtasks({ id: parent.id }), 404);
+});

@@ -20,9 +20,10 @@ const NO_PROMPT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
 const runGit = (args, options) => run('git', args, options);
 
 /**
- * { repo, branch, prompt, provider } from the New task form. The task is
- * required; the branch, null when left empty, and the agent provider's id,
- * null for the default, are optional.
+ * { repo, branch, prompt, provider, base } from the New task form. The task
+ * is required; the branch, null when left empty, the agent provider's id,
+ * null for the default, and the local branch to start from (a subtask's
+ * parent's), null for the default branch, are optional.
  */
 export function parseNewTask(body) {
   const repo = body?.repo;
@@ -37,7 +38,11 @@ export function parseNewTask(body) {
     throw new ActionError(400, 'A branch name uses letters, digits, ".", "_", "-" and "/", and cannot start with "-"');
   }
   if (body.provider !== undefined && body.provider !== null && typeof body.provider !== 'string') throw new ActionError(400, 'Expected provider to be an agent id');
-  return { repo, branch: branch || null, prompt, provider: body.provider ?? null };
+  const base = body.base ?? null;
+  if (base !== null && (typeof base !== 'string' || !BRANCH_PATTERN.test(base))) throw new ActionError(400, 'The branch to start from must be a branch name');
+  return {
+    repo, branch: branch || null, prompt, provider: body.provider ?? null, base,
+  };
 }
 
 /** Beside the main checkout, named <repo>-<last branch segment>, like "my-repo-login-bug" for "fix/login-bug". */
@@ -86,18 +91,18 @@ export function createTaskService({
     }
   }
 
-  async function addWorktree(dir, path, branch) {
-    await gitIn(dir, ['worktree', 'add', ...await worktreeArgs(dir, path, branch)]).catch((error) => {
+  async function addWorktree(dir, path, branch, base) {
+    await gitIn(dir, ['worktree', 'add', ...await worktreeArgs(dir, path, branch, base)]).catch((error) => {
       throw new ActionError(409, `Could not create the worktree: ${error.message}`);
     });
   }
 
-  /** Check out your branch; else track origin's branch of that name; else branch from the default branch. */
-  async function worktreeArgs(dir, path, branch) {
+  /** Check out your branch; else track origin's branch of that name; else branch from `base` (a local branch) or the default branch. */
+  async function worktreeArgs(dir, path, branch, base) {
     if (await refExists(dir, `refs/heads/${branch}`)) return [path, branch];
     if (await refExists(dir, `refs/remotes/origin/${branch}`)) return ['--track', '-b', branch, path, `origin/${branch}`];
-    // --no-track: a branch made from origin/main must not push to main.
-    return ['--no-track', '-b', branch, path, await baseRef(dir)];
+    // --no-track: a branch made from origin/main (or another task's branch) must not push to it.
+    return ['--no-track', '-b', branch, path, base ?? await baseRef(dir)];
   }
 
   /** Whether a new task could use `branch`: no such branch here or on origin, and no folder or tab of its name. */
@@ -135,7 +140,9 @@ export function createTaskService({
   }
 
   async function startTask(body) {
-    const { repo: mainPath, branch: chosen, prompt, provider: providerId } = parseNewTask(body);
+    const {
+      repo: mainPath, branch: chosen, prompt, provider: providerId, base,
+    } = parseNewTask(body);
     const provider = providerId === null ? agents.default : agents.get(providerId);
     const state = await stateService.getState();
     const repo = state.repos.find((r) => r.mainPath === mainPath);
@@ -146,8 +153,9 @@ export function createTaskService({
     if (exists(path)) throw new ActionError(409, `${path} already exists`);
     const window = windowNameFor(basename(path));
     if (await tmux.hasWindow(TASK_SESSION, window)) throw new ActionError(409, `The ${TASK_SESSION} tmux session already has a window named ${window}`);
+    if (base && !await refExists(mainPath, `refs/heads/${base}`)) throw new ActionError(409, `The branch to start from, ${base}, isn't in ${repo.name}`);
 
-    await addWorktree(mainPath, path, branch);
+    await addWorktree(mainPath, path, branch, base);
     const started = await startAgent(provider, mainPath, path, window, prompt);
     // Watched until its session shows up: it may first ask whether to trust the folder, or quit.
     starts.track({ path, place: started.place, pane: started.pane, command: provider.command });

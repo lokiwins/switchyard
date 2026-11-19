@@ -659,6 +659,9 @@ details.hub-group[open] > summary::before { content: "▾"; }
 .task-link-where .mono { color: var(--gray-700); }
 .task-link-pr.is-closed { color: var(--gray-500); text-decoration: line-through; }
 .task-link .actions { margin-left: auto; flex-shrink: 0; }
+/* A task's subtasks, nested under its row: each a row of its own, set in with a rule down the side. */
+.subtasks { grid-column: 1 / -1; margin: var(--space-2) 0 0 var(--space-6, 24px); padding: 0 0 0 var(--space-3); list-style: none; border-left: 2px solid var(--gray-200); }
+.subtasks > .hub-row { padding-top: var(--space-2); padding-bottom: var(--space-2); }
 /* A worktree's check (see check-view.js): its result, opened to show the end of its output. */
 .check-status { font-size: var(--text-xs); min-width: 0; }
 .check-status > summary { display: inline-block; cursor: pointer; white-space: nowrap; list-style: none; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }

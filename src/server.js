@@ -163,21 +163,34 @@ async function workPutAway({ stateService }, { removed = [] } = {}) {
   stateService.sessionsRemoved();
 }
 
-/** Done or dropped: the task's sessions end, come off the lists, and its worktrees go (see task-cleanup.js). */
-async function closeHubTask(services, body) {
-  const task = await services.taskHub.close(body);
-  const cleanup = await services.taskCleanup.afterClose(task);
-  await workPutAway(services, cleanup);
-  return { ...task, cleanup };
+/** Put away each task's work (see task-cleanup.js), as one summary of what happened. */
+async function putAwayAll({ taskCleanup }, tasks) {
+  const all = { ended: [], hidden: 0, removed: [], choices: [], errors: [] };
+  for (const task of tasks) {
+    const one = await taskCleanup.afterClose(task);
+    all.ended.push(...one.ended);
+    all.hidden += one.hidden;
+    all.removed.push(...one.removed);
+    all.choices.push(...one.choices);
+    all.errors.push(...one.errors);
+  }
+  return all;
 }
 
-/** Deleted: its work is put away as when it's closed, found while the task is still there. */
+/** Done or dropped: the task and its open subtasks close; their sessions end, come off the lists, and their worktrees go. */
+async function closeHubTask(services, body) {
+  const [task, ...subtasks] = await services.taskHub.closeWithSubtasks(body);
+  const cleanup = await putAwayAll(services, [task, ...subtasks]);
+  await workPutAway(services, cleanup);
+  return { ...task, subtasksClosed: subtasks.length, cleanup };
+}
+
+/** Deleted, with its subtasks: their work is put away as when they're closed, found while the tasks are still there. */
 async function deleteHubTask(services, body) {
-  const task = (await services.taskHub.list()).find((t) => t.id === body?.id);
-  const result = await services.taskHub.remove(body);
-  const cleanup = task ? await services.taskCleanup.afterClose(task) : null;
-  await workPutAway(services, cleanup ?? undefined);
-  return { ...result, cleanup };
+  const removed = await services.taskHub.removeWithSubtasks(body);
+  const cleanup = await putAwayAll(services, removed);
+  await workPutAway(services, cleanup);
+  return { removed: body.id, subtasksRemoved: removed.length - 1, cleanup };
 }
 
 /** Keep or Delete for a worktree a closed task left waiting. */
@@ -691,7 +704,9 @@ async function main() {
   const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }), github: githubIssues });
   const taskHub = createTaskHub();
   const ticketDetails = createTicketDetails({ taskTools, github: githubIssues });
-  const hubStarter = createHubStarter({ taskHub, newTask: tasks, rediscover: stateService.rediscover });
+  const hubStarter = createHubStarter({
+    taskHub, newTask: tasks, rediscover: stateService.rediscover, getRepos: () => stateService.getSessions({ force: true }).then((s) => s.repos),
+  });
   const taskSources = createTaskSources({
     claudeDir: config.claudeDir, getState: stateService.getSessions, isLongLivedBranch: (branch) => config.settings.git.isLongLivedBranch(branch),
   });

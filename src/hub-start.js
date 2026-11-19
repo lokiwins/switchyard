@@ -1,6 +1,6 @@
 import { branchFromTask } from '../public/branch-name.js';
 import { ActionError } from './errors.js';
-import { ticketKeys } from './task-links.js';
+import { taskWorktrees, ticketKeys } from './task-links.js';
 
 /*
  * Start on one of your tasks: New task (see tasks.js) in the repo you choose,
@@ -29,18 +29,35 @@ export function promptForHubTask(task) {
   return prompt;
 }
 
-/** @param {{ taskHub: { list }, newTask: { startTask }, rediscover?: () => Promise<unknown> }} deps */
-export function createHubStarter({ taskHub, newTask, rediscover = async () => {} }) {
+/** The parent's branch in `repo`, for a subtask started there to begin from; null when it has none there. */
+function parentBranch(tasks, task, repos, repoPath) {
+  const parent = task.parentId ? tasks.find((t) => t.id === task.parentId) : null;
+  const repo = repos.find((r) => r.mainPath === repoPath);
+  if (!parent || !repo) return null;
+  return taskWorktrees(parent, [repo])[0]?.worktree.branch ?? null;
+}
+
+/**
+ * @param {{ taskHub: { list }, newTask: { startTask }, rediscover?: () => Promise<unknown>,
+ *   getRepos?: () => Promise<object[]> }} deps `getRepos()` gives the repos and their worktrees, to find a parent's branch.
+ */
+export function createHubStarter({
+  taskHub, newTask, rediscover = async () => {}, getRepos = async () => [],
+}) {
   return {
     async start(body) {
-      const task = (await taskHub.list()).find((t) => t.id === body?.id);
+      const tasks = await taskHub.list();
+      const task = tasks.find((t) => t.id === body?.id);
       if (!task) throw new ActionError(404, 'That task is not there any more');
       if (task.closedAs) throw new ActionError(409, `That task is ${task.closedAs}; Reopen it to start it`);
+      // A subtask started in its parent's repo begins from the parent's branch, so its work can be merged back there.
+      const base = task.parentId ? parentBranch(tasks, task, await getRepos(), body.repo) : null;
       const started = await newTask.startTask({
         repo: body.repo,
         branch: branchForHubTask(task),
         prompt: promptForHubTask(task),
         ...(body.provider !== undefined ? { provider: body.provider } : {}),
+        ...(base ? { base } : {}),
       });
       // The repo list is cached for a minute; look again now so the new worktree shows under the task.
       await rediscover().catch(() => {});

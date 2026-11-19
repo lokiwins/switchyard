@@ -88,6 +88,13 @@ export function parseTaskFields(body, { partial = false } = {}) {
     .map(([field, parse]) => [field, parse(body[field])]));
 }
 
+/** A subtask's parent: there, open, and not a subtask itself (subtasks are one level deep). */
+function checkParent(parent) {
+  if (!parent) throw new ActionError(404, 'The task to add a subtask to is not there any more');
+  if (parent.closedAs) throw new ActionError(409, `That task is ${parent.closedAs}; Reopen it to add subtasks`);
+  if (parent.parentId) throw bad('A subtask can\'t have subtasks of its own');
+}
+
 const isTask = (task) => task && typeof task === 'object' && TASK_ID.pattern.test(task.id) && typeof task.title === 'string';
 
 /**
@@ -136,13 +143,16 @@ export function createTaskHub({ file = createJsonFile(defaultStoreDir(), FILE), 
      */
     async create(body, { attached = [] } = {}) {
       const fields = parseTaskFields(body);
+      const parentId = body.parentId ?? null;
+      if (parentId !== null && typeof parentId !== 'string') throw bad('Expected parentId to be a task id');
       return change((tasks) => {
+        if (parentId !== null) checkParent(tasks.find((t) => t.id === parentId));
         const ids = new Set(tasks.map((t) => t.id));
         let id = newId();
         while (ids.has(id)) id = newId();
         const time = now();
         const task = {
-          id, ...fields, ...(attached.length > 0 ? { attached } : {}), createdAt: time, updatedAt: time, closedAs: null, closedAt: null,
+          id, ...fields, ...(parentId ? { parentId } : {}), ...(attached.length > 0 ? { attached } : {}), createdAt: time, updatedAt: time, closedAs: null, closedAt: null,
         };
         return { tasks: [task, ...tasks], result: task };
       });
@@ -160,6 +170,31 @@ export function createTaskHub({ file = createJsonFile(defaultStoreDir(), FILE), 
     },
 
     reopen: (body) => edit(body, () => ({ closedAs: null, closedAt: null })),
+
+    /** Close a task, and its subtasks still open, the same way; resolves to them, the task first. */
+    closeWithSubtasks(body) {
+      if (!CLOSED_AS.has(body?.as)) throw bad('A task is closed as done or dropped');
+      return change((tasks) => {
+        const found = tasks.find((t) => t.id === body?.id);
+        if (!found) throw new ActionError(404, 'That task is not there any more');
+        const closing = new Set([found.id, ...tasks.filter((t) => t.parentId === found.id && !t.closedAs).map((t) => t.id)]);
+        const time = now();
+        const next = tasks.map((t) => (closing.has(t.id) ? { ...t, closedAs: body.as, closedAt: time, updatedAt: time } : t));
+        const closed = next.filter((t) => closing.has(t.id)).sort((a, b) => (a.id === found.id ? -1 : b.id === found.id ? 1 : 0));
+        return { tasks: next, result: closed };
+      });
+    },
+
+    /** Delete a task and its subtasks; resolves to them as they were. */
+    removeWithSubtasks(body) {
+      return change((tasks) => {
+        const found = tasks.find((t) => t.id === body?.id);
+        if (!found) throw new ActionError(404, 'That task is not there any more');
+        const going = tasks.filter((t) => t.id === found.id || t.parentId === found.id);
+        const ids = new Set(going.map((t) => t.id));
+        return { tasks: tasks.filter((t) => !ids.has(t.id)), result: going };
+      });
+    },
 
 
     /** Note when a task was first seen done by its merged PR (once), so done tasks can be deleted a while later. */

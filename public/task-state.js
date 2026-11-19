@@ -119,8 +119,15 @@ const byClosed = (a, b) => (b.closedAt ?? 0) - (a.closedAt ?? 0);
 /** The page's groups, in order, each with its tasks (carrying `state` and any `start`); groups with no tasks are left out. */
 export function groupTasks(tasks, now = Date.now(), starts = []) {
   const withState = tasks.map((task) => ({ ...task, state: taskState(task, starts), start: startOf(task, starts) }));
+  // Subtasks go under their parent (newest last, as they were added); one whose parent isn't listed stands on its own.
+  const listed = new Set(withState.map((task) => task.id));
+  const nested = (task) => Boolean(task.parentId) && listed.has(task.parentId);
+  const topLevel = withState.filter((task) => !nested(task)).map((task) => ({
+    ...task,
+    subtasks: withState.filter((sub) => sub.parentId === task.id).sort((a, b) => a.createdAt - b.createdAt),
+  }));
   return GROUPS.map((group) => {
-    const members = withState.filter((task) => groupOf(task, now) === group.key);
+    const members = topLevel.filter((task) => groupOf(task, now) === group.key);
     const order = group.key === 'done' ? byClosed : (a, b) => byDue(a, b) || byState(a, b) || byNewest(a, b);
     return { ...group, tasks: members.sort(order) };
   }).filter((group) => group.tasks.length > 0);
