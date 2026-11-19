@@ -15,7 +15,9 @@ const session = (overrides = {}) => ({ sessionId: 's-1', status: 'busy', needsYo
 const worktree = (path, branch, live = []) => ({ path, branch, isMain: false, agents: { live, recent: [] } });
 const repo = (name, worktrees = []) => ({ name, mainPath: `/code/${name}`, worktrees: [{ path: `/code/${name}`, branch: 'main', isMain: true }, ...worktrees] });
 
-function setup({ tasks = [hubTask(LEAD)], repos = [repo('shop', [worktree('/code/shop-lead', `${LEAD}-build-it`)]), repo('web')], failStart = false } = {}) {
+function setup({
+  tasks = [hubTask(LEAD)], repos = [repo('shop', [worktree('/code/shop-lead', `${LEAD}-build-it`)]), repo('web')], failStart = false, checks = {},
+} = {}) {
   let ids = 0;
   const taskHub = createTaskHub({ file: memoryFile({ tasks }), newId: () => `sy-wrk${String(ids += 1).padStart(3, '0')}` });
   const starts = [];
@@ -26,8 +28,17 @@ function setup({ tasks = [hubTask(LEAD)], repos = [repo('shop', [worktree('/code
       return { path: `/code/shop-${body.id}`, branch: `${body.id}-work`, window: 'shop-w' };
     },
   };
-  const tools = createLeadTools({ taskHub, hubStarter, getRepos: async () => repos });
-  return { tools, taskHub, starts };
+  const acted = [];
+  const actions = {
+    replyToSession: async (body) => { acted.push(['reply', body]); return { queued: false }; },
+    endSession: async (body) => { acted.push(['end', body]); return { ended: true }; },
+  };
+  const reports = [];
+  const gitReport = async (args) => { reports.push(args); return { base: args.base, commits: [], changes: null, uncommitted: [] }; };
+  const tools = createLeadTools({
+    taskHub, hubStarter, getRepos: async () => repos, actions, checkResults: async () => checks, gitReport,
+  });
+  return { tools, taskHub, starts, acted, reports };
 }
 
 test('start_worker adds a subtask under the lead\'s task and starts it in the lead\'s repo', async () => {
@@ -112,4 +123,75 @@ test('starts asked for at once still keep to the limit: they run one after anoth
   const results = await Promise.allSettled([lead.startWorker({ title: 'A' }), lead.startWorker({ title: 'B' })]);
   assert.deepEqual(results.map((r) => r.status), ['fulfilled', 'rejected']);
   assert.equal(starts.length, 1);
+});
+
+// A lead with a worker running in its repo, and a worker of another lead.
+function withWorkers({ live = [session({ sessionId: 'abc', status: 'idle', lastReply: null })], checks = {} } = {}) {
+  const tasks = [hubTask(LEAD), hubTask('sy-wrk001', { parentId: LEAD, title: 'Tests' }), hubTask('sy-other', { parentId: 'sy-else00' }), hubTask('sy-else00')];
+  const repos = [repo('shop', [
+    worktree('/code/shop-lead', `${LEAD}-build`),
+    worktree('/code/shop-tests', 'sy-wrk001-tests', live),
+    worktree('/code/shop-other', 'sy-other-x', [session({ sessionId: 'zzz' })]),
+  ])];
+  return setup({ tasks, repos, checks });
+}
+
+test('worker_status: its state, sessions with their last reply, and its work next to the lead\'s branch', async () => {
+  const live = [session({ sessionId: 'abc', status: 'idle', transcript: { lastReply: 'Tests written; 2 fail on rounding.', activity: null } })];
+  const { tools, reports } = withWorkers({ live, checks: { '/code/shop-tests': [{ name: 'test', state: 'failed', outOfDate: false, finishedAt: 5, trigger: 'manual', output: 'long…' }] } });
+  const status = await tools.forLead(LEAD).workerStatus({ id: 'sy-wrk001' });
+  assert.deepEqual(reports, [{ path: '/code/shop-tests', base: `${LEAD}-build` }]);
+  assert.deepEqual(status, {
+    id: 'sy-wrk001', title: 'Tests', state: 'idle', closedAs: null,
+    worktrees: [{
+      repo: 'shop', branch: 'sy-wrk001-tests', path: '/code/shop-tests',
+      sessions: [{ sessionId: 'abc', status: 'idle', needsYou: false, lastReply: 'Tests written; 2 fail on rounding.', activity: null }],
+      work: { base: `${LEAD}-build`, commits: [], changes: null, uncommitted: [] },
+      checks: [{ name: 'test', state: 'failed', outOfDate: false }],
+    }],
+  });
+});
+
+test('worker_status in a repo the lead has no branch in compares with nothing, saying so', async () => {
+  const tasks = [hubTask(LEAD), hubTask('sy-wrk001', { parentId: LEAD })];
+  const repos = [repo('shop', [worktree('/code/shop-lead', `${LEAD}-build`)]), repo('web', [worktree('/code/web-w', 'sy-wrk001-x')])];
+  const { tools, reports } = setup({ tasks, repos });
+  await tools.forLead(LEAD).workerStatus({ id: 'sy-wrk001' });
+  assert.deepEqual(reports, [{ path: '/code/web-w', base: null }]);
+});
+
+test('a lead can only see and act on its own workers', async () => {
+  const { tools, acted } = withWorkers();
+  const lead = tools.forLead(LEAD);
+  for (const call of [() => lead.workerStatus({ id: 'sy-other' }), () => lead.messageWorker({ id: 'sy-other', text: 'hi' }), () => lead.endWorker({ id: 'sy-other' }), () => lead.workerStatus({ id: LEAD })]) {
+    await assert.rejects(call(), (error) => error.status === 404 && /not one of your workers/.test(error.message));
+  }
+  assert.deepEqual(acted, []);
+});
+
+test('message_worker replies into the worker\'s running session, as Reply on the dashboard does', async () => {
+  const { tools, acted } = withWorkers();
+  const result = await tools.forLead(LEAD).messageWorker({ id: 'sy-wrk001', text: 'Round half up, then rerun.' });
+  assert.deepEqual(acted, [['reply', { sessionId: 'abc', text: 'Round half up, then rerun.' }]]);
+  assert.deepEqual(result, { sent: true, sessionId: 'abc', queued: false });
+});
+
+test('message_worker won\'t type over a prompt: that one is yours to answer', async () => {
+  const { tools, acted } = withWorkers({ live: [session({ sessionId: 'abc', status: 'idle', needsYou: true })] });
+  await assert.rejects(tools.forLead(LEAD).messageWorker({ id: 'sy-wrk001', text: 'Go on' }), (error) => error.status === 409 && /user/.test(error.message));
+  assert.deepEqual(acted, []);
+});
+
+test('message_worker and end_worker need a running session', async () => {
+  const { tools } = withWorkers({ live: [] });
+  await assert.rejects(tools.forLead(LEAD).messageWorker({ id: 'sy-wrk001', text: 'Go' }), (error) => error.status === 409 && /no running session/.test(error.message));
+  await assert.rejects(tools.forLead(LEAD).endWorker({ id: 'sy-wrk001' }), (error) => error.status === 409 && /no running session/.test(error.message));
+});
+
+test('end_worker ends its sessions and keeps its worktree, branch and subtask, so its work can still be merged', async () => {
+  const { tools, acted, taskHub } = withWorkers({ live: [session({ sessionId: 'abc' }), session({ sessionId: 'def' })] });
+  const result = await tools.forLead(LEAD).endWorker({ id: 'sy-wrk001' });
+  assert.deepEqual(acted, [['end', { sessionId: 'abc' }], ['end', { sessionId: 'def' }]]);
+  assert.deepEqual(result, { ended: ['abc', 'def'], kept: ['/code/shop-tests'] });
+  assert.equal((await taskHub.list()).find((t) => t.id === 'sy-wrk001').closedAs, null);
 });

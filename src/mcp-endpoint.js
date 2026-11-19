@@ -17,6 +17,8 @@ const VERSION = '1';
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_TITLE = 200;
 const MAX_NOTES = 10_000;
+// As long as a reply typed on the dashboard.
+const MAX_MESSAGE = 2000;
 
 const START_WORKER = {
   title: 'Start a worker',
@@ -36,6 +38,29 @@ const LIST_WORKERS = {
     + 'and its worktree, branch and sessions. "needs you" means it waits on the user (a permission prompt, say), not on you.',
 };
 
+const WORKER_ID = z.string().regex(/^sy-[a-z0-9]{6}$/).describe('The worker\'s id, from list_workers or start_worker');
+
+const WORKER_STATUS = {
+  title: 'Worker status',
+  description: 'One worker in detail: its state; each session\'s last reply and current activity; its commits not on your branch, '
+    + 'what they change, and what is not committed yet; and its check results. Use it to decide whether a worker is done, stuck or needs a nudge.',
+  inputSchema: z.object({ id: WORKER_ID }),
+};
+
+const MESSAGE_WORKER = {
+  title: 'Message a worker',
+  description: 'Type a message into a worker\'s running session, as if the user replied there: one line of plain text. If the worker is busy, '
+    + 'it reads it when its turn ends. Refused while the worker shows a question or permission prompt: those are the user\'s to answer.',
+  inputSchema: z.object({ id: WORKER_ID, text: z.string().trim().min(1).max(MAX_MESSAGE).describe('The message, one line') }),
+};
+
+const END_WORKER = {
+  title: 'End a worker',
+  description: 'End a worker\'s running session(s). Its worktree, branch and subtask stay, so you can still merge its work; '
+    + 'the user closes the subtask from the dashboard.',
+  inputSchema: z.object({ id: WORKER_ID }),
+};
+
 const text = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
 
 /** A tool's answer, or its refusal in words for the lead to read. */
@@ -52,6 +77,9 @@ function serverFor(tools) {
   const server = new McpServer({ name: 'switchyard', version: VERSION });
   server.registerTool('start_worker', START_WORKER, (args) => answer(() => tools.startWorker(args)));
   server.registerTool('list_workers', LIST_WORKERS, () => answer(() => tools.listWorkers()));
+  server.registerTool('worker_status', WORKER_STATUS, (args) => answer(() => tools.workerStatus(args)));
+  server.registerTool('message_worker', MESSAGE_WORKER, (args) => answer(() => tools.messageWorker(args)));
+  server.registerTool('end_worker', END_WORKER, (args) => answer(() => tools.endWorker(args)));
   return server;
 }
 
@@ -62,7 +90,8 @@ function refuse(res, status, error) {
 
 /**
  * @param {{ leadFrom: (authorization?: string) => Promise<string|null>,
- *   toolsFor: (leadId: string) => { startWorker: (args) => Promise<unknown>, listWorkers: () => Promise<unknown> } }} deps
+ *   toolsFor: (leadId: string) => { startWorker, listWorkers, workerStatus, messageWorker, endWorker } }} deps
+ *   `toolsFor(lead)` gives the lead's tools (see lead-tools.js), each resolving to what the lead is told.
  */
 export function createMcpEndpoint({ leadFrom, toolsFor }) {
   return {

@@ -1,13 +1,15 @@
 import { ActionError } from './errors.js';
 import { taskWorktrees } from './task-links.js';
+import { gitReport as readGitReport } from './worker-report.js';
 
 /*
  * What a lead's Claude can do through switchyard's MCP server (see
  * mcp-endpoint.js), for its own task only: start a worker, which is a
  * subtask of the lead's task, started like any task (its own worktree,
- * branched from the lead's branch, and session), and list its workers with
- * what each is doing. Prompts a worker shows stay on the dashboard for you;
- * the lead never answers them.
+ * branched from the lead's branch, and session); list its workers; see one
+ * worker's work in detail; message a worker; and end a worker's session.
+ * Prompts a worker shows stay on the dashboard for you; the lead never
+ * answers them, nor types over them.
  */
 
 // A safety limit until the running-agents cap in Settings: a lead in a loop can't fill the machine with sessions.
@@ -28,9 +30,26 @@ function checkLead(tasks, id) {
   const lead = tasks.find((t) => t.id === id);
   if (!lead) throw new ActionError(404, 'The lead\'s task is not there any more');
   if (lead.parentId) throw new ActionError(403, 'A subtask can\'t lead workers');
-  if (lead.closedAs) throw new ActionError(409, `The lead's task is ${lead.closedAs}; reopen it to start workers`);
+  if (lead.closedAs) throw new ActionError(409, `The lead's task is ${lead.closedAs}; reopen it to work with its workers`);
   return lead;
 }
+
+/** One of the lead's workers: a subtask of the lead's task. Anything else, the lead may not see or touch. */
+function ownWorker(tasks, lead, id) {
+  const worker = tasks.find((t) => t.id === id && t.parentId === lead.id);
+  if (!worker) throw new ActionError(404, `${id} is not one of your workers; list_workers gives their ids`);
+  return worker;
+}
+
+const liveSessionsOf = (worktrees) => worktrees.flatMap(({ worktree }) => worktree.agents?.live ?? []);
+
+/** A worker's session in detail: what it last said, and the tool call it is in the middle of. */
+const sessionDetail = ({ sessionId, status, needsYou, transcript }) => ({
+  sessionId, status, needsYou, lastReply: transcript?.lastReply ?? null, activity: transcript?.activity ?? null,
+});
+
+// What the lead needs of a check: its name and outcome; the output is on the dashboard.
+const checkSummary = ({ name, state, outOfDate }) => ({ name, state, outOfDate });
 
 const worktreeView = ({ repo, worktree }) => ({
   repo: repo.name,
@@ -40,9 +59,13 @@ const worktreeView = ({ repo, worktree }) => ({
 });
 
 /**
- * @param {{ taskHub: { list, create, remove }, hubStarter: { start }, getRepos: () => Promise<object[]> }} deps
+ * @param {{ taskHub: { list, create, remove }, hubStarter: { start }, getRepos: () => Promise<object[]>,
+ *   actions?: { replyToSession, endSession }, checkResults?: (opts: { repos }) => Promise<object>,
+ *   gitReport?: (args: { path, base }) => Promise<object> }} deps
  */
-export function createLeadTools({ taskHub, hubStarter, getRepos }) {
+export function createLeadTools({
+  taskHub, hubStarter, getRepos, actions = null, checkResults = async () => ({}), gitReport = readGitReport,
+}) {
   // Each lead's starts, one after another, so starts asked for at once can't all pass the limit.
   const queues = new Map();
   function oneAtATime(leadId, work) {
@@ -84,6 +107,60 @@ export function createLeadTools({ taskHub, hubStarter, getRepos }) {
     }
   }
 
+  /** The lead, the worker it names, and the repos with the worker's worktrees in them. */
+  async function findWorker(leadId, id) {
+    const tasks = await taskHub.list();
+    const lead = checkLead(tasks, leadId);
+    const worker = ownWorker(tasks, lead, id);
+    const repos = await getRepos();
+    return { lead, worker, repos, worktrees: taskWorktrees(worker, repos) };
+  }
+
+  /** A worker's state, its sessions' last replies, and its work next to the lead's branch in that repo. */
+  async function workerStatus(leadId, { id }) {
+    const { lead, worker, repos, worktrees } = await findWorker(leadId, id);
+    const leadBranches = new Map(taskWorktrees(lead, repos).map(({ repo, worktree }) => [repo.mainPath, worktree.branch]));
+    const checks = await checkResults({ repos });
+    return {
+      id: worker.id,
+      title: worker.title,
+      state: workerState(worker, worktrees.map(({ worktree }) => worktree.agents ?? {})),
+      closedAs: worker.closedAs,
+      worktrees: await Promise.all(worktrees.map(async ({ repo, worktree }) => ({
+        repo: repo.name,
+        branch: worktree.branch,
+        path: worktree.path,
+        sessions: (worktree.agents?.live ?? []).map(sessionDetail),
+        work: await gitReport({ path: worktree.path, base: leadBranches.get(repo.mainPath) ?? null }),
+        checks: (checks[worktree.path] ?? []).map(checkSummary),
+      }))),
+    };
+  }
+
+  /** The worker's running session, to message or end; refused when it has none. */
+  function runningSessions(worker, worktrees) {
+    const live = liveSessionsOf(worktrees);
+    if (live.length === 0) throw new ActionError(409, `${worker.id} has no running session`);
+    return live;
+  }
+
+  /** Type a message into the worker's session, as Reply does; never over a prompt, which is the user's to answer. */
+  async function messageWorker(leadId, { id, text }) {
+    const { worker, worktrees } = await findWorker(leadId, id);
+    const [session] = runningSessions(worker, worktrees);
+    if (session.needsYou) throw new ActionError(409, `${worker.id} is waiting on the user (a question or permission prompt); message it once they've answered`);
+    const sent = await actions.replyToSession({ sessionId: session.sessionId, text });
+    return { sent: true, sessionId: session.sessionId, queued: Boolean(sent?.queued) };
+  }
+
+  /** End the worker's sessions. Its worktree, branch and subtask stay, so its work can be merged; closing it is the user's call. */
+  async function endWorker(leadId, { id }) {
+    const { worker, worktrees } = await findWorker(leadId, id);
+    const live = runningSessions(worker, worktrees);
+    for (const session of live) await actions.endSession({ sessionId: session.sessionId });
+    return { ended: live.map((s) => s.sessionId), kept: worktrees.map(({ worktree }) => worktree.path) };
+  }
+
   async function listWorkers(leadId) {
     const tasks = await taskHub.list();
     const lead = checkLead(tasks, leadId);
@@ -105,6 +182,9 @@ export function createLeadTools({ taskHub, hubStarter, getRepos }) {
     forLead: (leadId) => ({
       startWorker: (args) => oneAtATime(leadId, () => startWorker(leadId, args)),
       listWorkers: () => listWorkers(leadId),
+      workerStatus: (args) => workerStatus(leadId, args),
+      messageWorker: (args) => messageWorker(leadId, args),
+      endWorker: (args) => endWorker(leadId, args),
     }),
   };
 }
