@@ -102,14 +102,37 @@ document.addEventListener('scroll', (event) => {
 const PANEL_GAP = 4;
 const VIEWPORT_MARGIN = 8;
 
+// Where the open menu's panel was last put, so a copy drawn open by a re-render starts there.
+let openMenuPlace = null;
+
 /** Put the panel under its button, right-aligned, flipping above when there's no room below. */
 function placePanel(menu) {
   const panel = menu.querySelector('.menu-panel');
   const button = menu.querySelector('summary').getBoundingClientRect();
   const below = button.bottom + PANEL_GAP;
   const fitsBelow = below + panel.offsetHeight <= window.innerHeight - VIEWPORT_MARGIN;
-  panel.style.top = `${fitsBelow ? below : Math.max(VIEWPORT_MARGIN, button.top - PANEL_GAP - panel.offsetHeight)}px`;
-  panel.style.left = `${Math.max(VIEWPORT_MARGIN, button.right - panel.offsetWidth)}px`;
+  openMenuPlace = {
+    top: `${fitsBelow ? below : Math.max(VIEWPORT_MARGIN, button.top - PANEL_GAP - panel.offsetHeight)}px`,
+    left: `${Math.max(VIEWPORT_MARGIN, button.right - panel.offsetWidth)}px`,
+  };
+  panel.style.top = openMenuPlace.top;
+  panel.style.left = openMenuPlace.left;
+}
+
+/**
+ * A re-render draws an open menu as a new element, and its toggle event (which places it) comes
+ * later, so the browser could first paint the panel unplaced, at its button's left edge. Start it
+ * where it was, and place it as soon as the render has put it on the page, before any paint.
+ */
+function placeWhenDrawn(menu) {
+  const panel = menu.querySelector('.menu-panel');
+  if (openMenuPlace) {
+    panel.style.top = openMenuPlace.top;
+    panel.style.left = openMenuPlace.left;
+  }
+  queueMicrotask(() => {
+    if (menu.isConnected && menu.open) placePanel(menu);
+  });
 }
 
 /**
@@ -118,9 +141,10 @@ function placePanel(menu) {
  * Opening it puts the cursor in its first text box, unless `focusInput` is false.
  */
 export function dropdown({ key, label, title, className = 'btn btn-action', panelClass = '', focusInput = true }, ...content) {
-  return h('details', {
+  const drawnOpen = openMenuKey === key;
+  const menu = h('details', {
     class: 'menu',
-    open: openMenuKey === key,
+    open: drawnOpen,
     ontoggle: (event) => {
       const menu = event.currentTarget;
       if (menu.open) {
@@ -135,6 +159,8 @@ export function dropdown({ key, label, title, className = 'btn btn-action', pane
   },
   h('summary', { class: className, title }, label),
   h('div', { class: ['menu-panel', panelClass].filter(Boolean).join(' '), role: 'menu' }, content));
+  if (drawnOpen) placeWhenDrawn(menu);
+  return menu;
 }
 
 /** Close a dropdown from inside it, e.g. after its form is sent. */
