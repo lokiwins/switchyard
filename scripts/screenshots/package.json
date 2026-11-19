@@ -1,7 +1,7 @@
 {
   "name": "switchyard-screenshots",
   "private": true,
-  "description": "Screenshots of switchyard on made-up data, for PR previews and release notes. Kept apart so switchyard itself has no npm dependencies.",
+  "description": "Screenshots of switchyard on made-up data, for PR previews and release notes. Kept apart so switchyard itself doesn't install Playwright.",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -11,6 +11,6 @@
     "compare": "node compare.mjs"
   },
   "devDependencies": {
-    "playwright": "1.65.0"
+    "playwright": "1.65.1"
   }
 }
