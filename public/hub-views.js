@@ -3,7 +3,6 @@ import { closeDropdown, dropdown } from './actions.js';
 import { linkLine } from './task-link-views.js';
 import { trustButtons } from './agent-views.js';
 import { STATE_LABELS, dueOnLabel, ticketLabel, trackerOf } from './task-state.js';
-import { canCompare } from './attempt-cards.js';
 import { hasFailedCheck } from './check-status.js';
 import { matchesTicket, taskFromTicket, unlinkedTickets } from './ticket-import.js';
 
@@ -219,10 +218,7 @@ function taskMenu(task, actions) {
 // The repo you last started a task in, shared with New task on the Agents page.
 const REPO_PREF = 'switchyard.newTaskRepo';
 
-// How many attempts Start ▾ offers: each its own worktree and agent on the same task (see src/hub-start.js).
-const ATTEMPT_CHOICES = [1, 2, 3, 4];
-
-/** Start ▾: pick the repo and how many attempts, then Start: the agent on the task in new worktrees, in the switchyard tmux session. */
+/** Start ▾: pick the repo, then Start: the agent on the task in a new worktree, in the switchyard tmux session. */
 function startMenu(task, { repos, actions }) {
   const sorted = [...repos].sort((a, b) => a.name.localeCompare(b.name));
   const remembered = readPref(REPO_PREF, null);
@@ -231,18 +227,15 @@ function startMenu(task, { repos, actions }) {
     onsubmit: async (event) => {
       event.preventDefault();
       const repo = form.elements.repo.value;
-      const attempts = Number(form.elements.attempts.value);
       writePref(REPO_PREF, repo);
       closeDropdown(form);
-      await actions.start(task, repo, attempts);
+      await actions.start(task, repo);
     },
   },
   h('label', { class: 'task-field' }, h('span', {}, 'Repository'),
     h('select', { name: 'repo', required: true }, sorted.map((r) => h('option', { value: r.mainPath, selected: r.mainPath === remembered }, r.name)))),
-  h('label', { class: 'task-field' }, h('span', {}, 'Attempts'),
-    h('select', { name: 'attempts' }, ATTEMPT_CHOICES.map((n) => h('option', { value: String(n) }, n === 1 ? '1 (one worktree)' : `${n} side by side`)))),
   h('div', { class: 'task-actions' },
-    h('p', { class: 'reply-hint' }, 'Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session. With more attempts, each gets its own worktree (-try1, -try2…) and the same task, so you can keep the best.'),
+    h('p', { class: 'reply-hint' }, 'Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session.'),
     h('button', { type: 'submit', class: 'btn btn-sm' }, 'Start')));
   return dropdown({ key: `start-${task.id}`, label: 'Start ▾', title: 'Start Claude on this task', className: 'btn btn-sm', panelClass: 'reply-panel', focusInput: false }, form);
 }
@@ -250,7 +243,7 @@ function startMenu(task, { repos, actions }) {
 /** The row's one line: how a start is going, or the first line of the notes. */
 function detailLine(task) {
   const { start } = task;
-  if (task.creating) return h('span', { class: 'row-detail is-pending' }, task.creating > 1 ? `Creating ${task.creating} worktrees, one per attempt…` : 'Creating the worktree…');
+  if (task.creating) return h('span', { class: 'row-detail is-pending' }, 'Creating the worktree…');
   if (task.closing) {
     const doing = { done: 'Marking it done', dropped: 'Dropping it', delete: 'Deleting it' }[task.closing];
     return h('span', { class: 'row-detail is-pending' }, task.work.length > 0 ? `${doing}: ending its sessions and putting its worktrees away…` : `${doing}…`);
@@ -265,20 +258,12 @@ function detailLine(task) {
   return h('span', { class: 'row-detail muted', title: task.notes }, firstLine);
 }
 
-/** Compare N: the task's attempts side by side, to pick one (see attempt-pane.js). */
-function compareButton(task, actions) {
-  const count = task.attempts.branches.length;
-  return h('button', {
-    type: 'button', class: 'btn btn-sm', title: `Compare the ${count} attempts side by side and pick one`, onclick: () => actions.compare(task),
-  }, `Compare ${count}`);
-}
-
 function rowActions(task, context) {
   // Already on its way out; a second click would only close it twice.
   if (task.closing) return null;
   if (task.start?.state === 'asking-trust') return trustButtons(task.start);
   const canStart = task.state === 'not-started' && context.caps?.tmux && context.repos.length > 0;
-  return [canStart && startMenu(task, context), canCompare(task) && compareButton(task, context.actions), taskMenu(task, context.actions)];
+  return [canStart && startMenu(task, context), taskMenu(task, context.actions)];
 }
 
 function taskRow(task, context) {

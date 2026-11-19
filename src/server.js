@@ -29,7 +29,6 @@ import { CLICKUP_API, createClickUp } from './clickup.js';
 import { createTaskTools } from './task-tools.js';
 import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
-import { createAttemptCompare } from './attempt-compare.js';
 import { createChecks } from './checks.js';
 import { createCheckTriggers } from './check-triggers.js';
 import { createStatusTracker } from './status-tracker.js';
@@ -181,13 +180,6 @@ async function deleteHubTask(services, body) {
   return { ...result, cleanup };
 }
 
-/** Keep one of a task's attempts: the others are put away as when a task is closed (see attempt-compare.js). */
-async function pickAttempt(services, body) {
-  const result = await services.attemptCompare.pick(body);
-  await workPutAway(services, result.cleanup);
-  return result;
-}
-
 /** Keep or Delete for a worktree a closed task left waiting. */
 async function chooseWorktree(services, body) {
   const result = await services.taskCleanup.choose(body);
@@ -229,7 +221,6 @@ const POST_ROUTES = {
   '/api/hub/tasks/delete': deleteHubTask,
   '/api/hub/tasks/worktree-choice': chooseWorktree,
   '/api/hub/tasks/start': ({ hubStarter }, body) => hubStarter.start(body),
-  '/api/hub/tasks/pick': pickAttempt,
   '/api/checks/run': ({ checks }, body) => checks.start(body),
   '/api/hub/ticket/status': ({ ticketDetails }, body) => ticketDetails.setStatus(body),
   '/api/task-tools/connect': ({ taskTools }, body) => taskTools.connect(body),
@@ -567,15 +558,6 @@ function createHandler(services) {
           throw error;
         }
       }
-      if (url.pathname === '/api/hub/tasks/attempts') {
-        // A task's attempts side by side: what each changed, its session and PR. Looked at fresh each time it's opened.
-        try {
-          return sendJson(res, 200, { success: true, data: await services.attemptCompare.compare({ id: url.searchParams.get('id') }) });
-        } catch (error) {
-          if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
-          throw error;
-        }
-      }
       if (url.pathname === '/api/hub/tasks/draft') {
         const from = url.searchParams.has('session') ? { sessionId: url.searchParams.get('session') } : { worktree: url.searchParams.get('worktree') };
         return sendJson(res, 200, { success: true, data: await services.taskSources.draft(from) });
@@ -734,14 +716,9 @@ async function main() {
     settings: () => config.settings.checks,
     getState: () => stateService.getSessions({ force: true }),
   });
-  const attemptCompare = createAttemptCompare({
-    checks,
-    // Fresh, so attempts started a moment ago are there; PRs come from what the last full scan cached.
-    taskHub, getState: () => stateService.getSessions({ force: true }), putAwayWorktrees: taskCleanup.putAwayWorktrees,
-  });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, sessionRemoval, taskCleanup, attemptCompare, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
+    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const doneTaskSweep = createDoneTaskSweep({
