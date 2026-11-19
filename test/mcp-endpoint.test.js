@@ -15,6 +15,9 @@ const endpoint = createMcpEndpoint({
       return { id: 'sy-wrk001', title: args.title };
     },
     listWorkers: async () => [{ id: 'sy-wrk001', state: 'working', lead }],
+    workerStatus: async (args) => { calls.push({ lead, status: args }); return { id: args.id, state: 'idle' }; },
+    messageWorker: async (args) => { calls.push({ lead, message: args }); return { sent: true }; },
+    endWorker: async (args) => { calls.push({ lead, end: args }); return { ended: ['abc'] }; },
   }),
 });
 
@@ -37,12 +40,15 @@ async function rpc(method, params = {}, headers = {}) {
 const INIT = { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } };
 const toolText = (body) => JSON.parse(body.result.content[0].text);
 
-test('it answers MCP: initialize, then the two lead tools', async () => {
+test('it answers MCP: initialize, then the lead\'s tools', async () => {
   const init = await rpc('initialize', INIT);
   assert.equal(init.status, 200);
   assert.equal(init.body.result.serverInfo.name, 'switchyard');
   const { body } = await rpc('tools/list');
-  assert.deepEqual(body.result.tools.map((t) => t.name).sort(), ['list_workers', 'start_worker']);
+  assert.deepEqual(body.result.tools.map((t) => t.name).sort(), ['end_worker', 'list_workers', 'message_worker', 'start_worker', 'worker_status']);
+  for (const name of ['worker_status', 'message_worker', 'end_worker']) {
+    assert.ok(body.result.tools.find((t) => t.name === name).inputSchema.required.includes('id'), name);
+  }
   const start = body.result.tools.find((t) => t.name === 'start_worker');
   assert.deepEqual(start.inputSchema.required, ['title']);
 });
@@ -90,4 +96,22 @@ test('only POST: there is no stream to open', async () => {
 test('an oversized body is refused', async () => {
   const res = await fetch(url, { method: 'POST', headers: HEADERS, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { pad: 'x'.repeat(2_000_000) } }) });
   assert.equal(res.status, 413);
+});
+
+test('worker_status, message_worker and end_worker pass the worker\'s id (and the message) to the lead\'s tools', async () => {
+  assert.deepEqual(toolText((await rpc('tools/call', { name: 'worker_status', arguments: { id: 'sy-wrk001' } })).body), { id: 'sy-wrk001', state: 'idle' });
+  await rpc('tools/call', { name: 'message_worker', arguments: { id: 'sy-wrk001', text: 'Round half up.' } });
+  await rpc('tools/call', { name: 'end_worker', arguments: { id: 'sy-wrk001' } });
+  assert.deepEqual(calls.slice(-3), [
+    { lead: 'sy-lead01', status: { id: 'sy-wrk001' } },
+    { lead: 'sy-lead01', message: { id: 'sy-wrk001', text: 'Round half up.' } },
+    { lead: 'sy-lead01', end: { id: 'sy-wrk001' } },
+  ]);
+});
+
+test('a worker id that isn\'t one is refused before the tool runs', async () => {
+  const before = calls.length;
+  const { body } = await rpc('tools/call', { name: 'end_worker', arguments: { id: '../x' } });
+  assert.ok(body.error || body.result?.isError, JSON.stringify(body));
+  assert.equal(calls.length, before);
 });

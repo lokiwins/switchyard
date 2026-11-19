@@ -693,7 +693,10 @@ async function main() {
   const hubStarter = createHubStarter({
     taskHub, newTask: tasks, rediscover: stateService.rediscover, getRepos: freshRepos, writeLeadConfig: leadAccess.writeConfig,
   });
-  const leadTools = createLeadTools({ taskHub, hubStarter, getRepos: freshRepos });
+  // `checks` is made below; it's only needed once a lead asks.
+  const leadTools = createLeadTools({
+    taskHub, hubStarter, getRepos: freshRepos, actions, checkResults: (options) => checks.results(options),
+  });
   const mcpEndpoint = createMcpEndpoint({ leadFrom: leadAccess.leadFrom, toolsFor: leadTools.forLead });
   const taskSources = createTaskSources({
     claudeDir: config.claudeDir, getState: stateService.getSessions, isLongLivedBranch: (branch) => config.settings.git.isLongLivedBranch(branch),
