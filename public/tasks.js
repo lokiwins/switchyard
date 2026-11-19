@@ -92,6 +92,14 @@ const actions = {
   remove: (task) => closing(task, 'delete', () => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`)),
   open: (task) => openTaskPane(task, { save: (fields) => change('/api/hub/tasks/update', { id: task.id, ...fields }, `Saved: ${fields.title.trim()}`) }),
   runCheck: (path, name) => change('/api/checks/run', { path, ...(name ? { name } : {}) }),
+  addSubtask: (parent) => openTaskPane({
+    id: null, title: '', notes: '', dueOn: null, links: [],
+  }, {
+    heading: 'New subtask',
+    sub: `of ${parent.title}`,
+    submitLabel: 'Add subtask',
+    save: (fields) => change('/api/hub/tasks/create', { ...fields, parentId: parent.id }, `Added subtask: ${fields.title.trim()}`),
+  }),
   async start(task, repo) {
     // Shown as starting at once; New task can take a few seconds (a fetch, a checkout).
     ui.creating.add(task.id);

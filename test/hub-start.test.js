@@ -72,3 +72,24 @@ test('start runs the agent asked for, when one is named', async () => {
   await starter.start({ id: 'sy-k3x9q2', repo: '/code/shop', provider: 'other' });
   assert.equal(calls[0].provider, 'other');
 });
+
+test('a subtask started in its parent\'s repo branches from the parent\'s branch; elsewhere, or before the parent has one, from the default', async () => {
+  const parent = task({ id: 'sy-parent', title: 'Ship the cart' });
+  const child = task({ id: 'sy-child1', title: 'Fix the totals', parentId: 'sy-parent' });
+  const repos = [
+    { name: 'shop', mainPath: '/code/shop', worktrees: [{ path: '/code/shop', isMain: true, branch: 'main' }, { path: '/code/shop-sy-parent', isMain: false, branch: 'sy-parent-ship-cart' }] },
+    { name: 'api', mainPath: '/code/api', worktrees: [{ path: '/code/api', isMain: true, branch: 'main' }] },
+  ];
+  const calls = [];
+  const starter = createHubStarter({
+    taskHub: { list: async () => [parent, child] },
+    newTask: { startTask: async (body) => { calls.push(body); return { path: '/x', branch: body.branch }; } },
+    getRepos: async () => repos,
+  });
+  await starter.start({ id: 'sy-child1', repo: '/code/shop' });
+  await starter.start({ id: 'sy-child1', repo: '/code/api' });
+  assert.equal(calls[0].base, 'sy-parent-ship-cart');
+  assert.equal(calls[1].base, undefined);
+  await starter.start({ id: 'sy-parent', repo: '/code/shop' });
+  assert.equal(calls[2].base, undefined, 'a task with no parent branches as before');
+});

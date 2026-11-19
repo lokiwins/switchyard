@@ -162,3 +162,17 @@ test('with several of a task\'s worktrees starting, the one asking to trust its 
   assert.equal(startOf(t, [start('/code/shop-try1', 'exited'), start('/code/shop-try2', 'starting')]).path, '/code/shop-try2');
   assert.equal(startOf(t, [start('/elsewhere', 'asking-trust')]), null);
 });
+
+test('subtasks are listed under their parent, each with its own state, not in the groups', () => {
+  const parent = task({ id: 'sy-parent', title: 'Ship the cart' });
+  const child = task({ id: 'sy-child1', title: 'Fix the totals', parentId: 'sy-parent', work: [work({ path: '/code/shop-c', live: [session({ status: 'busy' })] })] });
+  const groups = groupTasks([child, parent], NOW);
+  const all = groups.flatMap((g) => g.tasks);
+  assert.deepEqual(all.map((t) => t.id), ['sy-parent']);
+  assert.deepEqual(all[0].subtasks.map((t) => [t.id, t.state]), [['sy-child1', 'working']]);
+});
+
+test('a subtask whose parent isn\'t listed (filtered out, say) is listed on its own', () => {
+  const child = task({ id: 'sy-child1', title: 'Fix the totals', parentId: 'sy-parent' });
+  assert.deepEqual(groupTasks([child], NOW).flatMap((g) => g.tasks).map((t) => t.id), ['sy-child1']);
+});
