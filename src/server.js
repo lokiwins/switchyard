@@ -31,6 +31,8 @@ import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
 import { createAttemptCompare } from './attempt-compare.js';
 import { createChecks } from './checks.js';
+import { createCheckTriggers } from './check-triggers.js';
+import { createStatusTracker } from './status-tracker.js';
 import { createTicketDetails } from './ticket-details.js';
 import { createGithubIssues, repoChoices } from './github-issues.js';
 import { linkHubTasks, linkTasks, sessionHubTasks, tagWorktrees, taskForBranch, worktreeHubTasks } from './task-links.js';
@@ -673,7 +675,10 @@ async function main() {
       claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux), settings: () => config.settings.providers.claude,
     }),
   ], { settings: () => config.settings.providers });
+  // Made here, not inside the state service, so checks can hear its commits too (see check-triggers.js).
+  const statusTracker = createStatusTracker();
   const stateService = createStateService({
+    statusTracker,
     config,
     hiddenSessions: sessionRemoval.hidden,
     agents,
@@ -761,6 +766,27 @@ async function main() {
     capabilities.editorScheme = settings.editor.urlScheme;
   });
   watchFolder(join(config.claudeDir, 'sessions'), agentFeed.changed, { onError: logError('watching Claude sessions') });
+
+  // Checks that run by themselves hear turns end from the agent feed and commits from the status tracker;
+  // the feed is only followed while some check runs by itself, so otherwise this costs nothing.
+  const checkTriggers = createCheckTriggers({ checks, listTasks: () => taskHub.list() });
+  statusTracker.onRefsChanged((mainPath) => {
+    if (checks.watchedRepos().length > 0) checkTriggers.refsChanged(mainPath);
+  });
+  let stopFollowing = null;
+  const followForChecks = () => {
+    const wanted = checks.watchedRepos().length > 0;
+    if (wanted && !stopFollowing) {
+      stopFollowing = agentFeed.subscribe(checkTriggers.seen);
+      // A first look, so the next turn's end or commit is noticed.
+      stateService.getSessions().then(checkTriggers.seen, logError('looking at worktrees for checks'));
+    } else if (!wanted && stopFollowing) {
+      stopFollowing();
+      stopFollowing = null;
+    }
+  };
+  followForChecks();
+  config.onChange(followForChecks);
   createServer(createHandler({ ...services, agentFeed })).listen(config.port, HOST, () => {
     process.stdout.write(`switchyard: http://localhost:${config.port}  (roots: ${config.roots.join(', ')})\n`);
     // Warm the cache so the first page load is quick.

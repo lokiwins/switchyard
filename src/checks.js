@@ -61,6 +61,8 @@ export function createChecks({
   // { [worktree path]: { [check name]: result } }
   let results = null;
   let saving = Promise.resolve();
+  // Triggers that came while a worktree's checks were running: { [path]: Set of triggers }, run when they're done.
+  const waiting = new Map();
 
   const isBusy = (result) => result?.state === 'running' || result?.state === 'queued';
 
@@ -97,14 +99,18 @@ export function createChecks({
 
   const set = (path, name, result) => { results[path] = { ...results[path], [name]: result }; };
 
-  /** Run one check to the end, keeping its result. */
-  async function runOne(path, check) {
-    set(path, check.name, { name: check.name, command: check.command, state: 'running', startedAt: now() });
+  const begun = (check, state, trigger) => ({
+    name: check.name, command: check.command, state, startedAt: now(), trigger,
+  });
+
+  /** Run one check to the end, keeping its result. Its own timeout, or the one in Settings. */
+  async function runOne(path, check, trigger) {
+    set(path, check.name, begun(check, 'running', trigger));
     onChange();
     save();
     let output = '';
     const onOutput = (text) => { output = (output + text).slice(-MAX_OUTPUT); };
-    const timeoutMs = settings().timeoutMs;
+    const timeoutMs = check.timeoutMs ?? settings().timeoutMs;
     const outcome = await runCommand({ command: check.command, cwd: path, timeoutMs, onOutput })
       .catch((error) => { onOutput(`${error.message}\n`); return { exitCode: null, timedOut: false }; });
     const passed = outcome.exitCode === 0 && !outcome.timedOut;
@@ -122,16 +128,54 @@ export function createChecks({
     save();
   }
 
-  /** Run `queue` in turn; a check that couldn't even be started still lets the rest run. */
-  async function runInTurn(path, queue) {
+  /**
+   * Run `queue` in turn; a check that couldn't even be started still lets
+   * the rest run. Then any trigger that came meanwhile has its turn.
+   */
+  async function runInTurn(path, queue, trigger) {
     for (const check of queue) {
       try {
-        await runOne(path, check);
+        await runOne(path, check, trigger);
       } catch (error) {
         set(path, check.name, { ...results[path][check.name], state: 'failed', detail: error.message, finishedAt: now() });
         onChange();
       }
     }
+    const next = waiting.get(path);
+    waiting.delete(path);
+    for (const later of next ?? []) await autoRun({ path, trigger: later });
+  }
+
+  /** Mark `queue` running and waiting, and run it in the background; resolves once that's saved. */
+  async function launch(path, queue, trigger) {
+    for (const check of queue.slice(1)) set(path, check.name, begun(check, 'queued', trigger));
+    set(path, queue[0].name, begun(queue[0], 'running', trigger));
+    runInTurn(path, queue, trigger);
+    await save();
+  }
+
+  const isCurrent = (result, print) => (result?.state === 'passed' || result?.state === 'failed') && Boolean(print) && result.fingerprint === print;
+
+  /**
+   * A trigger (see check-triggers.js) for a worktree: run its repo's checks
+   * set to run on it whose result isn't current. While its checks are
+   * running, the trigger waits for them. Resolves to the names started.
+   */
+  async function autoRun({ path, trigger }) {
+    const repo = (await getState()).repos.find((r) => r.worktrees.some((w) => w.path === path));
+    const due = (repo && settings().commands[repo.name] || []).filter((c) => c.run === trigger);
+    if (due.length === 0) return [];
+    await load();
+    if (Object.values(results[path] ?? {}).some(isBusy)) {
+      waiting.set(path, new Set([...(waiting.get(path) ?? []), trigger]));
+      return [];
+    }
+    const print = await fingerprint(path).catch(() => null);
+    const queue = due.filter((c) => !isCurrent(results[path]?.[c.name], print));
+    if (queue.length === 0) return [];
+    await launch(path, queue, trigger);
+    onChange();
+    return queue.map((c) => c.name);
   }
 
   /**
@@ -150,11 +194,7 @@ export function createChecks({
     await load();
     if (Object.values(results[path] ?? {}).some(isBusy)) throw new ActionError(409, 'A check is already running in that worktree');
 
-    for (const check of queue.slice(1)) set(path, check.name, { name: check.name, command: check.command, state: 'queued', startedAt: now() });
-    const first = queue[0];
-    set(path, first.name, { name: first.name, command: first.command, state: 'running', startedAt: now() });
-    runInTurn(path, queue);
-    await save();
+    await launch(path, queue, 'manual');
     return { path, repoName: repo.name, checks: queue.map((c) => results[path][c.name]) };
   }
 
@@ -190,5 +230,13 @@ export function createChecks({
   /** Each repo's check names, in order. */
   const names = () => Object.fromEntries(Object.entries(settings().commands).map(([repo, checks]) => [repo, checks.map((c) => c.name)]));
 
-  return { start, results: current, names };
+  /** Each repo's checks and when each runs by itself: { repo: { name: run } }. */
+  const modes = () => Object.fromEntries(Object.entries(settings().commands).map(([repo, checks]) => [repo, Object.fromEntries(checks.map((c) => [c.name, c.run]))]));
+
+  /** The repos with a check that runs by itself, for the triggers to watch. */
+  const watchedRepos = () => Object.entries(settings().commands).filter(([, checks]) => checks.some((c) => c.run !== 'manual')).map(([repo]) => repo);
+
+  return {
+    start, autoRun, results: current, names, modes, watchedRepos,
+  };
 }

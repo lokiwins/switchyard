@@ -1,5 +1,5 @@
 import { h, liveTime } from './dom.js';
-import { anyRunning, checkLabel } from './check-status.js';
+import { anyRunning, checkLabel, ranBy } from './check-status.js';
 
 /*
  * A worktree's checks (see src/checks.js) on the Tasks page and the attempt
@@ -37,7 +37,7 @@ function resultBadge(check, { busy, onRun }) {
   return h('details', { class: `check-status ${tone}` },
     h('summary', { title: `Ran: ${check.command}` }, text),
     h('div', { class: 'check-body' },
-      h('p', { class: 'check-meta' }, h('code', {}, check.command), when && [' · ', when]),
+      h('p', { class: 'check-meta' }, h('code', {}, check.command), when && [' · ', when], ranBy(check) && ` · ${ranBy(check)}`),
       check.detail && h('p', { class: 'check-meta' }, check.detail),
       output && h('pre', { class: 'check-output' }, output),
       !busy && runButton(`Run ${displayName(check.name)} again`, `Run ${check.command} in this worktree`, () => onRun(check.name))));
