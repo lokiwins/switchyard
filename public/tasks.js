@@ -5,7 +5,6 @@ import { isTypingReply } from './session-controls.js';
 import { renderToolCards } from './task-views.js';
 import { newTaskForm, renderGroups } from './hub-views.js';
 import { openTaskPane } from './task-pane.js';
-import { openAttemptPane } from './attempt-pane.js';
 import { anyRunning } from './check-status.js';
 import { groupTasks, matchesHubTask } from './task-state.js';
 import { cleanupSummary, renderWorktreeChoices } from './worktree-choices.js';
@@ -20,7 +19,7 @@ const STARTING_POLL_MS = 1_500;
 const CLOCK_MS = 5_000;
 
 const ui = {
-  tools: null, data: null, query: '', loading: false, loads: 0, doneOpen: false, creating: new Map(), closing: new Map(), soon: null,
+  tools: null, data: null, query: '', loading: false, loads: 0, doneOpen: false, creating: new Set(), closing: new Map(), soon: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -52,7 +51,7 @@ async function change(url, body, done) {
     return false;
   }
   const said = typeof done === 'function' ? done(result) : done;
-  // Closing or deleting a task puts its work away, and attempts may not all start: say what went, and what couldn't.
+  // Closing or deleting a task puts its work away: say what went, and what couldn't.
   const errors = [...(result?.cleanup?.errors ?? []), ...(result?.errors ?? [])];
   const summary = cleanupSummary(result?.cleanup);
   if (errors.length > 0) toast(`${said}. ${errors.join(' ')}`);
@@ -93,18 +92,12 @@ const actions = {
   remove: (task) => closing(task, 'delete', () => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`)),
   open: (task) => openTaskPane(task, { save: (fields) => change('/api/hub/tasks/update', { id: task.id, ...fields }, `Saved: ${fields.title.trim()}`) }),
   runCheck: (path, name) => change('/api/checks/run', { path, ...(name ? { name } : {}) }),
-  compare: (task) => openAttemptPane(task, {
-    runCheck: (path, name) => post('/api/checks/run', { path, ...(name ? { name } : {}) }).then(() => true, (error) => { toast(error.message); return false; }),
-    load: () => getJson(`/api/hub/tasks/attempts?id=${encodeURIComponent(task.id)}`),
-    pick: (attempt) => change('/api/hub/tasks/pick', { id: task.id, branch: attempt.branch }, `Picked attempt ${attempt.n}: ${task.title}`),
-  }),
-  async start(task, repo, attempts = 1) {
-    // Shown as starting at once; New task can take a few seconds (a fetch, a checkout), and each attempt is one.
-    ui.creating.set(task.id, attempts);
+  async start(task, repo) {
+    // Shown as starting at once; New task can take a few seconds (a fetch, a checkout).
+    ui.creating.add(task.id);
     renderTasks();
-    const started = (result) => (result?.attempts ? `Started ${result.attempts.length} of ${attempts} attempts: ${task.title}` : null);
     try {
-      await change('/api/hub/tasks/start', { id: task.id, repo, ...(attempts > 1 ? { attempts } : {}) }, started);
+      await change('/api/hub/tasks/start', { id: task.id, repo });
     } finally {
       ui.creating.delete(task.id);
       renderTasks();
@@ -138,7 +131,7 @@ function renderTasks() {
     ...task,
     // Each worktree's latest checks, and the checks its repo has to run (see src/checks.js).
     work: task.work.map((w) => ({ ...w, checks: data.checks?.[w.path] ?? [], checkNames: data.checkNames?.[w.repoName] ?? [] })),
-    ...(ui.creating.has(task.id) ? { creating: ui.creating.get(task.id) } : {}),
+    ...(ui.creating.has(task.id) ? { creating: true } : {}),
     ...(ui.closing.has(task.id) ? { closing: ui.closing.get(task.id) } : {}),
   }));
   const groups = groupTasks(tasks, Date.now(), data.taskStarts);

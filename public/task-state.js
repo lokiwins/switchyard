@@ -41,7 +41,7 @@ const waitsOnYou = (s) => s.needsYou || (s.status === 'idle' && !s.parked);
 
 const trimSlash = (path) => String(path ?? '').replace(/\/+$/, '');
 
-// With several attempts starting at once, the one to show: a question for you first, then one still on its way.
+// With several of a task's worktrees starting at once, the one to show: a question for you first, then one still on its way.
 const START_ORDER = ['asking-trust', 'starting', 'exited'];
 const startRank = (start) => {
   const rank = START_ORDER.indexOf(start.state);

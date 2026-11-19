@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cleanupSummary, whatsLeft, whyAsked } from '../public/worktree-choices.js';
+import { cleanupSummary, whatsLeft } from '../public/worktree-choices.js';
 
 const empty = { ended: [], removed: [], choices: [], errors: [] };
 
@@ -15,10 +15,4 @@ test('a kept worktree says what deleting it would touch', () => {
   assert.equal(whatsLeft({ changes: 3, unmerged: 0 }), '3 uncommitted files');
   assert.equal(whatsLeft({ changes: 0, unmerged: 1 }), '1 commit not merged');
   assert.equal(whatsLeft({ changes: 1, unmerged: 2 }), '1 uncommitted file and 2 commits not merged');
-});
-
-test('the notice says why it asks: the task closed, or another attempt was picked', () => {
-  assert.equal(whyAsked({ taskTitle: 'Fix the cart', why: 'closed' }), 'Fix the cart is closed.');
-  assert.equal(whyAsked({ taskTitle: 'Fix the cart' }), 'Fix the cart is closed.');
-  assert.equal(whyAsked({ taskTitle: 'Fix the cart', why: 'not-picked' }), 'Fix the cart: you picked another attempt.');
 });

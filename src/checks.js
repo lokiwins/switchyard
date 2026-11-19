@@ -7,10 +7,9 @@ import { createJsonFile, defaultStoreDir } from './json-store.js';
 /*
  * Run check: a worktree's repo has named checks in Settings › Checks (say
  * lint: npm run lint, test: npm test). Run runs one in the worktree; Run all
- * runs each in turn. Its pass or fail shows on the task and on each
- * attempt's card. Results are kept in checks.json, by worktree then check;
- * one is out of date once the worktree's commit or files change after it
- * ran. Checks only warn: nothing is refused because one failed.
+ * runs each in turn. Its pass or fail shows on the task's row. Results
+ * are kept in checks.json, by worktree then check; one is out of date once
+ * the worktree's commit or files change after it ran. Checks only warn: nothing is refused because one failed.
  */
 
 // The end of a check's output is kept, where the failures usually are.

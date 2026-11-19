@@ -2,9 +2,9 @@ import { h, liveTime } from './dom.js';
 import { anyRunning, checkLabel, ranBy } from './check-status.js';
 
 /*
- * A worktree's checks (see src/checks.js) on the Tasks page and the attempt
- * cards: each named check's latest result, opening to the end of its output,
- * with Run for each and Run all.
+ * A worktree's checks (see src/checks.js) on the Tasks page: each named
+ * check's latest result, opening to the end of its output, with Run for
+ * each and Run all.
  */
 
 // Lines of output shown when a check's result is opened.

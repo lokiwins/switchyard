@@ -161,12 +161,6 @@ export function createTaskHub({ file = createJsonFile(defaultStoreDir(), FILE), 
 
     reopen: (body) => edit(body, () => ({ closedAs: null, closedAt: null })),
 
-    /**
-     * Keep the attempt group started on a task (Start with attempts): the
-     * provider, repo and branches, and when, so the attempts can be compared.
-     * Only the server sets it, never what the page sends.
-     */
-    recordAttempts: (id, group) => edit({ id }, () => ({ attempts: group })),
 
     /** Note when a task was first seen done by its merged PR (once), so done tasks can be deleted a while later. */
     noteDoneSeen: (id) => change((tasks) => ({

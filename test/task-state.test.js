@@ -155,7 +155,7 @@ test('a task being closed or deleted shows so at once, before the server answers
   assert.notEqual(group.key, 'done');
 });
 
-test('with several attempts starting, the one asking to trust its folder is the one shown, then one still starting', () => {
+test('with several of a task\'s worktrees starting, the one asking to trust its folder is the one shown, then one still starting', () => {
   const t = task({ work: [work({ path: '/code/shop-try1' }), work({ path: '/code/shop-try2' }), work({ path: '/code/shop-try3' })] });
   const start = (path, state) => ({ path, state, place: `switchyard:${path.split('/').pop()}` });
   assert.equal(startOf(t, [start('/code/shop-try1', 'exited'), start('/code/shop-try2', 'starting'), start('/code/shop-try3', 'asking-trust')]).path, '/code/shop-try3');
