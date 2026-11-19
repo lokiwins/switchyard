@@ -6,7 +6,8 @@ import { ActionError } from '../errors.js';
  *
  *   id, label           'claude', 'Claude Code'
  *   command             the program typed in a terminal, watched for when a task starts
- *   launchCommand(p?)   the command line that starts it, on task p when given
+ *   launchCommand(p?, {mcpConfig, settings}?)  the command line that starts it, on task p when given,
+ *                       with MCP config and settings files when the provider says takesMcpConfig
  *   resumeCommand(id)   the command line that resumes one of its sessions
  *   liveSessions()                     its running sessions
  *   latestSession(cwd)                 a folder's newest session, or null

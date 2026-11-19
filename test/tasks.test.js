@@ -225,3 +225,18 @@ test('startTask refuses a base branch that is not there, or not a branch name', 
   assert.throws(() => parseNewTask({ repo: MAIN, prompt: 'Fix it', base: '-x' }), (e) => e.status === 400);
   assert.throws(() => parseNewTask({ repo: MAIN, prompt: 'Fix it', base: 42 }), (e) => e.status === 400);
 });
+
+test('a task can be started with a lead\'s MCP config and settings; the page can\'t ask for them', async () => {
+  const { tasks, calls } = setup();
+  await tasks.startTask({ repo: MAIN, prompt: 'Lead it', branch: 'lead-it' }, { mcpConfig: '/c/sy-abc123.mcp.json', settings: '/c/sy-abc123.settings.json' });
+  assert.match(calls.find((c) => c[0] === 'type')[2], / 'Lead it' --settings '\/c\/sy-abc123.settings.json' --mcp-config '\/c\/sy-abc123.mcp.json'$/);
+  const page = setup();
+  await page.tasks.startTask({ repo: MAIN, prompt: 'Fix it', branch: 'fix-it', mcpConfig: '/tmp/evil.json', settings: '/tmp/evil.json' });
+  assert.doesNotMatch(page.calls.find((c) => c[0] === 'type')[2], /mcp-config|settings/);
+});
+
+test('a lead needs an agent that takes an MCP config', async () => {
+  const { tasks, calls } = setup();
+  await rejectsWith(tasks.startTask({ repo: MAIN, prompt: 'Lead it', branch: 'lead-it', provider: 'other' }, { mcpConfig: '/x.json' }), 400);
+  assert.equal(calls.some((c) => c[1] === '-C' && c[3] === 'worktree'), false, 'refused before making a worktree');
+});

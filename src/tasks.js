@@ -130,20 +130,25 @@ export function createTaskService({
   }
 
   /** Open the task's window and start the agent in it; on failure, remove the worktree too, so a retry starts clean. */
-  async function startAgent(provider, mainPath, path, name, prompt) {
+  async function startAgent(provider, mainPath, path, name, prompt, leadFiles) {
     try {
-      return await runInWindow(tmux, { name, cwd: path, command: provider.launchCommand(prompt) });
+      return await runInWindow(tmux, { name, cwd: path, command: provider.launchCommand(prompt, leadFiles) });
     } catch (error) {
       await rollBack(mainPath, path);
       throw error;
     }
   }
 
-  async function startTask(body) {
+  /**
+   * `mcpConfig` and `settings`, the files a lead starts with (see hub-start.js), come from switchyard
+   * itself, never from the page's body.
+   */
+  async function startTask(body, { mcpConfig = null, settings = null } = {}) {
     const {
       repo: mainPath, branch: chosen, prompt, provider: providerId, base,
     } = parseNewTask(body);
     const provider = providerId === null ? agents.default : agents.get(providerId);
+    if (mcpConfig && !provider.takesMcpConfig) throw new ActionError(400, `${provider.label} can't be started as a lead`);
     const state = await stateService.getState();
     const repo = state.repos.find((r) => r.mainPath === mainPath);
     if (!repo) throw new ActionError(404, 'That folder is not one of your repositories');
@@ -156,7 +161,8 @@ export function createTaskService({
     if (base && !await refExists(mainPath, `refs/heads/${base}`)) throw new ActionError(409, `The branch to start from, ${base}, isn't in ${repo.name}`);
 
     await addWorktree(mainPath, path, branch, base);
-    const started = await startAgent(provider, mainPath, path, window, prompt);
+    const leadFiles = mcpConfig ? { mcpConfig, ...(settings ? { settings } : {}) } : {};
+    const started = await startAgent(provider, mainPath, path, window, prompt, leadFiles);
     // Watched until its session shows up: it may first ask whether to trust the folder, or quit.
     starts.track({ path, place: started.place, pane: started.pane, command: provider.command });
     return { path, branch, session: TASK_SESSION, window, provider: provider.id };

@@ -93,3 +93,33 @@ test('a subtask started in its parent\'s repo branches from the parent\'s branch
   await starter.start({ id: 'sy-parent', repo: '/code/shop' });
   assert.equal(calls[2].base, undefined, 'a task with no parent branches as before');
 });
+
+test('Start as lead: Claude gets switchyard\'s MCP config for this task, and is told it leads', async () => {
+  const calls = [];
+  const configs = [];
+  const starter = createHubStarter({
+    taskHub: { list: async () => [task()] },
+    newTask: { startTask: async (body, options) => { calls.push([body, options]); return { path: '/x', branch: body.branch }; } },
+    writeLeadConfig: async (id) => { configs.push(id); return { mcpConfig: `/cfg/leads/${id}.mcp.json`, settings: `/cfg/leads/${id}.settings.json` }; },
+  });
+  await starter.start({ id: 'sy-k3x9q2', repo: '/code/shop', lead: true });
+  assert.deepEqual(configs, ['sy-k3x9q2']);
+  const [body, options] = calls[0];
+  assert.deepEqual(options, { mcpConfig: '/cfg/leads/sy-k3x9q2.mcp.json', settings: '/cfg/leads/sy-k3x9q2.settings.json' });
+  assert.ok(body.prompt.startsWith('Email a receipt after each charge. '));
+  assert.match(body.prompt, /start_worker/);
+  assert.match(body.prompt, /list_workers/);
+  // Without lead, as before: no config.
+  await starter.start({ id: 'sy-k3x9q2', repo: '/code/shop' });
+  assert.deepEqual(calls[1][1], {});
+});
+
+test('a subtask can\'t lead (workers are one level deep), and lead must be true or left out', async () => {
+  const starter = createHubStarter({
+    taskHub: { list: async () => [task({ id: 'sy-child1', parentId: 'sy-k3x9q2' }), task()] },
+    newTask: { startTask: async () => ({}) },
+    writeLeadConfig: async () => ({ mcpConfig: '/cfg.json', settings: '/s.json' }),
+  });
+  await assert.rejects(starter.start({ id: 'sy-child1', repo: '/code/shop', lead: true }), (error) => error.status === 400 && /subtask/.test(error.message));
+  await assert.rejects(starter.start({ id: 'sy-k3x9q2', repo: '/code/shop', lead: 'yes' }), (error) => error.status === 400);
+});

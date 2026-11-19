@@ -29,6 +29,11 @@ import { CLICKUP_API, createClickUp } from './clickup.js';
 import { createTaskTools } from './task-tools.js';
 import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
+import { readJsonBody } from './http-body.js';
+import { createLeadAccess } from './lead-access.js';
+import { createLeadTools } from './lead-tools.js';
+import { createMcpEndpoint } from './mcp-endpoint.js';
+import { defaultStoreDir } from './json-store.js';
 import { createChecks } from './checks.js';
 import { createCheckTriggers } from './check-triggers.js';
 import { createStatusTracker } from './status-tracker.js';
@@ -108,30 +113,6 @@ function isAllowedHost(hostHeader) {
 function isSameOriginJson(req, port) {
   const allowed = new Set([`http://localhost:${port}`, `http://127.0.0.1:${port}`]);
   return allowed.has(req.headers.origin) && /^application\/json\b/.test(req.headers['content-type'] ?? '');
-}
-
-function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks = [];
-    req.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > maxBytes) {
-        reject(new ActionError(413, 'Request body too large'));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
-      } catch {
-        reject(new ActionError(400, 'Invalid JSON body'));
-      }
-    });
-    req.on('error', reject);
-  });
 }
 
 // A key pressed in a dialog redraws the screen without changing the session's
@@ -279,7 +260,7 @@ async function handlePost(req, res, url, services) {
   if (!route) return sendJson(res, 404, { success: false, error: 'Not found' });
   if (!isSameOriginJson(req, services.port)) return sendJson(res, 403, { success: false, error: 'Cross-origin request refused' });
   try {
-    const data = await route(services, await readJsonBody(req));
+    const data = await route(services, await readJsonBody(req, MAX_BODY_BYTES));
     return sendJson(res, 200, { success: true, data });
   } catch (error) {
     if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
@@ -528,6 +509,8 @@ function createHandler(services) {
     const url = new URL(req.url, `http://${HOST}`);
     try {
       if (!isAllowedHost(req.headers.host)) return sendJson(res, 403, { success: false, error: 'Forbidden host' });
+      // A lead's Claude, with its token; it refuses browsers itself (see mcp-endpoint.js).
+      if (url.pathname === '/mcp') return await services.mcpEndpoint.handle(req, res);
       if (req.method === 'POST') return await handlePost(req, res, url, services);
       if (req.method !== 'GET') return sendJson(res, 405, { success: false, error: 'Method not allowed' });
       const force = url.searchParams.get('refresh') === '1';
@@ -704,9 +687,14 @@ async function main() {
   const taskTools = createTaskTools({ clickupFor: (token) => createClickUp({ token, baseUrl: clickupApi }), github: githubIssues });
   const taskHub = createTaskHub();
   const ticketDetails = createTicketDetails({ taskTools, github: githubIssues });
+  const freshRepos = () => stateService.getSessions({ force: true }).then((s) => s.repos);
+  // Start as lead: Claude gets switchyard's MCP server, with a token for its own task's workers.
+  const leadAccess = createLeadAccess({ dir: defaultStoreDir(), port: config.port });
   const hubStarter = createHubStarter({
-    taskHub, newTask: tasks, rediscover: stateService.rediscover, getRepos: () => stateService.getSessions({ force: true }).then((s) => s.repos),
+    taskHub, newTask: tasks, rediscover: stateService.rediscover, getRepos: freshRepos, writeLeadConfig: leadAccess.writeConfig,
   });
+  const leadTools = createLeadTools({ taskHub, hubStarter, getRepos: freshRepos });
+  const mcpEndpoint = createMcpEndpoint({ leadFrom: leadAccess.leadFrom, toolsFor: leadTools.forLead });
   const taskSources = createTaskSources({
     claudeDir: config.claudeDir, getState: stateService.getSessions, isLongLivedBranch: (branch) => config.settings.git.isLongLivedBranch(branch),
   });
@@ -733,7 +721,7 @@ async function main() {
   });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, port: config.port,
+    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, mcpEndpoint, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const doneTaskSweep = createDoneTaskSweep({

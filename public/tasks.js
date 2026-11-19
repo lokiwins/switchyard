@@ -100,12 +100,12 @@ const actions = {
     submitLabel: 'Add subtask',
     save: (fields) => change('/api/hub/tasks/create', { ...fields, parentId: parent.id }, `Added subtask: ${fields.title.trim()}`),
   }),
-  async start(task, repo) {
+  async start(task, repo, { lead = false } = {}) {
     // Shown as starting at once; New task can take a few seconds (a fetch, a checkout).
     ui.creating.add(task.id);
     renderTasks();
     try {
-      await change('/api/hub/tasks/start', { id: task.id, repo });
+      await change('/api/hub/tasks/start', { id: task.id, repo, ...(lead ? { lead } : {}) });
     } finally {
       ui.creating.delete(task.id);
       renderTasks();
