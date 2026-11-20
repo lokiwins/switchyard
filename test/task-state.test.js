@@ -176,3 +176,9 @@ test('a subtask whose parent isn\'t listed (filtered out, say) is listed on its 
   const child = task({ id: 'sy-child1', title: 'Fix the totals', parentId: 'sy-parent' });
   assert.deepEqual(groupTasks([child], NOW).flatMap((g) => g.tasks).map((t) => t.id), ['sy-child1']);
 });
+
+test('a reviewer asking you something makes its task need you; one idle after its verdict doesn\'t', () => {
+  const work = (session) => [{ path: '/code/a', live: [], recent: [], review: { state: 'reviewing', session } }];
+  assert.equal(taskState({ work: work({ sessionId: 'r', status: 'idle', needsYou: true }) }), 'needs-you');
+  assert.equal(taskState({ work: work({ sessionId: 'r', status: 'idle', needsYou: false }) }), 'paused');
+});

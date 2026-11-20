@@ -41,6 +41,20 @@ function ownWorker(tasks, lead, id) {
   return worker;
 }
 
+/**
+ * A worker's worktrees with its reviewers' sessions taken out (see review.js): a reviewer reading the work
+ * isn't the worker, so it doesn't make the worker look busy, and is never messaged or ended as the worker.
+ * Each keeps `allLive`, every session there, for the review's own status.
+ */
+function workerWorktrees(task, repos) {
+  const reviewers = new Set((task.reviews ?? []).map((r) => r.sessionId));
+  return taskWorktrees(task, repos).map(({ repo, worktree }) => {
+    const allLive = worktree.agents?.live ?? [];
+    const agents = { ...worktree.agents, live: allLive.filter((s) => !reviewers.has(s.sessionId)) };
+    return { repo, worktree: { ...worktree, agents }, allLive };
+  });
+}
+
 const liveSessionsOf = (worktrees) => worktrees.flatMap(({ worktree }) => worktree.agents?.live ?? []);
 
 /** A worker's session in detail: what it last said, and the tool call it is in the middle of. */
@@ -61,10 +75,11 @@ const worktreeView = ({ repo, worktree }) => ({
 /**
  * @param {{ taskHub: { list, create, remove }, hubStarter: { start }, getRepos: () => Promise<object[]>,
  *   actions?: { replyToSession, endSession }, checkResults?: (opts: { repos }) => Promise<object>,
- *   gitReport?: (args: { path, base }) => Promise<object> }} deps
+ *   gitReport?: (args: { path, base }) => Promise<object>, reviewStatus?: (review, liveSessions) => Promise<object> }} deps
+ *   `reviewStatus` gives a review's state and the reviewer's verdict (see review.js).
  */
 export function createLeadTools({
-  taskHub, hubStarter, getRepos, actions = null, checkResults = async () => ({}), gitReport = readGitReport,
+  taskHub, hubStarter, getRepos, actions = null, checkResults = async () => ({}), gitReport = readGitReport, reviewStatus = null,
 }) {
   // Each lead's starts, one after another, so starts asked for at once can't all pass the limit.
   const queues = new Map();
@@ -113,7 +128,7 @@ export function createLeadTools({
     const lead = checkLead(tasks, leadId);
     const worker = ownWorker(tasks, lead, id);
     const repos = await getRepos();
-    return { lead, worker, repos, worktrees: taskWorktrees(worker, repos) };
+    return { lead, worker, repos, worktrees: workerWorktrees(worker, repos) };
   }
 
   /** A worker's state, its sessions' last replies, and its work next to the lead's branch in that repo. */
@@ -126,15 +141,24 @@ export function createLeadTools({
       title: worker.title,
       state: workerState(worker, worktrees.map(({ worktree }) => worktree.agents ?? {})),
       closedAs: worker.closedAs,
-      worktrees: await Promise.all(worktrees.map(async ({ repo, worktree }) => ({
+      worktrees: await Promise.all(worktrees.map(async ({ repo, worktree, allLive }) => ({
         repo: repo.name,
         branch: worktree.branch,
         path: worktree.path,
         sessions: (worktree.agents?.live ?? []).map(sessionDetail),
         work: await gitReport({ path: worktree.path, base: leadBranches.get(repo.mainPath) ?? null }),
         checks: (checks[worktree.path] ?? []).map(checkSummary),
+        review: await latestReview(worker, worktree.path, allLive),
       }))),
     };
+  }
+
+  /** The worktree's latest review, as the lead needs it: its state, the reviewer's verdict and reasons, and when; null when none. */
+  async function latestReview(worker, path, allLive) {
+    const review = (worker.reviews ?? []).find((r) => r.path === path);
+    if (!review || !reviewStatus) return null;
+    const { state, summary, startedAt } = await reviewStatus(review, allLive);
+    return { state, summary, startedAt };
   }
 
   /** The worker's running session, to message or end; refused when it has none. */
@@ -166,7 +190,7 @@ export function createLeadTools({
     const lead = checkLead(tasks, leadId);
     const repos = await getRepos();
     return tasks.filter((t) => t.parentId === lead.id).map((task) => {
-      const worktrees = taskWorktrees(task, repos);
+      const worktrees = workerWorktrees(task, repos);
       return {
         id: task.id,
         title: task.title,

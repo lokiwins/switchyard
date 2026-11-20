@@ -179,3 +179,14 @@ test('deleting a task deletes its subtasks, and says which', async () => {
   assert.deepEqual((await hub.list()).map((t) => t.id), [other.id]);
   await rejectsWith(hub.removeWithSubtasks({ id: parent.id }), 404);
 });
+
+test('a review is noted on its task: the latest one for each worktree', async () => {
+  const { hub } = setup();
+  const task = await hub.create({ title: 'Fix the totals' });
+  await hub.noteReview(task.id, { path: '/code/a', sessionId: 's1', startedAt: 1 });
+  await hub.noteReview(task.id, { path: '/code/b', sessionId: 's2', startedAt: 2 });
+  await hub.noteReview(task.id, { path: '/code/a', sessionId: 's3', startedAt: 3 });
+  const [saved] = await hub.list();
+  assert.deepEqual(saved.reviews, [{ path: '/code/b', sessionId: 's2', startedAt: 2 }, { path: '/code/a', sessionId: 's3', startedAt: 3 }]);
+  await assert.rejects(hub.noteReview('sy-gone00', { path: '/x', sessionId: 's', startedAt: 1 }), (error) => error.status === 404);
+});

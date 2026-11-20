@@ -92,6 +92,7 @@ const actions = {
   remove: (task) => closing(task, 'delete', () => change('/api/hub/tasks/delete', { id: task.id }, `Deleted: ${task.title}`)),
   open: (task) => openTaskPane(task, { save: (fields) => change('/api/hub/tasks/update', { id: task.id, ...fields }, `Saved: ${fields.title.trim()}`) }),
   runCheck: (path, name) => change('/api/checks/run', { path, ...(name ? { name } : {}) }),
+  review: (task, path) => change('/api/hub/tasks/review', { id: task.id, path }, `Reviewing: ${task.title}`),
   addSubtask: (parent) => openTaskPane({
     id: null, title: '', notes: '', dueOn: null, links: [],
   }, {

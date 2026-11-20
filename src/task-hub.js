@@ -197,6 +197,17 @@ export function createTaskHub({ file = createJsonFile(defaultStoreDir(), FILE), 
     },
 
 
+    /**
+     * Note a review started on one of the task's worktrees (see review.js): its folder, the reviewer's session
+     * id and when. Only the latest review of each worktree is kept.
+     */
+    noteReview: (id, review) => change((tasks) => {
+      const found = tasks.find((t) => t.id === id);
+      if (!found) throw new ActionError(404, 'That task is not there any more');
+      const reviews = [...(found.reviews ?? []).filter((r) => r.path !== review.path), review];
+      return { tasks: tasks.map((t) => (t.id === id ? { ...t, reviews } : t)), result: review };
+    }),
+
     /** Note when a task was first seen done by its merged PR (once), so done tasks can be deleted a while later. */
     noteDoneSeen: (id) => change((tasks) => ({
       tasks: tasks.map((t) => (t.id === id && !t.doneSeenAt ? { ...t, doneSeenAt: now() } : t)),

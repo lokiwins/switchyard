@@ -39,7 +39,8 @@ function actionsSig(task, context) {
 /** A worktree's line: its data, the page's abilities, and any questions waiting from its own session. */
 function linkSig(link, { caps, approvals }) {
   const session = sessionToJump(link);
-  return sig([link, caps, session ? approvals.filter((a) => a.sessionId === session.sessionId) : []]);
+  const ids = new Set([session?.sessionId, link.review?.session?.sessionId].filter(Boolean));
+  return sig([link, caps, approvals.filter((a) => ids.has(a.sessionId))]);
 }
 
 /** The row's parts in order, each { key, sig }; `context` is { now, caps, repos, approvals, parent? }. */

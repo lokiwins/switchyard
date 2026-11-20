@@ -131,3 +131,15 @@ test('Claude can start in a permission mode, given after the task like the other
   assert.equal(claude.launchCommand('Work it', { permissionMode: 'acceptEdits', settings: '/c/workers/sy-abc123.settings.json' }),
     "claude 'Work it' --permission-mode acceptEdits --settings '/c/workers/sy-abc123.settings.json'");
 });
+
+test('Claude can start a named session with an id switchyard chose', () => {
+  const claude = createClaudeProvider({ claudeDir: '/nowhere' });
+  assert.equal(claude.launchCommand('Review it', { name: 'Review · Fix the user\'s totals', sessionId: '0b6f1c2e-4a8d-4c1e-9f3a-2d5e6f7a8b9c', permissionMode: 'manual' }),
+    "claude 'Review it' --name 'Review · Fix the user'\\''s totals' --session-id 0b6f1c2e-4a8d-4c1e-9f3a-2d5e6f7a8b9c --permission-mode manual");
+  assert.throws(() => claude.launchCommand('x', { sessionId: 'not-a-uuid; rm -rf' }), /session id/);
+});
+
+test('Claude reads one session\'s summary by folder and id, or null when there is none', async () => {
+  const claude = createClaudeProvider({ claudeDir: '/nowhere' });
+  assert.equal(await claude.readSession('/code/shop', '0b6f1c2e-4a8d-4c1e-9f3a-2d5e6f7a8b9c'), null);
+});

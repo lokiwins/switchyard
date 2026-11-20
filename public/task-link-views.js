@@ -5,6 +5,7 @@ import { sessionToJump } from './task-views.js';
 import { approvalButtons, endMenu, replyMenu, stopButton } from './session-controls.js';
 import { answerMenu, planButton } from './screen-answer.js';
 import { checksControl } from './check-view.js';
+import { reviewControl } from './review-view.js';
 
 /*
  * The worktrees working on a task, under its row on the Tasks page: kept
@@ -30,10 +31,11 @@ function sessionControls(session, approvals) {
 
 /**
  * A worktree working on the task: where, its PR, its checks (see check-view.js),
- * and its session's controls (or a way to start one). `onRunCheck(path, name?)`
- * runs one of its checks, or all of them.
+ * its review (see review-view.js), and its session's controls (or a way to start
+ * one). `onRunCheck(path, name?)` runs one of its checks, or all of them;
+ * `onReview(path)` starts a review of it.
  */
-export function linkLine(link, caps, approvals = [], { onRunCheck } = {}) {
+export function linkLine(link, caps, approvals = [], { onRunCheck, onReview } = {}) {
   const session = sessionToJump(link);
   const state = PR_STATES[link.pr?.state];
   return h('div', { class: 'task-link' },
@@ -42,6 +44,10 @@ export function linkLine(link, caps, approvals = [], { onRunCheck } = {}) {
       class: `small task-link-pr${state ? ` is-${state}` : ''}`, href: link.pr.url, target: '_blank', rel: 'noopener noreferrer', title: `Pull request${state ? ` (${state})` : ''}`,
     }, `#${link.pr.number}`),
     onRunCheck && checksControl(link.checks, { names: link.checkNames, onRun: (name) => onRunCheck(link.path, name) }),
+    onReview && caps?.tmux && reviewControl(link.review, {
+      onReview: () => onReview(link.path),
+      controls: link.review?.session ? sessionControls(link.review.session, approvals) : null,
+    }),
     h('div', { class: 'actions' },
       session ? sessionControls(session, approvals) : openMenu(link.path, link.recent, caps)));
 }
