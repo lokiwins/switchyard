@@ -58,9 +58,14 @@ test('the config is written to a file only you can read, not typed where the scr
   assert.equal(await access.leadFrom(config.mcpServers.switchyard.headers.Authorization), LEAD);
 });
 
-test('the lead\'s settings make Claude ask you before it uses switchyard\'s tools, whatever its permission mode', async () => {
+test('the lead\'s settings let it look at its workers freely, and ask you before it starts, messages or ends one', async () => {
   // Claude Code's auto mode would otherwise run them by itself; an ask rule still asks.
-  assert.deepEqual(LEAD_SETTINGS, { permissions: { ask: ['mcp__switchyard'] } });
+  assert.deepEqual(LEAD_SETTINGS, {
+    permissions: {
+      allow: ['mcp__switchyard__list_workers', 'mcp__switchyard__worker_status'],
+      ask: ['mcp__switchyard__start_worker', 'mcp__switchyard__message_worker', 'mcp__switchyard__end_worker'],
+    },
+  });
   const dir = freshDir();
   const files = await createLeadAccess({ dir, port: 4477 }).writeConfig(LEAD);
   assert.equal(files.settings, join(dir, 'leads', `${LEAD}.settings.json`));

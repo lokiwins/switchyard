@@ -68,8 +68,8 @@ export const DEFAULTS = Object.freeze({
     permissionMode: 'claude',
     // Permission rules they may use without asking, such as "Bash(npm test)" or "Edit".
     allowedTools: Object.freeze([]),
-    // Whether a lead may use switchyard's tools (start, message and end workers) without asking you.
-    leadWithoutAsking: false,
+    // Whether a lead may start, message and end workers without asking you. Looking at them never asks.
+    leadWithoutAsking: true,
   }),
   // The agent CLIs (see src/agents/providers.js): which one is used when none is named, and how each is run.
   providers: Object.freeze({
