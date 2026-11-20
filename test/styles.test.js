@@ -73,3 +73,22 @@ test('on a phone a task row keeps its ⋯ menu beside the title, and the add box
   assert.match(ruleIn(phone, '.list-row.hub-row > .actions') ?? '', /grid-row:\s*1/);
   assert.match(ruleIn(phone, '.hub-new-row input[name="title"]') ?? '', /flex-basis:\s*100%/);
 });
+
+test('a select draws its own arrow, inset from its right edge', async () => {
+  // The browser's own arrow sits on the right edge whatever the padding, so every select draws one instead.
+  const base = await readFile(new URL('../web/src/styles/base.css', import.meta.url), 'utf8');
+  const select = base.match(/(?:^|[{}])\s*select\s*{([^}]*)}/m)?.[1] ?? '';
+  assert.match(select, /appearance:\s*none/);
+  assert.match(select, /background-image:[^;]*currentColor/);
+  assert.match(select, /background-position:\s*right\s+\d+px\s+center/);
+  // A select's own rule sets only its colour, as the background shorthand would drop the arrow, and leaves the arrow room.
+  for (const selector of ['.task-field input, .task-field select', '.tool-select', '.setting input, .setting select, .setting textarea', '.pane-select']) {
+    const own = rule(selector) ?? '';
+    assert.ok(own, `no rule for ${selector}`);
+    assert.doesNotMatch(own, /(^|[;\s])background:/, `${selector} uses the background shorthand`);
+  }
+  for (const selector of ['.task-field select', '.tool-select', '.setting select', '.pane-select']) {
+    const room = Number((rule(selector) ?? '').match(/padding(?:-right:\s*|:\s*\S+\s+)(\d+)px/)?.[1]);
+    assert.ok(room >= 24, `${selector} leaves ${room}px for the arrow`);
+  }
+});
