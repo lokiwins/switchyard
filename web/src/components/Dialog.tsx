@@ -4,7 +4,8 @@ import { cx } from '../lib/cx';
 /*
  * A glass pane: a native modal <dialog>, so focus stays in it and the page
  * behind can't be clicked. Esc closes it unless `keepOnEscape` (the terminal
- * pane, where Esc belongs to Claude).
+ * pane, where Esc belongs to Claude). A control marked data-autofocus has
+ * the cursor when it opens.
  */
 export function Dialog({
   label, className, onClose, keepOnEscape = false, children,
@@ -18,7 +19,11 @@ export function Dialog({
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      // Opening moves focus to the dialog's first control; one marked data-autofocus (a form's first field) takes it instead.
+      dialog.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+    }
     return () => dialog?.close();
   }, []);
   const cancel = (event: SyntheticEvent) => {
