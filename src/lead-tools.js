@@ -12,7 +12,7 @@ import { gitReport as readGitReport } from './worker-report.js';
  * answers them, nor types over them.
  */
 
-// A safety limit until the running-agents cap in Settings: a lead in a loop can't fill the machine with sessions.
+// A lead's own limit, on top of Settings › Agents › Most agents running at once: a lead in a loop can't fill the board with subtasks.
 export const MAX_OPEN_WORKERS = 8;
 
 /** A worker's state in a word or two: closed, not started, needs you, working, idle, or no session. */

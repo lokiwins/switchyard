@@ -35,6 +35,7 @@ import { createLeadAccess } from './lead-access.js';
 import { createLeadTools } from './lead-tools.js';
 import { createMcpEndpoint } from './mcp-endpoint.js';
 import { createWorkerLaunch } from './worker-launch.js';
+import { createAgentLimit } from './agent-limit.js';
 import { createReviews, withReviews } from './review.js';
 import { defaultStoreDir } from './json-store.js';
 import { createChecks } from './checks.js';
@@ -626,9 +627,21 @@ async function main() {
   const sessionsView = { getState: stateService.getSessions };
   // Checked once: install tmux, then restart switchyard to get New task and tmux resumes.
   const tmuxInstalled = await tmux.isInstalled();
-  const actions = createActionService({ stateService: sessionsView, agents, terminal, tmux, useTmux: tmuxInstalled });
+  // Settings › Agents › Most agents running at once: the running sessions, and starts still on their way.
+  const agentLimit = createAgentLimit({
+    maxRunning: () => config.settings.agents.maxRunning,
+    countRunning: async () => {
+      const { liveSessions } = await stateService.getSessions({ force: true });
+      return liveSessions.length + taskStarts.list(liveSessions).filter((start) => start.state !== 'exited').length;
+    },
+  });
+  const actions = createActionService({
+    stateService: sessionsView, agents, terminal, tmux, useTmux: tmuxInstalled, limit: agentLimit,
+  });
   const taskStarts = createTaskStarts({ tmux, onChange: () => agentFeed.changed() });
-  const tasks = createTaskService({ stateService: sessionsView, tmux, agents, starts: taskStarts });
+  const tasks = createTaskService({
+    stateService: sessionsView, tmux, agents, starts: taskStarts, limit: agentLimit,
+  });
   const liveTerminals = createLiveTerminals({ actions, tmux });
   // The full state: Clean up needs PR data, which the sessions view leaves out.
   const cleanup = createCleanupService({ stateService });
@@ -665,6 +678,7 @@ async function main() {
     readSession: async (cwd, sessionId) => (agents.default.readSession ? agents.default.readSession(cwd, sessionId) : null),
     dir: defaultStoreDir(),
     starts: taskStarts,
+    limit: agentLimit,
   });
   const leadTools = createLeadTools({
     taskHub, hubStarter, getRepos: freshRepos, actions, checkResults: (options) => checks.results(options), reviewStatus: reviews.status,

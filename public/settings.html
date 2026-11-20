@@ -91,6 +91,11 @@
             <span class="setting-hint">An idle session untouched this long counts as parked, not waiting on you.</span>
           </label>
           <label class="setting">
+            <span class="setting-label">Most agents running at once</span>
+            <input name="agents.maxRunning" inputmode="numeric">
+            <span class="setting-hint">0 is no limit. With one set, switchyard won't start another (New task, Start, a lead's workers, Review, Resume) while that many sessions run, yours included; it says why.</span>
+          </label>
+          <label class="setting">
             <span class="setting-label">Ended sessions shown (days)</span>
             <input name="agents.endedHistoryDays" inputmode="decimal">
             <span class="setting-hint">How far back Recently ended goes.</span>

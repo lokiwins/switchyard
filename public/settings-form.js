@@ -4,7 +4,7 @@
  */
 
 const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes', 'workers.allowedTools']);
-const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'tasks.deleteDoneAfterDays', 'checks.timeoutMinutes']);
+const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'agents.maxRunning', 'tasks.deleteDoneAfterDays', 'checks.timeoutMinutes']);
 // Checkboxes: "true" or "false" in the form.
 const BOOLEANS = new Set(['tasks.autoDeleteDone', 'providers.claude.enabled', 'workers.leadWithoutAsking']);
 // A prefix's trailing space is part of what's removed from a check's name.
@@ -13,7 +13,7 @@ const UNTRIMMED = new Set(['ci.stripPrefixes']);
 /** Every field the form has, by name. */
 export const FIELD_NAMES = [
   'roots', 'appearance.theme', 'appearance.mode', 'appearance.terminal', 'terminal.app', 'editor.urlScheme',
-  'agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays',
+  'agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'agents.maxRunning',
   'github.copilotReviewer', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
   'tasks.autoDeleteDone', 'tasks.deleteDoneAfterDays', 'checks.commands', 'checks.timeoutMinutes',
   'workers.permissionMode', 'workers.allowedTools', 'workers.leadWithoutAsking',

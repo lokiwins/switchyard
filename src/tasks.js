@@ -67,7 +67,7 @@ export function worktreePathFor(repo, branch) {
  * value as its own argument.
  */
 export function createTaskService({
-  stateService, tmux, agents, starts = { track: () => {} }, git = runGit, exists = existsSync,
+  stateService, tmux, agents, starts = { track: () => {} }, git = runGit, exists = existsSync, limit = { check: async () => {} },
 }) {
   const gitIn = (dir, args, options) => git(['-C', dir, ...args], options);
 
@@ -160,6 +160,8 @@ export function createTaskService({
     const provider = providerId === null ? agents.default : agents.get(providerId);
     const options = launchOptions(launch);
     if (Object.keys(options).length > 0 && !provider.takesLaunchOptions) throw new ActionError(400, `${provider.label} can't be started as a lead or a worker`);
+    // Settings › Agents › Most agents running at once (see agent-limit.js), before any worktree is made.
+    await limit.check();
     const state = await stateService.getState();
     const repo = state.repos.find((r) => r.mainPath === mainPath);
     if (!repo) throw new ActionError(404, 'That folder is not one of your repositories');

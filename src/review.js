@@ -106,11 +106,11 @@ export function withReviews(tasks, statuses) {
  * @param {{ taskHub: { list, noteReview }, tmux, provider: () => object, getRepos: () => Promise<object[]>,
  *   checkResults: (opts: { repos }) => Promise<object>, readSession: (cwd, sessionId) => Promise<object|null>,
  *   defaultBranch?: (mainPath: string) => Promise<string>, dir: string, newSessionId?: () => string, now?: () => number,
- *   starts?: { track } }} deps
+ *   starts?: { track }, limit?: { check } }} deps
  */
 export function createReviews({
   taskHub, tmux, provider, getRepos, checkResults, readSession, defaultBranch = gitDefaultBranch, dir, newSessionId = randomUUID, now = Date.now,
-  starts = { track: () => {} },
+  starts = { track: () => {} }, limit = { check: async () => {} },
 }) {
   const settingsFile = join(dir, 'reviewer.settings.json');
 
@@ -156,6 +156,7 @@ export function createReviews({
       }
       const agent = provider();
       if (!agent.takesLaunchOptions) throw new ActionError(400, `${agent.label} can't review`);
+      await limit.check();
       const checks = (await checkResults({ repos }))[worktree.path] ?? [];
       const base = await baseFor(task, tasks, repo, repos, defaultBranch);
       await writePrivateFile(dir, settingsFile, `${JSON.stringify(REVIEWER_SETTINGS, null, 2)}\n`);

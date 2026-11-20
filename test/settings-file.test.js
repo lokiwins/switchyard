@@ -12,7 +12,7 @@ test('editableSettings: what the page edits, with defaults for anything config.j
   const values = editableSettings({ terminal: { app: 'iTerm' }, agents: { parkedAfterHours: 12 }, roots: ['~/work'] });
   assert.equal(values.terminal.app, 'iTerm');
   assert.equal(values.editor.urlScheme, 'vscode');
-  assert.deepEqual(values.agents, { parkedAfterHours: 12, endedHistoryDays: 7, interruptedAttentionDays: 3 });
+  assert.deepEqual(values.agents, { parkedAfterHours: 12, endedHistoryDays: 7, interruptedAttentionDays: 3, maxRunning: 0 });
   assert.deepEqual(values.roots, ['~/work']);
   assert.deepEqual(values.git.longLivedBranches, ['main', 'master', 'develop', 'dev', 'trunk']);
   assert.equal(values.github.copilotReviewer, 'copilot-pull-request-reviewer[bot]');

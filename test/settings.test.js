@@ -213,3 +213,9 @@ test('workers: the permission mode a lead\'s workers start in, the tools they ma
   }
   assert.throws(() => parseSettings({ workers: { leadWithoutAsking: 'yes' } }), /workers.leadWithoutAsking/);
 });
+
+test('agents.maxRunning: how many agents may run at once; 0 is no limit', () => {
+  assert.equal(parseSettings({}).agents.maxRunning, 0);
+  assert.equal(parseSettings({ agents: { maxRunning: 6 } }).agents.maxRunning, 6);
+  for (const bad of [-1, 2.5, '6', 1000]) assert.throws(() => parseSettings({ agents: { maxRunning: bad } }), /agents.maxRunning/, String(bad));
+});

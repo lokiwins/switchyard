@@ -44,6 +44,8 @@ export const DEFAULTS = Object.freeze({
     parkedAfterHours: 24,
     endedHistoryDays: 7,
     interruptedAttentionDays: 3,
+    // The most agents running at once; switchyard refuses to start one more (see agent-limit.js). 0 is no limit.
+    maxRunning: 0,
   }),
   tasks: Object.freeze({
     // Delete done and dropped tasks this many days after they're done, putting their work away (see task-cleanup.js).
@@ -85,7 +87,7 @@ const SECTION_KEYS = {
   terminal: ['app'],
   editor: ['urlScheme'],
   appearance: ['theme', 'mode', 'terminal'],
-  agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
+  agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays', 'maxRunning'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
   checks: ['commands', 'timeoutMinutes'],
   workers: ['permissionMode', 'allowedTools', 'leadWithoutAsking'],
@@ -217,6 +219,14 @@ function positiveNumber(value, path) {
   return value;
 }
 
+const MAX_RUNNING_LIMIT = 100;
+
+/** How many agents may run at once: a whole number, 0 for no limit. */
+function runningLimit(value) {
+  if (!Number.isInteger(value) || value < 0 || value > MAX_RUNNING_LIMIT) fail('agents.maxRunning', `must be a whole number from 0 (no limit) to ${MAX_RUNNING_LIMIT}`);
+  return value;
+}
+
 function compilePatterns(patterns, path) {
   return patterns.map((source, i) => {
     try {
@@ -328,6 +338,7 @@ export function parseSettings(file = {}) {
       parkedAfterMs: positiveNumber(agents.parkedAfterHours, 'agents.parkedAfterHours') * HOUR_MS,
       endedHistoryMs: positiveNumber(agents.endedHistoryDays, 'agents.endedHistoryDays') * DAY_MS,
       interruptedAttentionMs: positiveNumber(agents.interruptedAttentionDays, 'agents.interruptedAttentionDays') * DAY_MS,
+      maxRunning: runningLimit(agents.maxRunning),
     },
     tasks: {
       autoDeleteDone: tasks.autoDeleteDone,

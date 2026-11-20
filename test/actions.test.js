@@ -16,7 +16,7 @@ function setup({
   host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004',
   useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'], screen = '',
   integrated = [], paneShown = false, sessionUp = true, otherPanes = [],
-  proc = { pgid: 42, startedAt: Date.parse(PROC_START) }, exitsOn = ['SIGHUP'],
+  proc = { pgid: 42, startedAt: Date.parse(PROC_START) }, exitsOn = ['SIGHUP'], limit = { check: async () => {} },
 } = {}) {
   const calls = [];
   let running = alive;
@@ -78,6 +78,7 @@ function setup({
     useTmux,
     folderExists: (path) => folders.includes(path),
     textFieldDelayMs: 0,
+    limit,
     textFieldWaitMs: 20,
   });
   return { actions, calls };
@@ -554,4 +555,14 @@ test('End outside tmux follows up with SIGTERM if Claude is still running, and s
 test('End works only for running sessions', async () => {
   await rejectsWith(setup({ host: inTmux }).actions.endSession({ sessionId: 'ffffffff-0000' }), 404);
   await rejectsWith(setup({ host: inTmux }).actions.endSession({ sessionId: '$(rm -rf ~)' }), 400);
+});
+
+test('over the running-agents limit, Resume and Open › a new session are refused; a plain terminal still opens', async () => {
+  const full = { check: async () => { throw Object.assign(new Error('3 agents are running'), { status: 409 }); } };
+  const { actions, calls } = setup({ limit: full });
+  await rejectsWith(actions.resumeSession({ sessionId: 'ended-session-1' }), 409);
+  await rejectsWith(actions.openWorktree({ path: '/w/feat', sessionId: 'recent-session-1' }), 409);
+  await rejectsWith(actions.openWorktree({ path: '/w/feat', launch: 'claude' }), 409);
+  await actions.openWorktree({ path: '/w/feat' });
+  assert.deepEqual(calls, [['open', 'cd /w/feat']]);
 });
