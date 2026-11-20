@@ -1,13 +1,13 @@
 /*
  * The files the pages load, by URL path. Only these are served from public/,
  * so a page module that isn't listed here fails to load (test/static-files
- * checks every import is).
+ * checks every import is). The pages built from web/ are served from dist/
+ * (see built-pages.js).
  */
 /** Pages hosting the live terminal, which get a style nonce on each load (see csp.js). */
-export const STYLE_NONCE_PAGES = new Set(['agents.html', 'tasks.html']);
+export const STYLE_NONCE_PAGES = new Set(['tasks.html']);
 
 export const STATIC_FILES = {
-  '/': 'agents.html',
   '/worktrees': 'worktrees.html',
   '/prs': 'prs.html',
   '/tasks': 'tasks.html',
@@ -27,7 +27,6 @@ export const STATIC_FILES = {
   '/hub-views.js': 'hub-views.js',
   '/task-pane.js': 'task-pane.js',
   '/make-task.js': 'make-task.js',
-  '/agents.js': 'agents.js',
   '/nav.js': 'nav.js',
   '/actions.js': 'actions.js',
   '/app.js': 'app.js',
@@ -46,7 +45,6 @@ export const STATIC_FILES = {
   '/alert-time.js': 'alert-time.js',
   '/session-alerts.js': 'session-alerts.js',
   '/worktree-choices.js': 'worktree-choices.js',
-  '/new-task.js': 'new-task.js',
   '/branch-name.js': 'branch-name.js',
   '/pending-tasks.js': 'pending-tasks.js',
   '/markdown.js': 'markdown.js',

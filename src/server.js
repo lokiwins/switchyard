@@ -51,11 +51,15 @@ import { canReadScreen, createTerminal } from './terminal.js';
 import { conditionalState } from './state-etag.js';
 import { themeBootScript } from './theme-boot.js';
 import { STATIC_FILES, STYLE_NONCE_PAGES } from './static-files.js';
+import { builtFile } from './built-pages.js';
 import { createTmux } from './tmux.js';
 
 // Loopback only: the API exposes local paths and agent prompts.
 const HOST = '127.0.0.1';
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const DIST_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+// A built asset's name changes with its content, so a browser can keep it for good.
+const IMMUTABLE = 'public, max-age=31536000, immutable';
 const SECURITY_HEADERS = {
   'Content-Security-Policy': CSP,
   'X-Content-Type-Options': 'nosniff',
@@ -105,6 +109,29 @@ async function sendStatic(res, file) {
   if (STYLE_NONCE_PAGES.has(file)) ({ csp, body } = withStyleNonce(body.toString('utf8'), newStyleNonce()));
   res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Security-Policy': csp, 'Content-Type': CONTENT_TYPES[extname(file)], 'Cache-Control': 'no-cache' });
   res.end(body);
+}
+
+/**
+ * A page built from web/, or one of its assets. A built page hosts the live terminal, so it gets a
+ * style nonce (see csp.js). Without a build there's nothing to send but how to make one.
+ */
+async function sendBuilt(res, { file, page }) {
+  let body;
+  try {
+    body = await readFile(join(DIST_DIR, file));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    if (!page) return sendJson(res, 404, { success: false, error: 'Not found' });
+    res.writeHead(503, { ...SECURITY_HEADERS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end("switchyard's pages aren't built yet. Run `npm run build` in the switchyard folder, then reload.\n");
+  }
+  if (!page) {
+    res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES[extname(file)], 'Cache-Control': IMMUTABLE });
+    return res.end(body);
+  }
+  const { csp, body: html } = withStyleNonce(body.toString('utf8'), newStyleNonce());
+  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Security-Policy': csp, 'Content-Type': CONTENT_TYPES['.html'], 'Cache-Control': 'no-cache' });
+  return res.end(html);
 }
 
 function isAllowedHost(hostHeader) {
@@ -531,6 +558,8 @@ function createHandler(services) {
         return sendJson(res, 200, { success: true, data: { ...data, nav: await navFor(services, { prs: data }), capabilities: services.capabilities } });
       }
       if (url.pathname === '/theme-boot.js') return await sendThemeBoot(res, services.settingsService);
+      const built = builtFile(url.pathname);
+      if (built) return await sendBuilt(res, built);
       const file = STATIC_FILES[url.pathname];
       if (file) return await sendStatic(res, file);
       return sendJson(res, 404, { success: false, error: 'Not found' });

@@ -70,13 +70,14 @@ runs:
       run: git worktree add --detach "$RUNNER_TEMP/base" "$BASE"
 
     # switchyard's own packages, in each checkout that has any (a base from before it did is left as is).
+    # With the build tools, since installing builds the pages (a checkout from before there were any has nothing to build).
     - name: Install switchyard's packages
       shell: bash
       env:
         BASE: ${{ inputs.base }}
       run: |
         for dir in "$GITHUB_WORKSPACE" ${BASE:+"$RUNNER_TEMP/base"}; do
-          if [ -f "$dir/package-lock.json" ]; then (cd "$dir" && npm ci --no-audit --no-fund --omit=dev); fi
+          if [ -f "$dir/package-lock.json" ]; then (cd "$dir" && npm ci --no-audit --no-fund); fi
         done
 
     - name: Capture

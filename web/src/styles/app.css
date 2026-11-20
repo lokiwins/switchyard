@@ -1,0 +1,36 @@
+/*
+ * Tailwind, over the pages' existing styles. public/styles.css and themes.css
+ * still hold every colour token (each theme, light and dark) and the classes
+ * the pages not yet moved to React share, so Tailwind's base reset is left
+ * out and its utilities read the same tokens: `bg-surface`, `text-accent`
+ * follow the theme, and `dark:` follows the page's own light/dark choice.
+ */
+@layer theme, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@custom-variant dark (&:where([data-scheme="dark"], [data-scheme="dark"] *));
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-hairline: var(--hairline);
+  --color-gray-500: var(--gray-500);
+  --color-gray-900: var(--gray-900);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+  --font-sans: var(--font-sans);
+}
+
+/*
+ * Overrides of public/styles.css, unlayered: a rule in a layer always loses to
+ * an unlayered one, whatever its specificity, and styles.css is unlayered.
+ */
+/* Menus are placed by Radix (a wrapper it positions), so the panel sits in it rather than fixed to the window. */
+[data-radix-popper-content-wrapper] > .menu-panel { position: static; }
+.menu-trigger[data-state="open"] { background: var(--accent-fill); color: var(--on-accent); }

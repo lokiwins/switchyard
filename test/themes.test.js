@@ -9,7 +9,8 @@ import { editsFromFields, fieldsFromValues, FIELD_NAMES } from '../public/settin
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public');
 const read = (file) => readFileSync(join(PUBLIC_DIR, file), 'utf8');
-const PAGES = ['agents.html', 'worktrees.html', 'prs.html', 'tasks.html', 'settings.html', 'graph.html'];
+// The pages in public/, and the ones built from web/ (whose tags carry vite-ignore, so the build leaves them as they are).
+const PAGES = ['../web/agents.html', 'worktrees.html', 'prs.html', 'tasks.html', 'settings.html', 'graph.html'];
 
 /** The color tokens Classic defines in styles.css's :root, which every other theme must define too. */
 function colorTokens() {
@@ -60,10 +61,10 @@ test('text on an accent or danger color uses its token, never a hard-coded white
 test('every page applies the theme before it draws: the boot script, then the stylesheets', () => {
   for (const page of PAGES) {
     const head = read(page).split('</head>')[0];
-    const boot = head.indexOf('<script src="/theme-boot.js"></script>');
+    const boot = head.search(/<script src="\/theme-boot\.js"( vite-ignore)?><\/script>/);
     assert.ok(boot >= 0, `${page} doesn't load /theme-boot.js in its <head>`);
     assert.ok(boot < head.indexOf('/styles.css'), `${page} loads the boot script after its stylesheet`);
-    assert.ok(head.includes('<link rel="stylesheet" href="/themes.css">'), `${page} doesn't load /themes.css`);
+    assert.match(head, /<link rel="stylesheet" href="\/themes\.css"( vite-ignore)?>/, `${page} doesn't load /themes.css`);
   }
 });
 
