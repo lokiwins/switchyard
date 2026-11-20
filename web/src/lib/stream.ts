@@ -7,17 +7,26 @@ import { usePageVisible } from './visibility';
  * and lets the server stop work only that page wanted. The browser reconnects
  * by itself if it drops. True while connected.
  */
-export function useEventStream(url: string, handlers: Record<string, (data: unknown) => void>): boolean {
+export function useEventStream(
+  url: string | null,
+  handlers: Record<string, (data: unknown) => void>,
+  /** The server refused the stream (or switchyard isn't running): the browser has given up on it. */
+  { onClosed }: { onClosed?: () => void } = {},
+): boolean {
   const visible = usePageVisible();
   const [open, setOpen] = useState(false);
   // The handlers in use when an event comes, so the stream isn't reopened as they change.
   const receive = useEffectEvent((name: string, data: unknown) => handlers[name]?.(data));
+  const closed = useEffectEvent(() => onClosed?.());
   const events = Object.keys(handlers).sort().join(',');
   useEffect(() => {
-    if (!visible || typeof EventSource === 'undefined') return undefined;
+    if (!url || !visible || typeof EventSource === 'undefined') return undefined;
     const source = new EventSource(url);
     source.onopen = () => setOpen(true);
-    source.onerror = () => setOpen(source.readyState === EventSource.OPEN);
+    source.onerror = () => {
+      setOpen(source.readyState === EventSource.OPEN);
+      if (source.readyState === EventSource.CLOSED) closed();
+    };
     for (const name of events.split(',').filter(Boolean)) {
       source.addEventListener(name, (event) => receive(name, JSON.parse((event as MessageEvent<string>).data)));
     }

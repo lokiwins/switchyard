@@ -1,49 +1,34 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
-import { join, posix } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { STATIC_FILES } from '../src/static-files.js';
 
-const PUBLIC_DIR = join(import.meta.dirname, '..', 'public');
-const SCRIPT_SRC = /<script[^>]*\ssrc="([^"]+)"/g;
-const STYLESHEET = /<link[^>]*\shref="([^"]+)"/g;
-const IMPORT = /\bfrom\s+'(\.[^']+)'/g;
-// Files a module loads by an absolute path held in a constant.
-const ABSOLUTE_PATH = /'(\/vendor\/[^']+)'/g;
+const ROOT = join(import.meta.dirname, '..');
+const PUBLIC_DIR = join(ROOT, 'public');
+const WEB_DIR = join(ROOT, 'web');
+// What a built page loads from public/: the tags the build leaves alone (vite-ignore).
+const KEPT_TAG = /<(?:script|link)[^>]*\s(?:src|href)="([^"]+)"[^>]*\svite-ignore/g;
+const FONT_URL = /url\((\/vendor\/fonts\/[^)]+)\)/g;
 
-/** Every URL path a page loads, following module imports from its scripts. */
-function pathsLoadedBy(page) {
-  const html = readFileSync(join(PUBLIC_DIR, page), 'utf8');
-  const pending = [...html.matchAll(SCRIPT_SRC), ...html.matchAll(STYLESHEET)].map((m) => m[1]);
-  const seen = new Set();
-  while (pending.length > 0) {
-    const path = pending.pop();
-    if (seen.has(path)) continue;
-    seen.add(path);
-    if (!path.endsWith('.js')) continue;
-    const source = readFileSync(join(PUBLIC_DIR, path), 'utf8');
-    for (const [, relative] of source.matchAll(IMPORT)) pending.push(posix.join(posix.dirname(path), relative));
-    for (const [, absolute] of source.matchAll(ABSOLUTE_PATH)) pending.push(absolute);
-  }
-  return [...seen];
-}
+const pages = readdirSync(WEB_DIR).filter((file) => file.endsWith('.html'));
 
-test('every file a page loads is served, so no module is left out', () => {
-  for (const page of ['graph.html']) {
-    for (const path of pathsLoadedBy(page)) {
-      assert.equal(STATIC_FILES[path], path.slice(1), `${page} loads ${path}, which isn't in src/static-files.js`);
-    }
+test('every file a built page loads from public/ is served', () => {
+  assert.ok(pages.length > 0);
+  for (const page of pages) {
+    const html = readFileSync(join(WEB_DIR, page), 'utf8');
+    for (const [, path] of html.matchAll(KEPT_TAG)) assert.equal(STATIC_FILES[path], path.slice(1), `${page} loads ${path}, which isn't in src/static-files.js`);
   }
 });
 
-test('every listed file exists in public/', () => {
+test('every font a theme loads is served', () => {
+  for (const [, path] of readFileSync(join(PUBLIC_DIR, 'themes.css'), 'utf8').matchAll(FONT_URL)) {
+    assert.equal(STATIC_FILES[path], path.slice(1), `themes.css loads ${path}, which isn't in src/static-files.js`);
+  }
+});
+
+test('every listed file exists in public/, and the theme boot script parses', () => {
   for (const file of Object.values(STATIC_FILES)) assert.ok(existsSync(join(PUBLIC_DIR, file)), `public/${file} is missing`);
-});
-
-test('every page module parses, so a typo fails here rather than leaving a page blank', async () => {
-  const { execFileSync } = await import('node:child_process');
-  const modules = Object.values(STATIC_FILES).filter((file) => file.endsWith('.js') && !file.startsWith('vendor/'));
-  for (const file of modules) {
-    assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', join(PUBLIC_DIR, file)], { stdio: 'pipe' }), file);
-  }
+  assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', join(PUBLIC_DIR, 'theme-boot.js')], { stdio: 'pipe' }));
 });
