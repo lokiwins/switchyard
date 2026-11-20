@@ -106,6 +106,8 @@ export function createActionService({
   platform = process.platform,
   textFieldDelayMs = TEXT_FIELD_DELAY_MS,
   textFieldWaitMs = TEXT_FIELD_WAIT_MS,
+  // Settings › Agents › Most agents running at once (see agent-limit.js): checked before resuming or starting one.
+  limit = { check: async () => {} },
 }) {
   const drivers = new Map();
   const driverFor = (app) => {
@@ -468,6 +470,7 @@ export function createActionService({
     }
     const session = findEndedSession(state, sessionId);
     if (!session) throw new ActionError(404, 'Unknown session');
+    await limit.check();
     return { opened: true, ...await resume(session) };
   }
 
@@ -494,8 +497,15 @@ export function createActionService({
     const state = await stateService.getState();
     const path = findWorktreePath(state, body?.path);
     // A worktree's recent sessions are found by folder, so that's their folder.
-    if (body.sessionId !== undefined) return { opened: true, ...await resume({ ...recentSession(state, path, body), cwd: path }) };
-    await terminal.open(worktreeCommand(path, body));
+    if (body.sessionId !== undefined) {
+      const session = recentSession(state, path, body);
+      await limit.check();
+      return { opened: true, ...await resume({ ...session, cwd: path }) };
+    }
+    const command = worktreeCommand(path, body);
+    // A plain shell isn't an agent; a new session is.
+    if ((body.launch ?? 'shell') !== 'shell') await limit.check();
+    await terminal.open(command);
     return { opened: true };
   }
 

@@ -46,7 +46,7 @@ test('the reviewer may read and look at git history, never edit', () => {
 });
 
 // A task with a worktree, a subtask of a parent with one in the same repo, and the services faked.
-function setup({ live = [], summaries = {}, tasks } = {}) {
+function setup({ live = [], summaries = {}, tasks, full = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'switchyard-review-'));
   let all = tasks ?? [
     { id: 'sy-lead01', title: 'Build receipts', notes: '', links: [], closedAs: null },
@@ -84,6 +84,7 @@ function setup({ live = [], summaries = {}, tasks } = {}) {
     newSessionId: () => SESSION,
     now: () => 1000,
     starts: { track: (start) => tracked.push(start) },
+    limit: { check: async () => { if (full) throw Object.assign(new Error('3 agents are running'), { status: 409 }); } },
   });
   return { reviews, typed, dir, tracked, getTasks: () => all };
 }
@@ -178,4 +179,11 @@ test('a reviewer showing a prompt needs you, until it has a verdict', async () =
 
 test('the review reads with more of the plain read-only commands allowed, so it asks you less', () => {
   for (const rule of ['Bash(cat:*)', 'Bash(ls:*)', 'Bash(head:*)', 'Bash(tail:*)', 'Bash(wc:*)']) assert.ok(REVIEWER_SETTINGS.permissions.allow.includes(rule), rule);
+});
+
+test('over the running-agents limit, a review isn\'t started', async () => {
+  const { reviews, typed, getTasks } = setup({ full: true });
+  await assert.rejects(reviews.start({ id: 'sy-wrk001', path: '/code/shop-tests' }), (error) => error.status === 409);
+  assert.deepEqual(typed, []);
+  assert.equal(getTasks().find((t) => t.id === 'sy-wrk001').reviews, undefined);
 });

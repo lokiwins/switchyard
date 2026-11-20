@@ -6,7 +6,7 @@ import { testAgents } from './support/agents.js';
 const MAIN = '/w/my-repo';
 const state = { repos: [{ name: 'my-repo', mainPath: MAIN, worktrees: [] }] };
 
-function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths = [], windows = [], failWorktree = null, failFetch = false } = {}) {
+function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths = [], windows = [], failWorktree = null, failFetch = false, limit = { check: async () => {} } } = {}) {
   const calls = [];
   const git = async (args) => {
     calls.push(['git', ...args]);
@@ -40,6 +40,7 @@ function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths =
     agents: testAgents(),
     git,
     exists: (path) => paths.includes(path),
+    limit,
   });
   return { tasks, calls };
 }
@@ -250,4 +251,11 @@ test('a worker starts with its permission mode and settings file; the page can\'
   assert.doesNotMatch(page.calls.find((c) => c[0] === 'type')[2], /permission-mode/);
   await rejectsWith(setup().tasks.startTask({ repo: MAIN, prompt: 'X', branch: 'x' }, { permissionMode: 'bypassPermissions' }), 400);
   await rejectsWith(setup().tasks.startTask({ repo: MAIN, prompt: 'X', branch: 'x', provider: 'other' }, { permissionMode: 'plan' }), 400);
+});
+
+test('over the running-agents limit, a task isn\'t started: no worktree, no window', async () => {
+  const full = { check: async () => { throw Object.assign(new Error('3 agents are running'), { status: 409 }); } };
+  const { tasks, calls } = setup({ limit: full });
+  await rejectsWith(tasks.startTask({ repo: MAIN, prompt: 'Fix it', branch: 'fix-it' }), 409);
+  assert.equal(calls.some((c) => c[0] === 'new-window' || (c[0] === 'git' && c[3] === 'worktree')), false, JSON.stringify(calls));
 });
