@@ -6,7 +6,8 @@ import { TerminalButton } from '../terminal/TerminalButton';
 import { AnswerMenu, PlanButton } from './controls/answer';
 import { ApprovalButtons, approvalDetail } from './controls/approvals';
 import { ReplyMenu } from './controls/reply';
-import { EndMenu, GraphLink, JumpButton, StopButton, TaskFromWork } from './controls/session';
+import { TaskFromWork } from '../panes/TaskFromWork';
+import { EndMenu, GraphLink, JumpButton, StopButton } from './controls/session';
 import { SessionRow, StatusBadge, TrackerLink, WhereLabel } from './Row';
 import { useAgentsUi } from './store';
 

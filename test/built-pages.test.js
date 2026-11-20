@@ -3,9 +3,10 @@ import { test } from 'node:test';
 import { builtFile, BUILT_PAGES } from '../src/built-pages.js';
 
 test('the pages built from web/ are served at their addresses', () => {
-  assert.deepEqual(BUILT_PAGES, { '/': 'agents.html', '/prs': 'prs.html' });
+  assert.deepEqual(BUILT_PAGES, { '/': 'agents.html', '/prs': 'prs.html', '/worktrees': 'worktrees.html' });
   assert.deepEqual(builtFile('/'), { file: 'agents.html', page: true });
   assert.deepEqual(builtFile('/prs'), { file: 'prs.html', page: true });
+  assert.deepEqual(builtFile('/worktrees'), { file: 'worktrees.html', page: true });
 });
 
 test('hashed assets are served from the build, and nothing else is', () => {

@@ -8,7 +8,6 @@
 export const STYLE_NONCE_PAGES = new Set(['tasks.html']);
 
 export const STATIC_FILES = {
-  '/worktrees': 'worktrees.html',
   '/tasks': 'tasks.html',
   '/settings': 'settings.html',
   '/graph': 'graph.html',
@@ -28,7 +27,6 @@ export const STATIC_FILES = {
   '/make-task.js': 'make-task.js',
   '/nav.js': 'nav.js',
   '/actions.js': 'actions.js',
-  '/app.js': 'app.js',
   '/ended-views.js': 'ended-views.js',
   '/agent-views.js': 'agent-views.js',
   '/session-row.js': 'session-row.js',
@@ -56,8 +54,6 @@ export const STATIC_FILES = {
   '/vendor/xterm/addon-webgl.mjs': 'vendor/xterm/addon-webgl.mjs',
   '/vendor/xterm/xterm.css': 'vendor/xterm/xterm.css',
   '/dom.js': 'dom.js',
-  '/views.js': 'views.js',
-  '/worktree-age.js': 'worktree-age.js',
   '/keyed.js': 'keyed.js',
   '/row-parts.js': 'row-parts.js',
   '/styles.css': 'styles.css',
