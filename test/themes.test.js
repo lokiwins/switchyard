@@ -10,7 +10,7 @@ import { editsFromFields, fieldsFromValues, FIELD_NAMES } from '../public/settin
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public');
 const read = (file) => readFileSync(join(PUBLIC_DIR, file), 'utf8');
 // The pages in public/, and the ones built from web/ (whose tags carry vite-ignore, so the build leaves them as they are).
-const PAGES = ['../web/agents.html', 'worktrees.html', 'prs.html', 'tasks.html', 'settings.html', 'graph.html'];
+const PAGES = ['../web/agents.html', '../web/prs.html', 'worktrees.html', 'tasks.html', 'settings.html', 'graph.html'];
 
 /** The color tokens Classic defines in styles.css's :root, which every other theme must define too. */
 function colorTokens() {

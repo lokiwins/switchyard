@@ -2,11 +2,11 @@ import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle 
 import { alertsSig } from './session-alerts.js';
 
 /*
- * Rows on the Agents and PRs pages are drawn in parts. Each part's sig is
+ * A live session's row, where the Tasks page shows one (agent-views.js), is drawn in parts. Each part's sig is
  * everything that part is drawn from, so a redraw rebuilds only the parts
  * whose sig changed (see keyed.js) and keeps the rest exactly as they are:
  * an open menu, a reply being typed, keyboard focus. Kept apart from the DOM
- * so it can be tested. (The Tasks page's rows are in task-row-parts.js.)
+ * so it can be tested. (A task's own row is in task-row-parts.js.)
  */
 
 const sig = (value) => JSON.stringify(value);
@@ -37,25 +37,5 @@ export function liveRowParts(session, { where, approvals, detailOpen }) {
         session.screenPrompt ?? null, session.hubTask ?? null, approvals.map((a) => a.id),
         where?.worktree.task ?? null, pr ? [pr.url, pr.number] : null]),
     },
-  ];
-}
-
-/** A PR card's parts; `canAskCopilot` says whether the page offers Copilot reviews here. */
-export function prCardParts(pr, { showAuthor, canAskCopilot, caps }) {
-  return [
-    { key: 'line', sig: sig([pr.stage, pr.title, pr.url, pr.repo, pr.number]) },
-    {
-      key: 'meta',
-      sig: sig([pr.headRefName, pr.baseRefName, showAuthor && pr.author?.login, pr.updatedAt, pr.fetchedAt, pr.refreshError ?? null,
-        pr.additions, pr.deletions, pr.changedFiles]),
-    },
-    ...(pr.error
-      ? [{ key: 'error', sig: sig(pr.error) }]
-      : [
-        { key: 'checks', sig: sig(pr.checks ?? null) },
-        { key: 'reviews', sig: sig([pr.reviews ?? [], pr.requested ?? []]) },
-        { key: 'local', sig: sig([pr.local ?? null, pr.repo, pr.number, caps]) },
-      ]),
-    { key: 'side', sig: sig([canAskCopilot && pr.copilot, pr.repo, pr.number]) },
   ];
 }

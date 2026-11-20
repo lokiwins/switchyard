@@ -3,7 +3,8 @@ import { shortPath } from '../../lib/paths';
 import { sessionDetail, sessionTitle } from '../../lib/shared';
 import type { Capabilities, EndedSession } from '../../lib/types';
 import { DeleteMenu } from './controls/delete';
-import { canResume, EditorLink, GraphLink, ResumeButton, TaskFromWork } from './controls/session';
+import { EditorLink } from '../../components/EditorLink';
+import { canResume, GraphLink, ResumeButton, TaskFromWork } from './controls/session';
 import { SessionRow, StatusBadge, TrackerLink, WhereLabel } from './Row';
 import { useAgentsUi } from './store';
 

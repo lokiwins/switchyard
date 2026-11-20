@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActionButton } from '../../../components/ActionButton';
 import { Menu } from '../../../components/Menu';
+import { resumedMessage, resumeWhere } from '../../../components/OpenMenu';
 import { post } from '../../../lib/api';
 import { tmuxPlace } from '../../../lib/paths';
 import { canShowTerminalSessions } from '../../../lib/shared';
@@ -9,7 +10,6 @@ import { openPane, type MakeTaskFrom } from '../../../stores/panes';
 
 /* A session's controls: stop it, end it, go to it, resume it, see its graph, make a task from it. */
 
-const EDITOR_LABELS: Record<string, string> = { vscode: 'VS Code', 'vscode-insiders': 'VS Code Insiders', cursor: 'Cursor', windsurf: 'Windsurf' };
 // Every Graph button opens the one graph tab: the first opens it, later ones show their session there.
 const GRAPH_TAB = 'switchyard-graph';
 
@@ -97,29 +97,17 @@ export function GraphLink({ sessionId }: { sessionId: string }) {
   );
 }
 
-/** Where a resumed session opens: a tab of the switchyard tmux session, or of the terminal app. */
-const resumeWhere = (caps: Capabilities) => (caps.tmux ? 'a new tab of the switchyard tmux session' : `a new ${caps.terminal} tab`);
-
 /** Resume an ended session: in tmux when it's installed, so it can be watched and steered from here. */
 export function ResumeButton({ session, caps }: { session: EndedSession; caps: Capabilities }) {
   return (
     <ActionButton label="Resume" title={`Resume this session in ${resumeWhere(caps)}`}
       perform={async () => {
-        const result = await post<{ window?: string; host?: string }>('/api/terminal/resume', { sessionId: session.sessionId });
-        return `Resuming in ${result.window ? `tmux window ${result.window}` : result.host}`;
+        return resumedMessage(await post<{ window?: string; host?: string }>('/api/terminal/resume', { sessionId: session.sessionId }));
       }} />
   );
 }
 
 export const canResume = (caps: Capabilities): boolean => Boolean(caps.terminal || caps.tmux);
-
-/** Open a folder in the configured editor: a plain link, handled by the editor's URL scheme. */
-export function EditorLink({ path, caps }: { path: string; caps: Capabilities }) {
-  const scheme = caps.editorScheme;
-  if (!scheme) return null;
-  const url = `${scheme}://file${path.split('/').map(encodeURIComponent).join('/')}`;
-  return <a className="btn btn-action" href={url} title={`Open in ${EDITOR_LABELS[scheme] ?? scheme}`}>Code</a>;
-}
 
 /** "Task" to the task this work is on, or "Make task" to make one from it, filled in from its session. */
 export function TaskFromWork({ from, hubTask }: { from: MakeTaskFrom; hubTask?: HubTaskRef | null }) {

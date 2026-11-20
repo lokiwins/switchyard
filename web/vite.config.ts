@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
-import { defineConfig, type ProxyOptions } from 'vite';
+import { defineConfig, type Plugin, type ProxyOptions } from 'vite';
+import { BUILT_PAGES } from '../src/built-pages.js';
 
 /*
  * The pages, built to dist/ and served by src/server.js (see src/built-pages.js).
@@ -17,7 +18,7 @@ const target = `http://127.0.0.1:${process.env.SWITCHYARD_PORT ?? 4477}`;
 const devOrigins = new Set([`http://localhost:${DEV_PORT}`, `http://127.0.0.1:${DEV_PORT}`]);
 // What the dev server leaves to switchyard. A request from the dev page itself is sent on as
 // switchyard's own origin, so its same-origin check passes; any other origin is sent as it came.
-const SERVER_PATHS = ['/api', '/theme-boot.js', '/styles.css', '/themes.css', '/vendor', '/graph', '/tasks', '/prs', '/worktrees', '/settings'];
+const SERVER_PATHS = ['/api', '/theme-boot.js', '/styles.css', '/themes.css', '/vendor', '/graph', '/tasks', '/worktrees', '/settings'];
 const toSwitchyard: ProxyOptions = {
   target,
   configure: (proxy) => {
@@ -27,13 +28,26 @@ const toSwitchyard: ProxyOptions = {
   },
 };
 
+/** In development, each page at its address (/prs), as the server serves the built ones (src/built-pages.js). */
+const pagesAtTheirAddresses: Plugin = {
+  name: 'switchyard-pages',
+  configureServer(server) {
+    server.middlewares.use((req, _res, next) => {
+      const [path, query] = (req.url ?? '').split('?');
+      const page = path ? (BUILT_PAGES as Record<string, string>)[path] : undefined;
+      if (page) req.url = `/${page}${query ? `?${query}` : ''}`;
+      next();
+    });
+  },
+};
+
 export default defineConfig({
   root,
-  plugins: [react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
+  plugins: [pagesAtTheirAddresses, react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
   build: {
     outDir: '../dist',
     emptyOutDir: true,
-    rolldownOptions: { input: { agents: `${root}agents.html` } },
+    rolldownOptions: { input: { agents: `${root}agents.html`, prs: `${root}prs.html` } },
   },
   server: {
     port: DEV_PORT,
