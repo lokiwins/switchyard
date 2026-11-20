@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { bareFieldStorage } from '../../lib/pref-storage';
+import { bareField, prefFieldsStorage } from '../../lib/pref-storage';
 import { isPrFilter, type PrFilter } from './filters';
 
 /* The PRs page's own state: which PRs it shows. */
@@ -21,6 +21,6 @@ export const usePrsUi = create<PrsUi>()(persist((set) => ({
   setQuery: (query) => set({ query }),
 }), {
   name: FILTER_PREF,
-  storage: createJSONStorage(() => bareFieldStorage(FILTER_PREF, 'filter', isPrFilter)),
+  storage: createJSONStorage(() => prefFieldsStorage({ filter: bareField(FILTER_PREF, isPrFilter) })),
   partialize: (s) => ({ filter: s.filter }),
 }));

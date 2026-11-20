@@ -216,7 +216,7 @@ The hook endpoint (`POST /hooks/permission-request`) is called by Claude Code, n
 
 ## The pages
 
-The Agents and Pull requests pages are built with React from `web/`; the other pages are still plain modules in `public/` and move over one at a time. Pieces more than one page uses (the top bar, menus, tiles, panels, the Open ▾ menu, a pushed stream) are in `web/src/components` and `web/src/lib`; each page's own are in `web/src/features/<page>`.
+The Agents, Pull requests and Worktrees pages are built with React from `web/`; the other pages are still plain modules in `public/` and move over one at a time. Pieces more than one page uses (the top bar, menus, tiles, panels, the Open ▾ menu, a pushed stream) are in `web/src/components` and `web/src/lib`; each page's own are in `web/src/features/<page>`.
 
 - **Stack:** React 19 with the React compiler, TypeScript, Vite, Tailwind, [TanStack Query](https://tanstack.com/query) for data from the server, and [Zustand](https://zustand.docs.pmnd.rs) for the page's own state (filters, what's open, what you've typed). The server's data never goes into a Zustand store: the query cache is its one copy.
 - **Updates keep what you're doing.** Each answer from the server is shared structurally with the last, so a session that didn't change keeps the same object and its row isn't drawn again; rows are keyed by session, so a menu you have open, or text you're typing in one, stays as it is while the page updates. Menus are placed by [Radix](https://www.radix-ui.com/primitives/docs/components/popover); panes are native `<dialog>`s.

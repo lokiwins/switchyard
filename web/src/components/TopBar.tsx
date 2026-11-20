@@ -41,12 +41,13 @@ function NavLinks({ current }: { current: string }) {
   );
 }
 
-export function TopBar({ current, children }: { current: string; children?: ReactNode }) {
+export function TopBar({ current, brand, children }: { current: string; brand?: ReactNode; children?: ReactNode }) {
   return (
     <header className="topbar">
       <div className="brand">
         <h1>Switchyard</h1>
         <NavLinks current={current} />
+        {brand}
       </div>
       <div className="topbar-actions">
         <ThemeMenu />
