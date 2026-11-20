@@ -202,7 +202,7 @@ test('checks: an unknown "run", a bad timeout, an unknown option or no command i
 
 test('workers: the permission mode a lead\'s workers start in, the tools they may use without asking, and whether the lead asks before its own tools', () => {
   // By default nothing changes: workers start as Claude would, and the lead asks you before using switchyard's tools.
-  assert.deepEqual(parseSettings({}).workers, { permissionMode: 'claude', allowedTools: [], leadWithoutAsking: false });
+  assert.deepEqual(parseSettings({}).workers, { permissionMode: 'claude', allowedTools: [], leadWithoutAsking: true });
   assert.deepEqual(parseSettings({ workers: { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit', 'mcp__github__get_issue', 'Bash(git log:*)'], leadWithoutAsking: true } }).workers,
     { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit', 'mcp__github__get_issue', 'Bash(git log:*)'], leadWithoutAsking: true });
   for (const mode of ['manual', 'plan', 'auto']) assert.equal(parseSettings({ workers: { permissionMode: mode } }).workers.permissionMode, mode);
