@@ -14,6 +14,8 @@
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "types": ["vite/client", "node"]
   },
   "include": ["src", "vite.config.ts"]

@@ -9,7 +9,6 @@ export const STYLE_NONCE_PAGES = new Set(['tasks.html']);
 
 export const STATIC_FILES = {
   '/worktrees': 'worktrees.html',
-  '/prs': 'prs.html',
   '/tasks': 'tasks.html',
   '/settings': 'settings.html',
   '/graph': 'graph.html',
@@ -30,8 +29,6 @@ export const STATIC_FILES = {
   '/nav.js': 'nav.js',
   '/actions.js': 'actions.js',
   '/app.js': 'app.js',
-  '/prs.js': 'prs.js',
-  '/pr-views.js': 'pr-views.js',
   '/ended-views.js': 'ended-views.js',
   '/agent-views.js': 'agent-views.js',
   '/session-row.js': 'session-row.js',

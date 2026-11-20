@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
 import { getJson } from '../../lib/api';
 import { queryClient } from '../../lib/query';
-import { usePageVisible } from '../../lib/visibility';
+import { useEventStream } from '../../lib/stream';
 import { NAV_KEY } from '../../components/nav-api';
 import type { AgentsData } from '../../lib/types';
 
@@ -44,22 +43,7 @@ export function refreshAgents({ force = false } = {}): Promise<unknown> {
   return queryClient.fetchQuery({ queryKey: AGENTS_KEY, queryFn: () => fetchAgents(true), staleTime: 0 });
 }
 
-/** The pushed updates, while the tab shows (browsers allow few connections per site). True while connected. */
-export function useAgentStream(): boolean {
-  const visible = usePageVisible();
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!visible || typeof EventSource === 'undefined') return undefined;
-    const source = new EventSource('/api/agents/stream');
-    source.onopen = () => setOpen(true);
-    source.onerror = () => setOpen(source.readyState === EventSource.OPEN);
-    source.addEventListener('agents', (event) => {
-      queryClient.setQueryData(AGENTS_KEY, receive(JSON.parse((event as MessageEvent<string>).data) as AgentsData));
-    });
-    return () => {
-      source.close();
-      setOpen(false);
-    };
-  }, [visible]);
-  return open && visible;
-}
+/** The pushed updates, while the tab shows. True while connected. */
+export const useAgentStream = (): boolean => useEventStream('/api/agents/stream', {
+  agents: (data) => queryClient.setQueryData(AGENTS_KEY, receive(data as AgentsData)),
+});

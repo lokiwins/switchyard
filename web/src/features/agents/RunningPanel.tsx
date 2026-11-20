@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { Panel } from '../../components/Panel';
+import { SearchBox } from '../../components/SearchBox';
 import { useNow } from '../../lib/time';
 import { settlePending } from '../../lib/shared';
 import type { AgentsData, Approval, LiveSession } from '../../lib/types';
@@ -82,16 +84,15 @@ export function RunningPanel({ data, query }: { data: AgentsData; query: string 
   const parkedShown = showParked || filter === 'parked' || active.length === 0;
   const empty = query || filter !== 'all' ? 'No running sessions match.' : 'No agent sessions are running.';
   return (
-    <section className="panel" aria-labelledby="running-title" hidden={!live}>
-      <div className="panel-head">
-        <h2 id="running-title">Running</h2>
+    <Panel id="running-title" title="Running" hidden={!live} head={(
+      <>
         <span id="show-sessions" className="panel-action"><ShowSessionsButton caps={data.capabilities} /></span>
         <div className="filters">
-          <input id="search" type="search" placeholder="Filter name, repo, branch, text…" aria-label="Filter sessions"
-            defaultValue={query} onChange={(event) => setQuery(event.target.value.trim())} />
+          <SearchBox placeholder="Filter name, repo, branch, text…" label="Filter sessions" value={query} onChange={setQuery} />
           <ViewFilter />
         </div>
-      </div>
+      </>
+    )}>
       <div id="running">
         {data.capabilities.approvalsHook === false && sessions.some((s) => s.needsYou) && <HookHint />}
         {starting.length > 0 && (
@@ -106,6 +107,6 @@ export function RunningPanel({ data, query }: { data: AgentsData; query: string 
         )}
         {parked.length > 0 && parkedShown && <SessionList sessions={parked} data={data} />}
       </div>
-    </section>
+    </Panel>
   );
 }

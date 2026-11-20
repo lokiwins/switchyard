@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { liveRowParts, prCardParts } from '../public/row-parts.js';
+import { liveRowParts } from '../public/row-parts.js';
 
 const sigs = (parts) => Object.fromEntries(parts.map((p) => [p.key, p.sig]));
 const changed = (before, after) => Object.keys({ ...before, ...after }).filter((k) => before[k] !== after[k]).sort();
@@ -55,33 +55,3 @@ test('its worktree\'s PR or branch: the buttons and the where line', () => {
 });
 
 /* ---------- a PR card on the PRs page ---------- */
-
-const PR = {
-  repo: 'acme/billing-api', number: 7, title: 'Fix totals', url: 'https://example.test/pr/7', stage: 'awaiting-review',
-  headRefName: 'fix-totals', baseRefName: 'main', author: { login: 'someone' }, updatedAt: '2026-11-19T10:00:00Z', fetchedAt: 1000,
-  additions: 3, deletions: 1, changedFiles: 1,
-  checks: { total: 2, passing: 2, failing: 0, pending: 0, failed: [], running: [], heldCount: 0, held: [] },
-  reviews: [], requested: [{ name: 'reviewer', isTeam: false }],
-  local: { path: '/code/billing-api-fix', dirty: false, agents: [], sessions: [] },
-  copilot: null,
-};
-const OPTS = { showAuthor: false, canAskCopilot: true, caps: { terminal: true } };
-const pr = (data = PR, opts = OPTS) => sigs(prCardParts(data, opts));
-
-test('a PR card is its parts: title line, meta, checks, reviews, local copy, Copilot', () => {
-  assert.deepEqual(prCardParts(PR, OPTS).map((p) => p.key), ['line', 'meta', 'checks', 'reviews', 'local', 'side']);
-  assert.deepEqual(prCardParts({ ...PR, error: 'timed out' }, OPTS).map((p) => p.key), ['line', 'meta', 'error', 'side']);
-});
-
-test('GitHub being checked again (with nothing new) redraws only the meta line, not the Open ▾ menu', () => {
-  assert.deepEqual(changed(pr(), pr({ ...PR, fetchedAt: 2000 })), ['meta']);
-});
-
-test('each change redraws only its own part', () => {
-  assert.deepEqual(changed(pr(), pr({ ...PR, checks: { ...PR.checks, pending: 1, running: [{ name: 'ci' }] } })), ['checks']);
-  assert.deepEqual(changed(pr(), pr({ ...PR, reviews: [{ login: 'r', state: 'APPROVED', submittedAt: '2026-11-19T11:00:00Z' }] })), ['reviews']);
-  assert.deepEqual(changed(pr(), pr({ ...PR, local: { ...PR.local, dirty: true } })), ['local']);
-  assert.deepEqual(changed(pr(), pr({ ...PR, stage: 'ready' })), ['line']);
-  assert.deepEqual(changed(pr(), pr({ ...PR, copilot: { requested: true } })), ['side']);
-  assert.deepEqual(changed(pr(), pr(PR, { ...OPTS, caps: { terminal: false } })), ['local']);
-});
