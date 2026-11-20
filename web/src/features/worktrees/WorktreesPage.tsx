@@ -15,6 +15,7 @@ import { RepoSection } from './RepoSection';
 import { useWorktreesUi } from './store';
 import type { OrphanPr, StateData } from './types';
 import { groupRepos, SEGMENTED_VIEWS, summarize, VIEWS } from './views';
+import { Button } from '../../components/Button';
 
 /* The Worktrees page: every checkout under the roots, its branch, PR and sessions; and your PRs with no checkout here. */
 
@@ -40,10 +41,10 @@ function Repos({ data, query }: { data: StateData; query: string }) {
           <div className="empty">
             <p>No worktrees match this view.</p>
             {(view !== 'all' || query) && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+              <Button type="button" variant="secondary" size="sm" onClick={() => {
                 setQuery('');
                 setView('all');
-              }}>Show all worktrees</button>
+              }}>Show all worktrees</Button>
             )}
           </div>
         ) : groups.map(({ repo, rows }) => <RepoSection key={repo.mainPath} repo={repo} rows={rows} caps={data.capabilities} />)}

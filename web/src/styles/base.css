@@ -1,0 +1,25 @@
+/*
+ * The page's own element styles, under every utility (and every legacy.css
+ * class) so a component's classes always win over them.
+ */
+@layer base {
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--gray-900);
+    font: var(--text-base)/var(--leading-sm) var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--radius-sm); }
+  h1, h2, h3 { margin: 0; }
+  h1 { font-size: var(--text-base); font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: var(--text-base); font-weight: 600; }
+  h3 { font-size: var(--text-2xs); font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; }
+  code { font-family: var(--font-mono); font-size: var(--text-xs); }
+  [hidden] { display: none !important; }
+}

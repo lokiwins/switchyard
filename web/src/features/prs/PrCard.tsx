@@ -12,6 +12,7 @@ import { toast } from '../../stores/toast';
 import { refreshPrs } from './api';
 import { stageOf } from './filters';
 import type { CheckRef, Checks, Pr } from './types';
+import { Button } from '../../components/Button';
 
 /* A PR's card: where it stands, its branch and size, its checks, reviews and local checkout, and Copilot. */
 
@@ -127,16 +128,16 @@ function CopilotButton({ pr }: { pr: Pr }) {
     onError: (error) => toast(`Could not request Copilot review: ${error.message}`),
   });
   if (!pr.copilot) return null;
-  if (pr.copilot.requested) return <button type="button" className="btn btn-secondary btn-sm" disabled>Copilot requested</button>;
+  if (pr.copilot.requested) return <Button type="button" variant="secondary" size="sm" disabled>Copilot requested</Button>;
   const last = pr.copilot.lastReviewedAt;
   let label: ReactNode = last ? '↻ Copilot review' : 'Copilot review';
   if (ask.isPending || ask.isSuccess) label = 'Requesting…';
   if (ask.isError) label = 'Retry Copilot review';
   return (
-    <button type="button" className="btn btn-secondary btn-sm" disabled={ask.isPending || ask.isSuccess} onClick={() => ask.mutate()}
+    <Button type="button" variant="secondary" size="sm" disabled={ask.isPending || ask.isSuccess} onClick={() => ask.mutate()}
       title={last ? `Ask Copilot to review again (last reviewed ${timeAgo(Date.parse(last))})` : 'Ask Copilot to review this PR'}>
       {label}
-    </button>
+    </Button>
   );
 }
 

@@ -8,6 +8,7 @@ import type { Approval, Host, LiveSession, PromptOption, ScreenPrompt } from '..
 import { openPane } from '../../../stores/panes';
 import { useDraft } from '../../../stores/drafts';
 import { toast } from '../../../stores/toast';
+import { Button, buttonClass } from '../../../components/Button';
 
 /*
  * Answering the dialog a session shows in tmux or iTerm (a question, plan
@@ -142,7 +143,7 @@ export function AnswerControls({ session, style, onDone }: { session: LiveSessio
   );
 }
 
-const MENU_STYLE: AnswerStyle = { button: 'menu-item', form: 'reply-form', input: '', send: 'btn btn-sm' };
+const MENU_STYLE: AnswerStyle = { button: 'menu-item', form: 'reply-form', input: '', send: buttonClass({ size: 'sm' }) };
 
 /** "Answer ▾": the options of the dialog on a session's screen, each pressed there. */
 export function AnswerMenu({ session, approvals }: { session: LiveSession; approvals: Approval[] }) {
@@ -165,10 +166,10 @@ export function PlanButton({ session, approvals }: { session: LiveSession; appro
   if (!canShow(session, approvals) || !session.screenPrompt.plan) return null;
   const answerable = canAnswer(session, approvals);
   return (
-    <button type="button" className="btn btn-sm btn-secondary"
+    <Button type="button" variant="secondary" size="sm"
       title={`Read the plan${answerable ? ' before answering' : ''} (${session.screenPrompt.planFile})`}
       onClick={() => openPane({ kind: 'plan', sessionId: session.sessionId })}>
       Plan
-    </button>
+    </Button>
   );
 }

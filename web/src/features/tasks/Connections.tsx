@@ -4,6 +4,7 @@ import { Menu } from '../../components/Menu';
 import { cx } from '../../lib/cx';
 import { changeTools, useTaskTools } from './api';
 import type { TaskTool } from './types';
+import { Button } from '../../components/Button';
 
 /*
  * Connections ▾ in the header: which trackers are connected, and a card for
@@ -36,7 +37,7 @@ function ConnectForm() {
           id="clickup-token" name="token" type="password" required autoComplete="off" spellCheck={false} placeholder="pk_…"
           value={token} onChange={(event) => setToken(event.target.value)}
         />
-        <button type="submit" className="btn btn-sm" disabled={connect.isPending}>Connect</button>
+        <Button type="submit" size="sm" disabled={connect.isPending}>Connect</Button>
       </div>
       <p className="tool-help">
         Make one in ClickUp under <a href={HELP_URL} target="_blank" rel="noopener noreferrer">Settings › Apps</a>
@@ -73,7 +74,7 @@ function ConnectedBody({ tool }: { tool: TaskTool }) {
       <p className="tool-meta"><ConnectedDot />{`Connected as ${tool.user?.username ?? ''}`}</p>
       <div className="tool-row">
         <WorkspacePicker tool={tool} />
-        <button type="button" className="btn btn-sm btn-secondary" title="Forget the token" onClick={disconnect}>Disconnect</button>
+        <Button type="button" variant="secondary" size="sm" title="Forget the token" onClick={disconnect}>Disconnect</Button>
       </div>
     </>
   );
@@ -109,7 +110,8 @@ export function ConnectionsMenu() {
     <Menu
       label={<><span className={cx('dot', connected.length > 0 && 'connected')} aria-hidden="true" /> Connections ▾</>}
       title={connected.length ? `Connected: ${connected.map((tool) => tool.name).join(', ')}` : 'No tracker connected'}
-      className="btn btn-secondary connections-btn"
+      look={{ variant: 'secondary' }}
+      triggerClass="inline-flex items-center gap-1.5"
       panelClass="connections-panel"
     >
       {tools.map((tool) => <ToolCard key={tool.id} tool={tool} />)}

@@ -5,6 +5,7 @@ import { toast } from '../../stores/toast';
 import { TASKS_KEY } from './api';
 import { whatsLeft } from './logic';
 import type { WorktreeChoice } from './types';
+import { Button } from '../../components/Button';
 
 /*
  * After a task is closed or deleted, its work is put away (see
@@ -34,8 +35,8 @@ function Choice({ choice }: { choice: WorktreeChoice }) {
           : 'Delete removes the folder. The branch and its commits stay.'}
       </p>
       <div className="worktree-choice-actions">
-        <button type="button" className="btn btn-sm btn-secondary" disabled={choose.isPending} onClick={() => choose.mutate(true)}>Keep worktree</button>
-        <button type="button" className="btn btn-sm btn-danger" disabled={choose.isPending} onClick={() => choose.mutate(false)}>Delete worktree</button>
+        <Button type="button" variant="secondary" size="sm" disabled={choose.isPending} onClick={() => choose.mutate(true)}>Keep worktree</Button>
+        <Button type="button" variant="danger" size="sm" disabled={choose.isPending} onClick={() => choose.mutate(false)}>Delete worktree</Button>
       </div>
     </div>
   );

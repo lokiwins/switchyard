@@ -117,7 +117,7 @@ export function AddFromMenu({ tasks, onCreate }: { tasks: HubTask[]; onCreate: C
     <Menu
       label="Add from ▾"
       title="Make tasks from the tickets assigned to you in your trackers"
-      className="btn btn-secondary"
+      look={{ variant: 'secondary' }}
       panelClass="picker-panel"
     >
       <Picker tools={tools} tasks={tasks} onCreate={onCreate} />

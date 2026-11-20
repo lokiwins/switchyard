@@ -2,6 +2,7 @@ import { ActionButton } from '../../../components/ActionButton';
 import { post } from '../../../lib/api';
 import type { AgentsData, Approval, Detail, LiveSession } from '../../../lib/types';
 import { openPane } from '../../../stores/panes';
+import { Button } from '../../../components/Button';
 
 /* Permission prompts sent here by the approvals hook: Review it in full, Allow or Deny; the terminal's own prompt stays usable too. */
 
@@ -27,12 +28,12 @@ export function ApprovalButtons({ approvals, session }: { approvals: Approval[];
   const what = `${approval.toolName}: ${approval.summary}`;
   return (
     <>
-      <button type="button" className="btn btn-sm btn-secondary" title={`See it in full before answering: ${what}`}
+      <Button type="button" variant="secondary" size="sm" title={`See it in full before answering: ${what}`}
         onClick={() => openPane({ kind: 'review', approval, session })}>
         Review
-      </button>
-      <ActionButton label="Allow" title={`Allow once: ${what}`} className="btn btn-sm" perform={() => decide(approval, 'allow')} />
-      <ActionButton label="Deny" title={`Deny: ${what}`} className="btn btn-sm btn-secondary" perform={() => decide(approval, 'deny')} />
+      </Button>
+      <ActionButton label="Allow" title={`Allow once: ${what}`} look={{ size: 'sm' }} perform={() => decide(approval, 'allow')} />
+      <ActionButton label="Deny" title={`Deny: ${what}`} look={{ variant: 'secondary', size: 'sm' }} perform={() => decide(approval, 'deny')} />
     </>
   );
 }

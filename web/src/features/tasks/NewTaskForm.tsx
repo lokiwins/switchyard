@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { AddFromMenu } from './AddFromMenu';
 import type { HubTask, TaskFields } from './types';
+import { Button } from '../../components/Button';
 
 /* The add-a-task form: a title and due day, with notes and links behind "Notes and links"; and Add from ▾. */
 
@@ -35,7 +36,7 @@ export function NewTaskForm({ tasks, onCreate }: { tasks: HubTask[]; onCreate: (
         <input ref={title} name="title" type="text" required maxLength={MAX_TITLE_CHARS} autoComplete="off" aria-label="Task" placeholder="Add a task: what needs doing?"
           value={fields.title} onChange={change('title')} />
         <input name="dueOn" type="date" aria-label="Due date" title="Due date (optional)" value={fields.dueOn} onChange={change('dueOn')} />
-        <button type="submit" className="btn" disabled={busy}>Add</button>
+        <Button type="submit"  disabled={busy}>Add</Button>
         <AddFromMenu tasks={tasks} onCreate={onCreate} />
       </div>
       <details className="hub-new-more" open={moreOpen} onToggle={(event) => setMoreOpen(event.currentTarget.open)}>

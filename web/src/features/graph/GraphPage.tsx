@@ -7,6 +7,7 @@ import { Detail } from './Detail';
 import { GraphCanvas, type GraphCanvasHandle } from './GraphCanvas';
 import { KINDS, kindCounts, type SessionGraph } from './model';
 import { useGraphUi } from './store';
+import { Button } from '../../components/Button';
 
 /*
  * A session's context graph: your prompts in order, and the files, tools,
@@ -102,9 +103,9 @@ export function GraphPage() {
             </div>
             <div className="filters">
               <FindBox graph={graph} />
-              <button type="button" className="btn btn-sm btn-secondary" id="arrange" title="Lay the whole graph out again" onClick={() => canvas.current?.arrange()}>Arrange</button>
-              <button type="button" className="btn btn-sm btn-secondary" id="fit" title="Zoom to show every node" onClick={() => canvas.current?.fit()}>Fit</button>
-              <button type="button" className="btn btn-sm btn-secondary" id="close" title="Close the graph and go back to your sessions" onClick={closeGraph}>Close</button>
+              <Button type="button" variant="secondary" size="sm" id="arrange" title="Lay the whole graph out again" onClick={() => canvas.current?.arrange()}>Arrange</Button>
+              <Button type="button" variant="secondary" size="sm" id="fit" title="Zoom to show every node" onClick={() => canvas.current?.fit()}>Fit</Button>
+              <Button type="button" variant="secondary" size="sm" id="close" title="Close the graph and go back to your sessions" onClick={closeGraph}>Close</Button>
             </div>
           </div>
           <Legend graph={graph} />

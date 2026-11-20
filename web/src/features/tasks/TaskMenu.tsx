@@ -34,7 +34,7 @@ export function TaskMenu({ task, actions }: { task: ShownTask; actions: TaskMenu
   const subtasks = task.subtasks?.length ?? 0;
   const confirm = subtasks > 0 ? `Click again to delete it and its ${subtasks === 1 ? 'subtask' : `${subtasks} subtasks`}` : 'Click again to delete';
   return (
-    <Menu label="⋯" title="More" className="btn btn-action" focusInput={false} open={open} onOpenChange={toggle}>
+    <Menu label="⋯" title="More" look={{ variant: 'action' }} focusInput={false} open={open} onOpenChange={toggle}>
       {task.closedAs ? <Item label="Reopen" title="Put it back with your open tasks" onChoose={choose(actions.reopen)} /> : (
         <>
           {/* Checks only warn: a failed one is named here, and Mark done still works. */}

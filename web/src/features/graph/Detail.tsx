@@ -1,5 +1,6 @@
 import { formatShare, formatTokens, KINDS, kindCounts, nodeConnections, tokenBreakdown, type GraphNode, type SessionGraph, type ShareRow } from './model';
 import { useGraphUi } from './store';
+import { Button } from '../../components/Button';
 
 /* Beside the graph: the session at a glance and what fills its context, or the selected node and what it connects to. */
 
@@ -111,7 +112,7 @@ function NodeDetail({ graph, node }: { graph: SessionGraph; node: GraphNode }) {
           </ul>
         </>
       )}
-      <button type="button" className="btn btn-sm btn-secondary" onClick={() => select(null)}>Back to the summary</button>
+      <Button type="button" variant="secondary" size="sm" onClick={() => select(null)}>Back to the summary</Button>
     </div>
   );
 }

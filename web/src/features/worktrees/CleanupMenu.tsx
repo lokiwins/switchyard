@@ -8,6 +8,7 @@ import { toast } from '../../stores/toast';
 import { refreshBoard } from './api';
 import type { RepoGroup, WorktreeRow } from './types';
 import { cleanupCommand } from './views';
+import { Button } from '../../components/Button';
 
 /*
  * "Clean up ▾" for a worktree whose PR is merged or closed. The server checks
@@ -46,13 +47,13 @@ export function CleanupMenu({ repo, w }: { repo: RepoGroup; w: WorktreeRow }) {
   });
   const command = cleanupCommand(repo, w);
   return (
-    <Menu label="Clean up ▾" title={`PR ${w.pr?.state.toLowerCase()}: remove this worktree`} className="btn btn-sm" panelClass="reply-panel" open={open} onOpenChange={setOpen}>
+    <Menu label="Clean up ▾" title={`PR ${w.pr?.state.toLowerCase()}: remove this worktree`} look={{ size: 'sm' }} panelClass="reply-panel" open={open} onOpenChange={setOpen}>
       <div className="cleanup-panel">
         <Summary w={w} />
         <p className="reply-hint">Checked again first: no session running in it, no uncommitted or untracked files, and no commits that aren&apos;t in the PR or on origin.</p>
         <div className="task-actions">
           <CopyButton label="copy command" text={command} title={`Copy the commands instead: ${command}`} />
-          <button type="button" className="btn btn-sm btn-danger" disabled={remove.isPending} onClick={() => remove.mutate()}>Remove</button>
+          <Button type="button" variant="danger" size="sm" disabled={remove.isPending} onClick={() => remove.mutate()}>Remove</Button>
         </div>
       </div>
     </Menu>

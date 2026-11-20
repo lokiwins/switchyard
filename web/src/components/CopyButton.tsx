@@ -1,4 +1,5 @@
 import { toast } from '../stores/toast';
+import { Button } from './Button';
 
 const SHOWN_CHARS = 60;
 
@@ -13,9 +14,9 @@ export function CopyButton({ label, text, title }: { label: string; text: string
     }
   };
   return (
-    <button type="button" className="btn btn-icon" title={`Copy: ${title ?? text}`} aria-label={`Copy ${label} command`} onClick={copy}>
+    <Button type="button" variant="icon" title={`Copy: ${title ?? text}`} aria-label={`Copy ${label} command`} onClick={copy}>
       <span className="copy-icon" aria-hidden="true">⧉</span>
       {label}
-    </button>
+    </Button>
   );
 }
