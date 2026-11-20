@@ -8,7 +8,7 @@ import type { AgentsData, Approval, LiveSession } from '../../lib/types';
 import { usePendingStore } from '../../stores/pending';
 import { toast } from '../../stores/toast';
 import { ShowSessionsButton } from './controls/session';
-import { FILTER_KEYS, FILTERS, liveGroups, liveMatches, locateSession, pendingShown } from './filters';
+import { FILTER_KEYS, FILTERS, liveGroups, liveMatches, locateSession, nestWorkers, pendingShown } from './filters';
 import { LiveRow } from './LiveRow';
 import { PendingRow } from './PendingRow';
 import { useAgentsUi } from './store';
@@ -33,19 +33,25 @@ function useSettlePending(data: AgentsData, now: number) {
   }, [data, now]);
 }
 
+// A lead's workers, set in under its row with a rule down the side, as a task's subtasks are on the Tasks page.
+const WORKERS_LIST = 'col-span-full mt-2 mb-0 ml-6 pl-3 list-none border-l-2 border-gray-200';
+
+/** The running sessions, each lead's workers listed under it (see nestWorkers). */
 function SessionList({ sessions, data, className = 'list' }: { sessions: LiveSession[]; data: AgentsData; className?: string }) {
   const approvals = approvalsBySession(data.approvals ?? []);
-  return (
-    <ul className={className}>
-      {sessions.map((session) => {
-        const where = locateSession(data.repos, session);
-        return (
-          <LiveRow key={session.sessionId} session={session} repoName={where?.repo.name ?? null} worktree={where?.worktree ?? null}
-            approvals={approvals.get(session.sessionId) ?? NO_APPROVALS} />
-        );
-      })}
-    </ul>
-  );
+  const row = (session: LiveSession, workers?: LiveSession[]) => {
+    const where = locateSession(data.repos, session);
+    return (
+      <LiveRow key={session.sessionId} session={session} repoName={where?.repo.name ?? null} worktree={where?.worktree ?? null}
+        approvals={approvals.get(session.sessionId) ?? NO_APPROVALS}
+        workers={workers && workers.length > 0 && (
+          <ul className={WORKERS_LIST} aria-label={`Workers of ${session.hubTask?.title ?? 'this session'}`}>
+            {workers.map((worker) => row(worker))}
+          </ul>
+        )} />
+    );
+  };
+  return <ul className={className}>{nestWorkers(sessions).map(({ session, workers }) => row(session, workers))}</ul>;
 }
 
 /** Shown when a session needs you but its prompts can't be answered here yet. */

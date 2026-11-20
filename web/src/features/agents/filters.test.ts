@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentsData, EndedSession, LiveSession } from '../../lib/types';
-import { endedShown, liveGroups, matches, pendingShown, tiles } from './filters';
+import { endedShown, liveGroups, matches, nestWorkers, pendingShown, tiles } from './filters';
 
 const live = (id: string, extra: Partial<LiveSession> = {}): LiveSession =>
   ({ sessionId: id, pid: Number(id.replace(/\D/g, '')) || 1, cwd: `/code/${id}`, status: 'idle', statusUpdatedAt: 0, ...extra });
@@ -12,6 +12,37 @@ describe('matches', () => {
     expect(matches(['Fix the Login', 'web'], 'login web')).toBe(true);
     expect(matches(['Fix the login', null], 'login api')).toBe(false);
     expect(matches([], '')).toBe(true);
+  });
+});
+
+describe('nestWorkers', () => {
+  const lead = (id: string, task: string, extra: Partial<LiveSession> = {}) => live(id, { hubTask: { id: task, title: task }, ...extra });
+  const worker = (id: string, task: string, parent: string, extra: Partial<LiveSession> = {}) =>
+    live(id, { hubTask: { id: task, title: task, parentId: parent }, ...extra });
+  const shape = (entries: ReturnType<typeof nestWorkers>) => entries.map((e) => [e.session.sessionId, e.workers.map((w) => w.sessionId)]);
+
+  it('puts the sessions working on a task\'s subtasks under the session working on the task, in their order', () => {
+    const sessions = [lead('l1', 'sy-lead01'), live('x1'), worker('w1', 'sy-work01', 'sy-lead01'), worker('w2', 'sy-work02', 'sy-lead01')];
+    expect(shape(nestWorkers(sessions))).toEqual([['l1', ['w1', 'w2']], ['x1', []]]);
+  });
+
+  it('places a lead and its workers where the first of them comes, so a worker that needs you brings its lead up', () => {
+    const sessions = [worker('w1', 'sy-work01', 'sy-lead01', { needsYou: true }), live('x1'), lead('l1', 'sy-lead01')];
+    expect(shape(nestWorkers(sessions))).toEqual([['l1', ['w1']], ['x1', []]]);
+  });
+
+  it('leaves a worker on its own when its lead isn\'t in the list (ended, or filtered out)', () => {
+    expect(shape(nestWorkers([worker('w1', 'sy-work01', 'sy-gone01'), live('x1')]))).toEqual([['w1', []], ['x1', []]]);
+  });
+
+  it('nests under the first session on the task when two run on it', () => {
+    const sessions = [lead('l1', 'sy-lead01'), lead('l2', 'sy-lead01'), worker('w1', 'sy-work01', 'sy-lead01')];
+    expect(shape(nestWorkers(sessions))).toEqual([['l1', ['w1']], ['l2', []]]);
+  });
+
+  it('keeps the same list of workers while nothing about them changes, so a lead\'s row isn\'t drawn again for nothing', () => {
+    const sessions = [lead('l1', 'sy-lead01'), live('x1')];
+    expect(nestWorkers(sessions)[1]?.workers).toBe(nestWorkers(sessions)[0]?.workers);
   });
 });
 

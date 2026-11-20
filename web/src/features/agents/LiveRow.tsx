@@ -1,6 +1,7 @@
 import { CopyButton } from '../../components/CopyButton';
 import { shellQuote, shortPath, tmuxPlace } from '../../lib/paths';
 import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle } from '../../lib/shared';
+import type { ReactNode } from 'react';
 import type { Approval, LiveSession, Worktree } from '../../lib/types';
 import { TerminalButton } from '../terminal/TerminalButton';
 import { AnswerMenu, PlanButton } from './controls/answer';
@@ -21,11 +22,13 @@ function tone(session: LiveSession) {
  * shows, each kept the same object while unchanged, so an update that
  * doesn't touch this session doesn't draw it again.
  */
-export function LiveRow({ session, repoName, worktree, approvals }: {
+export function LiveRow({ session, repoName, worktree, approvals, workers = null }: {
   session: LiveSession;
   repoName: string | null;
   worktree: Worktree | null;
   approvals: Approval[];
+  /** The rows of the sessions working on this one's subtasks (a lead's workers), to show under it. */
+  workers?: ReactNode;
 }) {
   const detailOpen = useAgentsUi((s) => Boolean(s.openDetails[session.sessionId]));
   const toggleDetail = useAgentsUi((s) => s.toggleDetail);
@@ -45,6 +48,7 @@ export function LiveRow({ session, repoName, worktree, approvals }: {
       onDetailToggle={() => toggleDetail(session.sessionId)}
       since={session.statusUpdatedAt}
       timeHint={`${sessionLabel(session)} since ${new Date(session.statusUpdatedAt).toLocaleString()}`}
+      nested={workers}
       actions={(
         <>
           <ApprovalButtons approvals={approvals} session={session} />

@@ -43,7 +43,8 @@ export interface ScreenPrompt {
   planFile?: string | null;
 }
 
-export interface HubTaskRef { id: string; title: string }
+/** A switchyard task, by id and title; a subtask (such as a lead's worker) with its parent's id. */
+export interface HubTaskRef { id: string; title: string; parentId?: string }
 export interface TrackerTask { url?: string; name?: string; customId?: string | null }
 
 export interface LiveSession {
