@@ -35,7 +35,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
-          # One small dependency (yaml): installing it is quicker than caching it.
-          package-manager-cache: false
+          # The pages' build tools are most of the install, so npm's download cache is kept between runs.
+          cache: npm
+      # Installing builds the pages too (the prepare script).
       - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
       - run: npm test

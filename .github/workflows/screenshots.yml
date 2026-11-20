@@ -7,6 +7,9 @@ on:
   pull_request:
     paths:
       - 'public/**'
+      - 'web/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'src/**'
       - 'scripts/screenshots/**'
       - '.github/actions/screenshots/**'
@@ -42,7 +45,7 @@ jobs:
         run: |
           base="$(git merge-base "$BASE_SHA" HEAD)"
           echo "sha=$base" >> "$GITHUB_OUTPUT"
-          if git diff --quiet "$base" HEAD -- public/; then echo "ui-changed=false"; else echo "ui-changed=true"; fi >> "$GITHUB_OUTPUT"
+          if git diff --quiet "$base" HEAD -- public/ web/; then echo "ui-changed=false"; else echo "ui-changed=true"; fi >> "$GITHUB_OUTPUT"
 
       - id: shots
         uses: ./.github/actions/screenshots
