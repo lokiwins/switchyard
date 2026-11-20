@@ -226,8 +226,8 @@ export const SESSIONS = [
     ],
   },
   {
+    // Ended: a worker that has done its part, listed under its lead with the running one.
     worktree: 'storefront-ci-split',
-    status: 'idle',
     title: 'Split the slow test suites',
     minutesAgo: 8,
     turns: [
