@@ -175,7 +175,7 @@ export const SCENES = [
     prepare: async (page) => {
       await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
       await menuButton(page, 'Clean up').first().click();
-      await page.getByRole('menu').filter({ visible: true }).first().waitFor();
+      await page.locator('.menu-panel').filter({ visible: true }).first().waitFor();
     },
   },
   {
