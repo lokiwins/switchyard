@@ -5,6 +5,7 @@ import { fetchBranchPrs, fetchPrDetails, parseGithubRemote } from './github.js';
 import { DEFAULT_SETTINGS } from './settings.js';
 import { isHidden } from './session-removal.js';
 import { createStatusTracker } from './status-tracker.js';
+import { sessionAlerts } from './stuck.js';
 
 // git status only runs where files changed (see status-tracker.js) and GitHub data refreshes
 // in the background on its own TTLs, so a full rebuild is cheap enough to do every few seconds.
@@ -356,7 +357,9 @@ export function createStateService({
 
     const worktreePaths = discovered.repos.flatMap((r) => r.worktrees.map((w) => w.path));
     const now = Date.now();
-    const liveSessions = (await agents.liveSessions()).map((s) => ({ ...s, parked: isParked(s, now, settings.agents.parkedAfterMs) }));
+    // Each with its alerts (see stuck.js): when it would count as stuck, and whether its context is too full.
+    const liveSessions = (await agents.liveSessions())
+      .map((s) => ({ ...s, parked: isParked(s, now, settings.agents.parkedAfterMs), ...sessionAlerts(s, settings.agents) }));
     const { byWorktree, unmatched } = groupSessions(liveSessions, worktreePaths);
     // Sessions you deleted from the lists stay off them; their transcripts are still there to resume.
     const hidden = await hiddenSessions();

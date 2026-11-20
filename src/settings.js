@@ -46,6 +46,10 @@ export const DEFAULTS = Object.freeze({
     interruptedAttentionDays: 3,
     // The most agents running at once; switchyard refuses to start one more (see agent-limit.js). 0 is no limit.
     maxRunning: 0,
+    // A session working with nothing new for this long is flagged as stuck (see stuck.js); 0 is off.
+    stuckAfterMinutes: 30,
+    // A session whose context is over this many tokens is flagged; 0 is off.
+    contextAlertTokens: 0,
   }),
   tasks: Object.freeze({
     // Delete done and dropped tasks this many days after they're done, putting their work away (see task-cleanup.js).
@@ -87,7 +91,7 @@ const SECTION_KEYS = {
   terminal: ['app'],
   editor: ['urlScheme'],
   appearance: ['theme', 'mode', 'terminal'],
-  agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays', 'maxRunning'],
+  agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays', 'maxRunning', 'stuckAfterMinutes', 'contextAlertTokens'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
   checks: ['commands', 'timeoutMinutes'],
   workers: ['permissionMode', 'allowedTools', 'leadWithoutAsking'],
@@ -227,6 +231,18 @@ function runningLimit(value) {
   return value;
 }
 
+/** A number of minutes or more, or 0 for off. */
+function offOrPositive(value, path) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) fail(path, 'must be a number, or 0 for off');
+  return value;
+}
+
+/** A number of tokens: a whole number, 0 for off. */
+function tokenCount(value) {
+  if (!Number.isInteger(value) || value < 0) fail('agents.contextAlertTokens', 'must be a whole number of tokens, or 0 for off');
+  return value;
+}
+
 function compilePatterns(patterns, path) {
   return patterns.map((source, i) => {
     try {
@@ -339,6 +355,8 @@ export function parseSettings(file = {}) {
       endedHistoryMs: positiveNumber(agents.endedHistoryDays, 'agents.endedHistoryDays') * DAY_MS,
       interruptedAttentionMs: positiveNumber(agents.interruptedAttentionDays, 'agents.interruptedAttentionDays') * DAY_MS,
       maxRunning: runningLimit(agents.maxRunning),
+      stuckAfterMs: offOrPositive(agents.stuckAfterMinutes, 'agents.stuckAfterMinutes') * MINUTE_MS,
+      contextAlertTokens: tokenCount(agents.contextAlertTokens),
     },
     tasks: {
       autoDeleteDone: tasks.autoDeleteDone,

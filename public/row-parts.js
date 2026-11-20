@@ -1,4 +1,5 @@
 import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle } from './session-text.js';
+import { alertsSig } from './session-alerts.js';
 
 /*
  * Rows on the Agents and PRs pages are drawn in parts. Each part's sig is
@@ -26,7 +27,7 @@ export function liveRowParts(session, { where, approvals, detailOpen }) {
     {
       key: 'detail',
       sig: sig([approvals.length > 0 ? approvals.map((a) => [a.id, a.toolName, a.summary]) : sessionDetail(session),
-        answerElsewhere(session, approvals), detailOpen]),
+        answerElsewhere(session, approvals), detailOpen, alertsSig(session)]),
     },
     { key: 'time', sig: sig([session.statusUpdatedAt, sessionLabel(session)]) },
     {

@@ -219,3 +219,14 @@ test('agents.maxRunning: how many agents may run at once; 0 is no limit', () => 
   assert.equal(parseSettings({ agents: { maxRunning: 6 } }).agents.maxRunning, 6);
   for (const bad of [-1, 2.5, '6', 1000]) assert.throws(() => parseSettings({ agents: { maxRunning: bad } }), /agents.maxRunning/, String(bad));
 });
+
+test('agents.stuckAfterMinutes and agents.contextAlertTokens: when a session is flagged as stuck, or too full; 0 turns each off', () => {
+  const { agents } = parseSettings({});
+  assert.equal(agents.stuckAfterMs, 30 * 60_000);
+  assert.equal(agents.contextAlertTokens, 0);
+  const set = parseSettings({ agents: { stuckAfterMinutes: 0, contextAlertTokens: 150000 } }).agents;
+  assert.equal(set.stuckAfterMs, 0);
+  assert.equal(set.contextAlertTokens, 150000);
+  for (const bad of [-1, 'soon']) assert.throws(() => parseSettings({ agents: { stuckAfterMinutes: bad } }), /agents.stuckAfterMinutes/);
+  for (const bad of [-5, 1.5, '1k']) assert.throws(() => parseSettings({ agents: { contextAlertTokens: bad } }), /agents.contextAlertTokens/);
+});
