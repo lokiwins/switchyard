@@ -9,12 +9,13 @@ import { editsFromFields, fieldsFromValues, FIELD_NAMES } from '../public/settin
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public');
 const read = (file) => readFileSync(join(PUBLIC_DIR, file), 'utf8');
+const readStyles = (file) => readFileSync(join(import.meta.dirname, '..', 'web', 'src', 'styles', file), 'utf8');
 // The pages in public/, and the ones built from web/ (whose tags carry vite-ignore, so the build leaves them as they are).
 const PAGES = ['../web/agents.html', '../web/prs.html', '../web/worktrees.html', '../web/settings.html', '../web/tasks.html', '../web/graph.html'];
 
-/** The color tokens Classic defines in styles.css's :root, which every other theme must define too. */
+/** The color tokens Classic defines in themes.css's :root, which every other theme must define too. */
 function colorTokens() {
-  const root = read('styles.css').match(/:root\s*\{([^}]*)\}/)[1];
+  const root = readStyles('themes.css').match(/:root\s*\{([^}]*)\}/)[1];
   // Layout tokens, and --accent-fill, which falls back to the accent for a theme with no gradient.
   const layout = /^(space|text|leading|radius|mono|font|accent-fill)/;
   return [...root.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1]).filter((name) => !layout.test(name));
@@ -34,9 +35,9 @@ test('the themes: Classic first, each with an id and a name; modes are light, da
 });
 
 test('every theme but Classic sets every color token, light and dark', () => {
-  const css = read('themes.css');
+  const css = readStyles('themes.css');
   const tokens = colorTokens();
-  assert.ok(tokens.includes('on-accent') && tokens.includes('accent'), 'styles.css defines the color tokens');
+  assert.ok(tokens.includes('on-accent') && tokens.includes('accent'), 'Classic defines the color tokens');
   for (const { id } of THEMES.filter((t) => t.id !== 'classic')) {
     for (const selector of [`:root[data-theme="${id}"]`, `:root[data-theme="${id}"][data-scheme="dark"]`]) {
       const set = tokensIn(css, selector);
@@ -48,23 +49,23 @@ test('every theme but Classic sets every color token, light and dark', () => {
 });
 
 test('Classic\'s dark colors follow the chosen mode, not only the system\'s', () => {
-  const css = read('styles.css');
+  const css = readStyles('themes.css') + readStyles('legacy.css') + readStyles('app.css');
   assert.equal(/prefers-color-scheme/.test(css), false, 'dark mode comes from data-scheme, which the boot script sets');
   assert.ok(tokensIn(css, ':root[data-scheme="dark"]')?.includes('bg'));
 });
 
 test('text on an accent or danger color uses its token, never a hard-coded white', () => {
-  const css = read('styles.css');
+  const css = readStyles('themes.css') + readStyles('legacy.css') + readStyles('app.css');
   assert.deepEqual(css.match(/color:\s*(#fff\b|#ffffff\b|white\b)/g), null);
 });
 
-test('every page applies the theme before it draws: the boot script, then the stylesheets', () => {
+test('every page applies the theme before it draws: the boot script, first, in its <head>', () => {
   for (const page of PAGES) {
     const head = read(page).split('</head>')[0];
-    const boot = head.search(/<script src="\/theme-boot\.js"( vite-ignore)?><\/script>/);
-    assert.ok(boot >= 0, `${page} doesn't load /theme-boot.js in its <head>`);
-    assert.ok(boot < head.indexOf('/styles.css'), `${page} loads the boot script after its stylesheet`);
-    assert.match(head, /<link rel="stylesheet" href="\/themes\.css"( vite-ignore)?>/, `${page} doesn't load /themes.css`);
+    // A plain script (not a module, not deferred), so it runs before the page's stylesheet, which the build adds after it.
+    const scripts = [...head.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]);
+    assert.deepEqual(scripts, ['<script src="/theme-boot.js" vite-ignore>'], `${page} doesn't load /theme-boot.js first in its <head>`);
+    assert.doesNotMatch(head, /<link rel="stylesheet"/, `${page} links a stylesheet before the boot script runs`);
   }
 });
 

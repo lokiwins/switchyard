@@ -70,7 +70,7 @@ test('the glass frame gets every pane token; Classic dark keeps today\'s exact l
 
 test('the glass panes draw only from the pane tokens, so a terminal theme recolours all of them', async () => {
   const { readFileSync } = await import('node:fs');
-  const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../web/src/styles/legacy.css', import.meta.url), 'utf8');
   const start = css.indexOf(' * Glass pane:');
   const end = css.indexOf('/* Clean up: removing a worktree');
   assert.ok(start > 0 && end > start, 'the glass pane section is where the test expects it');
