@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import { ActionError } from '../src/errors.js';
-import { ACTION_TOOLS, READ_TOOLS, createMcpEndpoint } from '../src/mcp-endpoint.js';
+import { createMcpEndpoint } from '../src/mcp-endpoint.js';
 
 const TOKEN = 'sy-lead01.good';
 const calls = [];
@@ -53,14 +53,10 @@ test('it answers MCP: initialize, then the lead\'s tools', async () => {
   assert.deepEqual(start.inputSchema.required, ['title']);
 });
 
-test('every tool is either a read (marked read-only) or an action, so the lead\'s permissions cover each one', async () => {
+test('the tools that only look are marked read-only; the ones that start, message or end a worker are not', async () => {
   const { body } = await rpc('tools/list');
-  const names = body.result.tools.map((t) => t.name).sort();
-  assert.deepEqual([...READ_TOOLS, ...ACTION_TOOLS].sort(), names);
-  assert.deepEqual([...READ_TOOLS].sort(), ['list_workers', 'worker_status']);
-  for (const tool of body.result.tools) {
-    assert.equal(tool.annotations?.readOnlyHint === true, READ_TOOLS.includes(tool.name), tool.name);
-  }
+  const readOnly = body.result.tools.filter((t) => t.annotations?.readOnlyHint === true).map((t) => t.name).sort();
+  assert.deepEqual(readOnly, ['list_workers', 'worker_status']);
 });
 
 test('the tools act for the lead the token names', async () => {

@@ -200,18 +200,21 @@ test('checks: an unknown "run", a bad timeout, an unknown option or no command i
   }
 });
 
-test('workers: the permission mode a lead\'s workers start in, the tools they may use without asking, and whether the lead asks before its own tools', () => {
-  // By default nothing changes: workers start as Claude would, and the lead asks you before using switchyard's tools.
-  assert.deepEqual(parseSettings({}).workers, { permissionMode: 'claude', allowedTools: [], leadWithoutAsking: true });
-  assert.deepEqual(parseSettings({ workers: { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit', 'mcp__github__get_issue', 'Bash(git log:*)'], leadWithoutAsking: true } }).workers,
-    { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit', 'mcp__github__get_issue', 'Bash(git log:*)'], leadWithoutAsking: true });
+test('workers: the permission mode a lead\'s workers start in, and the tools they may use without asking', () => {
+  // By default nothing changes: workers start as Claude would.
+  assert.deepEqual(parseSettings({}).workers, { permissionMode: 'claude', allowedTools: [] });
+  assert.deepEqual(parseSettings({ workers: { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit', 'mcp__github__get_issue', 'Bash(git log:*)'] } }).workers,
+    { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit', 'mcp__github__get_issue', 'Bash(git log:*)'] });
   for (const mode of ['manual', 'plan', 'auto']) assert.equal(parseSettings({ workers: { permissionMode: mode } }).workers.permissionMode, mode);
   // Never a mode that skips your say altogether.
   for (const bad of ['bypassPermissions', 'dontAsk', 'yolo', '']) assert.throws(() => parseSettings({ workers: { permissionMode: bad } }), /workers.permissionMode/, bad);
   for (const bad of [['Bash(rm -rf /'], ['two words'], ['Bash(a)(b)'], [''], ['x'.repeat(400)], 'Edit']) {
     assert.throws(() => parseSettings({ workers: { allowedTools: bad } }), /workers.allowedTools/, JSON.stringify(bad));
   }
-  assert.throws(() => parseSettings({ workers: { leadWithoutAsking: 'yes' } }), /workers.leadWithoutAsking/);
+});
+
+test('the old "lead without asking" switch in a config file is ignored, not an error: a lead never asks now', () => {
+  for (const old of [true, false]) assert.deepEqual(parseSettings({ workers: { leadWithoutAsking: old } }).workers, { permissionMode: 'claude', allowedTools: [] });
 });
 
 test('agents.maxRunning: how many agents may run at once; 0 is no limit', () => {

@@ -6,7 +6,7 @@
 const LISTS = new Set(['roots', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes', 'workers.allowedTools']);
 const NUMBERS = new Set(['agents.parkedAfterHours', 'agents.endedHistoryDays', 'agents.interruptedAttentionDays', 'agents.maxRunning', 'agents.stuckAfterMinutes', 'agents.contextAlertTokens', 'tasks.deleteDoneAfterDays', 'checks.timeoutMinutes']);
 // Checkboxes: "true" or "false" in the form.
-const BOOLEANS = new Set(['tasks.autoDeleteDone', 'providers.claude.enabled', 'workers.leadWithoutAsking']);
+const BOOLEANS = new Set(['tasks.autoDeleteDone', 'providers.claude.enabled']);
 // A prefix's trailing space is part of what's removed from a check's name.
 const UNTRIMMED = new Set(['ci.stripPrefixes']);
 
@@ -17,7 +17,7 @@ export const FIELD_NAMES = [
   'agents.stuckAfterMinutes', 'agents.contextAlertTokens',
   'github.copilotReviewer', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
   'tasks.autoDeleteDone', 'tasks.deleteDoneAfterDays', 'checks.commands', 'checks.timeoutMinutes',
-  'workers.permissionMode', 'workers.allowedTools', 'workers.leadWithoutAsking',
+  'workers.permissionMode', 'workers.allowedTools',
   'providers.default', 'providers.claude.enabled', 'providers.claude.program', 'providers.claude.options',
 ];
 
