@@ -19,6 +19,10 @@ export const REPOS = [
       { suffix: 'login-redirect', branch: 'fix-login-redirect', commitMinutesAgo: 40, dirty: true },
       { suffix: 'dark-mode', branch: 'feat/CU-86b4fx3-dark-mode', commitMinutesAgo: 90 },
       { suffix: 'remove-banner', branch: 'chore/remove-banner', commitMinutesAgo: 60 * 30 },
+      // A lead (the CI spike) and its two workers, each on its task's branch.
+      { suffix: 'ci-spike', branch: 'sy-spike1-ci-half-time', commitMinutesAgo: 50 },
+      { suffix: 'ci-cache', branch: 'sy-cache1-cache-node-modules', commitMinutesAgo: 20 },
+      { suffix: 'ci-split', branch: 'sy-split1-split-slow-suites', commitMinutesAgo: 30 },
     ],
   },
   {
@@ -198,6 +202,37 @@ export const SESSIONS = [
     turns: [
       { prompt: 'Upgrade the test runner to the latest version.' },
       { reply: 'Upgraded. Two snapshot tests needed new snapshots; everything passes.' },
+    ],
+  },
+  {
+    worktree: 'storefront-ci-spike',
+    status: 'idle',
+    title: 'Spike: run CI in half the time',
+    minutesAgo: 5,
+    turns: [
+      { prompt: 'You lead this task: Spike: run CI in half the time. Hand parts of it to workers.' },
+      { reply: 'Handing the two halves to workers.', tool: { name: 'mcp__switchyard__start_worker', input: { title: 'Split the slow test suites' } } },
+      { reply: 'Two workers are on it: one caches node_modules, one splits the slow suites. I\'ll merge their branches when both are done.' },
+    ],
+  },
+  {
+    worktree: 'storefront-ci-cache',
+    status: 'busy',
+    title: 'Cache node_modules in CI',
+    minutesAgo: 1,
+    turns: [
+      { prompt: 'Cache node_modules in CI, keyed by the lockfile.' },
+      { reply: 'Adding a cache step before npm ci.', tool: { name: 'Edit', input: { file_path: '.github/workflows/ci.yml' } } },
+    ],
+  },
+  {
+    worktree: 'storefront-ci-split',
+    status: 'idle',
+    title: 'Split the slow test suites',
+    minutesAgo: 8,
+    turns: [
+      { prompt: 'Split the slow test suites across parallel CI jobs.' },
+      { reply: 'Split into three shards; the longest now takes 4 minutes. Ready to merge into the lead\'s branch.' },
     ],
   },
   {
@@ -387,9 +422,10 @@ const dayOf = (time) => new Date(time).toISOString().slice(0, 10);
  */
 export function hubTasks(now) {
   const clickup = (id) => `https://app.clickup.com/t/${id}`;
-  const task = ({ id, title, notes = '', dueDays, links = [], createdHours, closedHoursAgo }) => ({
+  const task = ({ id, title, notes = '', dueDays, links = [], createdHours, closedHoursAgo, parentId }) => ({
     id,
     title,
+    ...(parentId ? { parentId } : {}),
     notes,
     dueOn: dueDays === undefined ? null : dayOf(now + dueDays * DAY),
     links,
@@ -399,6 +435,9 @@ export function hubTasks(now) {
     closedAt: closedHoursAgo === undefined ? null : now - closedHoursAgo * 60 * 60_000,
   });
   return [
+    // The spike is led by a Claude with two workers: its subtasks.
+    task({ id: 'sy-cache1', title: 'Cache node_modules in CI', parentId: 'sy-spike1', createdHours: 1 }),
+    task({ id: 'sy-split1', title: 'Split the slow test suites', parentId: 'sy-spike1', createdHours: 1 }),
     task({ id: 'sy-spike1', title: 'Spike: run CI in half the time', notes: 'Try caching node_modules and splitting the slow suites.', links: ['https://github.com/acme/storefront/issues/51'], createdHours: 2 }),
     task({ id: 'sy-inv001', title: 'Download invoices as PDF', notes: 'Add a Download PDF button to each invoice, rendered server-side.', dueDays: 0, links: [clickup('86b4fx1')], createdHours: 30 }),
     task({ id: 'sy-dark01', title: 'Add a dark mode toggle', notes: 'Follow the system setting by default; remember a choice.', dueDays: 3, links: [clickup('86b4fx3')], createdHours: 50 }),

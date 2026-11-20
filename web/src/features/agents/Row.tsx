@@ -97,10 +97,12 @@ export interface RowProps {
   since: number | null | undefined;
   timeHint: string;
   actions: ReactNode;
+  /** Rows nested under this one, across its full width (a lead's workers). */
+  nested?: ReactNode;
 }
 
 export function SessionRow({
-  className, badge, title, titleHint, where, detail, note, alertsFor, detailOpen = false, onDetailToggle, since, timeHint, actions,
+  className, badge, title, titleHint, where, detail, note, alertsFor, detailOpen = false, onDetailToggle, since, timeHint, actions, nested,
 }: RowProps) {
   const line = <DetailLine detail={detail} open={detailOpen} onToggle={onDetailToggle} />;
   return (
@@ -117,6 +119,7 @@ export function SessionRow({
       ) : line}
       <LiveTime since={since} className="row-time" title={timeHint} />
       <div className="actions">{actions}</div>
+      {nested}
     </li>
   );
 }

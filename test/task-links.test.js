@@ -208,3 +208,13 @@ test('worktreeHubTasks: each worktree\'s task by its branch, not by a session on
   ), [bySaved, bySession]);
   assert.deepEqual(tagged[0].worktrees.map((w) => w.hubTask), [{ id: 'sy-bbbbbb', title: 'Saved' }, null]);
 });
+
+test('sessionHubTasks: a subtask\'s session carries its parent task\'s id, so the Agents page can put a lead\'s workers under it', () => {
+  const lead = hubTask({ id: 'sy-aaaaaa', title: 'Lead', attached: [{ sessionId: SESSION_A }] });
+  const worker = hubTask({ id: 'sy-bbbbbb', title: 'Worker', parentId: 'sy-aaaaaa', attached: [{ sessionId: SESSION_B }] });
+  const state = { repos: shop(worktree({ path: '/code/shop', branch: 'main', isMain: true, agents: { live: [{ sessionId: SESSION_A }, { sessionId: SESSION_B }], last: null, recent: [] } })) };
+  assert.deepEqual(sessionHubTasks([lead, worker], state), {
+    [SESSION_A]: { id: 'sy-aaaaaa', title: 'Lead' },
+    [SESSION_B]: { id: 'sy-bbbbbb', title: 'Worker', parentId: 'sy-aaaaaa' },
+  });
+});

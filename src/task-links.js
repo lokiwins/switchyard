@@ -138,7 +138,8 @@ export function linkHubTasks(tasks, repos) {
   });
 }
 
-const brief = (task) => (task ? { id: task.id, title: task.title } : null);
+// A subtask's carries its parent's id: a lead's workers are its task's subtasks.
+const brief = (task) => (task ? { id: task.id, title: task.title, ...(task.parentId ? { parentId: task.parentId } : {}) } : null);
 
 /** The repos, each worktree with `hubTask`: the task its branch is (see branchIsTasks), or null. */
 export function worktreeHubTasks(repos, tasks) {

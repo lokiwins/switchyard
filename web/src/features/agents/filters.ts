@@ -88,6 +88,40 @@ export function liveGroups(sessions: LiveSession[]): { active: LiveSession[]; pa
   return { active: [...working, ...parkedInTabs], parked: sessions.filter(foldsWhenParked).sort(byRecent) };
 }
 
+/** A running session, with the sessions working on its task's subtasks (a lead's workers) to show under it. */
+export interface LiveEntry { session: LiveSession; workers: LiveSession[] }
+
+const NO_WORKERS: LiveSession[] = [];
+
+/**
+ * The running sessions, each lead's workers under it: a session whose task is a subtask goes under the
+ * first session on its parent task, when that one is in the list too. A lead and its workers sit where
+ * the first of them comes in `sessions`, so in a list sorted by urgency, a worker that needs you brings
+ * its lead up with it.
+ */
+export function nestWorkers(sessions: LiveSession[]): LiveEntry[] {
+  const onTask = new Map<string, LiveSession>();
+  for (const s of sessions) if (s.hubTask && !onTask.has(s.hubTask.id)) onTask.set(s.hubTask.id, s);
+  const leadOf = (s: LiveSession) => {
+    const lead = s.hubTask?.parentId ? onTask.get(s.hubTask.parentId) : undefined;
+    return lead && lead !== s ? lead : null;
+  };
+  const workers = new Map<LiveSession, LiveSession[]>();
+  for (const s of sessions) {
+    const lead = leadOf(s);
+    if (lead) workers.set(lead, [...(workers.get(lead) ?? []), s]);
+  }
+  const placed = new Set<LiveSession>();
+  const entries: LiveEntry[] = [];
+  for (const s of sessions) {
+    const top = leadOf(s) ?? s;
+    if (placed.has(top)) continue;
+    placed.add(top);
+    entries.push({ session: top, workers: workers.get(top) ?? NO_WORKERS });
+  }
+  return entries;
+}
+
 const COLLAPSED_LIMIT = 5;
 
 /** Interrupted sessions that need attention always show; with `collapse`, the rest show five at a time unless expanded. */
