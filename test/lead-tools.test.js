@@ -102,7 +102,7 @@ test('list_workers gives each of the lead\'s subtasks, with its worktree and wha
   assert.deepEqual(await tools.forLead(LEAD).listWorkers(), [
     {
       id: 'sy-wrk001', title: 'Tests', state: 'needs you', closedAs: null,
-      worktrees: [{ repo: 'shop', branch: 'sy-wrk001-tests', path: '/code/shop-tests', sessions: [{ sessionId: 'abc', status: 'idle', needsYou: true }] }],
+      worktrees: [{ repo: 'shop', branch: 'sy-wrk001-tests', path: '/code/shop-tests', sessions: [{ sessionId: 'abc', status: 'idle', needsYou: true, stuck: false, contextHigh: false }] }],
     },
     { id: 'sy-wrk002', title: 'Docs', state: 'done', closedAs: 'done', worktrees: [] },
   ]);
@@ -148,7 +148,7 @@ test('worker_status: its state, sessions with their last reply, and its work nex
     id: 'sy-wrk001', title: 'Tests', state: 'idle', closedAs: null,
     worktrees: [{
       repo: 'shop', branch: 'sy-wrk001-tests', path: '/code/shop-tests',
-      sessions: [{ sessionId: 'abc', status: 'idle', needsYou: false, lastReply: 'Tests written; 2 fail on rounding.', activity: null }],
+      sessions: [{ sessionId: 'abc', status: 'idle', needsYou: false, stuck: false, contextHigh: false, lastReply: 'Tests written; 2 fail on rounding.', activity: null }],
       work: { base: `${LEAD}-build`, commits: [], changes: null, uncommitted: [] },
       checks: [{ name: 'test', state: 'failed', outOfDate: false }],
       review: null,
@@ -224,4 +224,14 @@ test('a reviewer\'s session isn\'t the worker\'s: the lead neither counts it, me
   await lead.messageWorker({ id: 'sy-wrk001', text: 'Go on' });
   await lead.endWorker({ id: 'sy-wrk001' });
   assert.deepEqual(acted, [['reply', { sessionId: 'abc', text: 'Go on' }], ['end', { sessionId: 'abc' }]]);
+});
+
+test('a worker whose session counts as stuck says so, for the lead to nudge or end it', async () => {
+  const tasks = [hubTask(LEAD), hubTask('sy-wrk001', { parentId: LEAD })];
+  const repos = [repo('shop', [worktree('/code/shop-lead', `${LEAD}-build`),
+    worktree('/code/shop-tests', 'sy-wrk001-tests', [session({ sessionId: 'abc', status: 'busy', stuckAt: 1, contextHigh: true })])])];
+  const { tools } = setup({ tasks, repos });
+  const [listed] = await tools.forLead(LEAD).listWorkers();
+  assert.equal(listed.state, 'stuck');
+  assert.deepEqual(listed.worktrees[0].sessions, [{ sessionId: 'abc', status: 'busy', needsYou: false, stuck: true, contextHigh: true }]);
 });

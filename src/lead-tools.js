@@ -15,13 +15,17 @@ import { gitReport as readGitReport } from './worker-report.js';
 // A lead's own limit, on top of Settings › Agents › Most agents running at once: a lead in a loop can't fill the board with subtasks.
 export const MAX_OPEN_WORKERS = 8;
 
-/** A worker's state in a word or two: closed, not started, needs you, working, idle, or no session. */
+/** Whether a session counts as stuck now: working with nothing new since Settings › Agents says (see stuck.js). */
+const isStuck = (session, now = Date.now()) => Boolean(session.stuckAt) && now >= session.stuckAt;
+
+/** A worker's state in a word or two: closed, not started, needs you, stuck, working, idle, or no session. */
 export function workerState(task, worktrees) {
   if (task.closedAs) return task.closedAs;
   if (worktrees.length === 0) return 'not started';
   const live = worktrees.flatMap((w) => w.live ?? []);
   if (live.length === 0) return 'no session';
   if (live.some((s) => s.needsYou)) return 'needs you';
+  if (live.some((s) => isStuck(s))) return 'stuck';
   return live.some((s) => s.status === 'busy') ? 'working' : 'idle';
 }
 
@@ -58,8 +62,14 @@ function workerWorktrees(task, repos) {
 const liveSessionsOf = (worktrees) => worktrees.flatMap(({ worktree }) => worktree.agents?.live ?? []);
 
 /** A worker's session in detail: what it last said, and the tool call it is in the middle of. */
-const sessionDetail = ({ sessionId, status, needsYou, transcript }) => ({
-  sessionId, status, needsYou, lastReply: transcript?.lastReply ?? null, activity: transcript?.activity ?? null,
+const sessionDetail = (s) => ({
+  sessionId: s.sessionId,
+  status: s.status,
+  needsYou: s.needsYou,
+  stuck: isStuck(s),
+  contextHigh: Boolean(s.contextHigh),
+  lastReply: s.transcript?.lastReply ?? null,
+  activity: s.transcript?.activity ?? null,
 });
 
 // What the lead needs of a check: its name and outcome; the output is on the dashboard.
@@ -69,7 +79,9 @@ const worktreeView = ({ repo, worktree }) => ({
   repo: repo.name,
   branch: worktree.branch,
   path: worktree.path,
-  sessions: (worktree.agents?.live ?? []).map(({ sessionId, status, needsYou }) => ({ sessionId, status, needsYou })),
+  sessions: (worktree.agents?.live ?? []).map((s) => ({
+    sessionId: s.sessionId, status: s.status, needsYou: s.needsYou, stuck: isStuck(s), contextHigh: Boolean(s.contextHigh),
+  })),
 });
 
 /**

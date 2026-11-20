@@ -180,6 +180,8 @@ Everything works without a config file. The **Settings** page (in the top bar) c
 | `agents.parkedAfterHours` | `24` | An idle session untouched this long is *parked* rather than *waiting on you*. |
 | `agents.endedHistoryDays` | `7` | How far back the Agents page lists ended sessions. |
 | `agents.interruptedAttentionDays` | `3` | How long an interrupted session stays highlighted and flags its worktree. |
+| `agents.stuckAfterMinutes` | `30` | A session working with nothing new in its transcript this long is flagged *Stuck?* on the Agents row and its task's line, and reported as `stuck` to a lead. Only an alert; nothing is stopped. `0` is off. The page's own clock shows the flag when the time comes, so nothing is polled for it. |
+| `agents.contextAlertTokens` | `0` | A session whose context is over this many tokens is flagged with its size. `0` is off. |
 | `agents.maxRunning` | `0` | The most agents running at once; `0` is no limit. With one set, switchyard refuses to start another (New task, Start, a lead's `start_worker`, Review, Resume, or a new session from Open) while that many sessions run, yours included, and says why. A start on its way counts. |
 
 Lists replace the defaults rather than adding to them.

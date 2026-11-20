@@ -32,10 +32,15 @@ export function rowWho({ title, titleHint, where }) {
     where && h('span', { class: 'row-where' }, where));
 }
 
-export function rowDetail({ detail, note = null, open = false, onToggle = null }) {
+export function rowDetail({
+  detail, note = null, open = false, onToggle = null, alerts = null,
+}) {
   const detailLine = renderDetail(detail, { open, onToggle });
-  // A note goes on its own line under the detail, as the folder does under the title.
-  return note ? h('div', { class: 'row-detail-cell' }, detailLine, h('span', { class: 'row-note', title: note }, note)) : detailLine;
+  if (!note && !alerts) return detailLine;
+  // A note, and the session's alerts (see session-alerts.js), go on their own lines under the detail.
+  return h('div', { class: 'row-detail-cell' }, detailLine,
+    note && h('span', { class: 'row-note', title: note }, note),
+    alerts && h('span', { class: 'row-alerts' }, alerts));
 }
 
 /** "5m ago", kept current by the page's clock (refreshLiveTimes) rather than by drawing the row again. */

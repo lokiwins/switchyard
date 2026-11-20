@@ -1,3 +1,5 @@
+import { isDue } from './alert-time.js';
+
 /**
  * Tiny element builder. Children may be strings, nodes, arrays, or falsy
  * (skipped). Text is always set via text nodes, never parsed as HTML.
@@ -49,6 +51,15 @@ export function refreshLiveTimes(root = document) {
     const since = Number(el.dataset.since);
     el.textContent = `${el.dataset.prefix ?? ''}${timeAgo(since || null)}`;
   });
+  // Alerts that start at a time (see liveAlert) show once it comes, without drawing the row again.
+  root.querySelectorAll('[data-show-at]').forEach((el) => {
+    el.hidden = !isDue(el.dataset.showAt);
+  });
+}
+
+/** An alert that shows from `showAt` (ms) on, kept current by refreshLiveTimes; hidden until then. */
+export function liveAlert(showAt, attrs = {}, ...children) {
+  return h('span', { ...attrs, 'data-show-at': showAt ?? '', hidden: !isDue(showAt) }, ...children);
 }
 
 /** Display a path relative to the home directory when possible. */

@@ -679,6 +679,11 @@ details.hub-group[open] > summary::before { content: "▾"; }
 .checks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .checks:has(.check-status[open]) { flex-basis: 100%; }
 .check-status[open] { flex-basis: 100%; }
+.row-alerts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* With none of its alerts showing yet (a stuck alert waits for its time), the line takes no room, so the row sits as before. */
+.row-alerts:not(:has(> .session-alert:not([hidden]))) { display: none; }
+.session-alert { display: inline-block; font-size: var(--text-xs); line-height: var(--leading-xs); padding: 0 6px; border-radius: 999px; color: var(--amber); background: var(--amber-soft); white-space: nowrap; }
+.session-alert[hidden] { display: none; }
 .review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .review-reasons { margin: 0; font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--gray-900); white-space: pre-wrap; overflow-wrap: anywhere; }
 .check-body { display: grid; gap: var(--space-2); margin-top: var(--space-2); justify-items: start; }

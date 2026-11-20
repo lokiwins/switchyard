@@ -96,6 +96,16 @@
             <span class="setting-hint">0 is no limit. With one set, switchyard won't start another (New task, Start, a lead's workers, Review, Resume) while that many sessions run, yours included; it says why.</span>
           </label>
           <label class="setting">
+            <span class="setting-label">Stuck after (minutes)</span>
+            <input name="agents.stuckAfterMinutes" inputmode="decimal">
+            <span class="setting-hint">A session working with nothing new in its transcript this long is flagged <em>Stuck?</em> on the Agents and Tasks pages (and to a lead). Only an alert. 0 is off. A long test run can look stuck too.</span>
+          </label>
+          <label class="setting">
+            <span class="setting-label">Flag context over (tokens)</span>
+            <input name="agents.contextAlertTokens" inputmode="numeric">
+            <span class="setting-hint">A session whose context is over this size is flagged, so you can /compact or start afresh. 0 is off.</span>
+          </label>
+          <label class="setting">
             <span class="setting-label">Ended sessions shown (days)</span>
             <input name="agents.endedHistoryDays" inputmode="decimal">
             <span class="setting-hint">How far back Recently ended goes.</span>

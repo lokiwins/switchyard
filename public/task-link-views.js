@@ -6,6 +6,7 @@ import { approvalButtons, endMenu, replyMenu, stopButton } from './session-contr
 import { answerMenu, planButton } from './screen-answer.js';
 import { checksControl } from './check-view.js';
 import { reviewControl } from './review-view.js';
+import { sessionAlerts } from './session-alerts.js';
 
 /*
  * The worktrees working on a task, under its row on the Tasks page: kept
@@ -43,6 +44,7 @@ export function linkLine(link, caps, approvals = [], { onRunCheck, onReview } = 
     link.pr && h('a', {
       class: `small task-link-pr${state ? ` is-${state}` : ''}`, href: link.pr.url, target: '_blank', rel: 'noopener noreferrer', title: `Pull request${state ? ` (${state})` : ''}`,
     }, `#${link.pr.number}`),
+    session && sessionAlerts(session),
     onRunCheck && checksControl(link.checks, { names: link.checkNames, onRun: (name) => onRunCheck(link.path, name) }),
     onReview && caps?.tmux && reviewControl(link.review, {
       onReview: () => onReview(link.path),

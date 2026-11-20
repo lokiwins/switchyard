@@ -1,3 +1,4 @@
+import { sessionAlerts } from './session-alerts.js';
 import { copyButton, h, shellQuote, shortPath } from './dom.js';
 import { filledItem, patchChildren, plainItem } from './keyed.js';
 import { liveRowParts } from './row-parts.js';
@@ -51,6 +52,7 @@ export function liveRowItem(state, session, details = null) {
       note: answerElsewhere(session, approvals),
       open: detailOpen,
       onToggle: details ? () => details.toggle(session.sessionId) : null,
+      alerts: sessionAlerts(session),
     }),
     time: () => rowTime({ since: session.statusUpdatedAt, hint: `${sessionLabel(session)} since ${new Date(session.statusUpdatedAt).toLocaleString()}` }),
     actions: () => rowActions(liveActions(session, where, approvals)),
