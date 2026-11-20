@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentsData, EndedSession, LiveSession } from '../../lib/types';
-import { endedShown, liveGroups, matches, nestWorkers, pendingShown, tiles } from './filters';
+import { endedShown, endedWorkers, liveGroups, matches, nestWorkers, pendingShown, runningShown, tiles } from './filters';
 
 const live = (id: string, extra: Partial<LiveSession> = {}): LiveSession =>
   ({ sessionId: id, pid: Number(id.replace(/\D/g, '')) || 1, cwd: `/code/${id}`, status: 'idle', statusUpdatedAt: 0, ...extra });
@@ -43,6 +43,40 @@ describe('nestWorkers', () => {
   it('keeps the same list of workers while nothing about them changes, so a lead\'s row isn\'t drawn again for nothing', () => {
     const sessions = [lead('l1', 'sy-lead01'), live('x1')];
     expect(nestWorkers(sessions)[1]?.workers).toBe(nestWorkers(sessions)[0]?.workers);
+  });
+});
+
+describe('endedWorkers', () => {
+  const lead = live('l1', { hubTask: { id: 'sy-lead01', title: 'Lead' } });
+  const done = (id: string, task: string, endedAt: number, parent = 'sy-lead01') =>
+    ended(id, { endedAt, hubTask: { id: task, title: task, parentId: parent } });
+
+  it('lists a listed lead\'s ended workers under its task, newest first', () => {
+    const byLead = endedWorkers([lead], [done('e1', 'sy-work01', 10), done('e2', 'sy-work02', 30), ended('x1')]);
+    expect(byLead.get('sy-lead01')?.map((s) => s.sessionId)).toEqual(['e2', 'e1']);
+    expect([...byLead.keys()]).toEqual(['sy-lead01']);
+  });
+
+  it('keeps one session per worker (its latest), and none for a worker that is running again', () => {
+    const again = live('w3', { hubTask: { id: 'sy-work03', title: 'w3', parentId: 'sy-lead01' } });
+    const byLead = endedWorkers([lead, again], [done('e1', 'sy-work01', 10), done('e2', 'sy-work01', 20), done('e3', 'sy-work03', 30)]);
+    expect(byLead.get('sy-lead01')?.map((s) => s.sessionId)).toEqual(['e2']);
+  });
+
+  it('leaves out workers whose lead isn\'t listed (ended itself, or filtered out)', () => {
+    expect(endedWorkers([live('x1')], [done('e1', 'sy-work01', 10)]).size).toBe(0);
+    expect(endedWorkers([lead], [done('e1', 'sy-work01', 10, 'sy-other1')]).size).toBe(0);
+  });
+});
+
+describe('runningShown', () => {
+  const data = (liveSessions: LiveSession[]) => ({ liveSessions, repos: [], endedSessions: [] }) as unknown as AgentsData;
+
+  it('shows a folded parked session only once parked ones are asked for, or nothing else runs', () => {
+    const sessions = [live('a1', { status: 'busy' }), live('p1', { parked: true, host: null })];
+    expect(runningShown(data(sessions), 'all', '', false).shown.map((s) => s.sessionId)).toEqual(['a1']);
+    expect(runningShown(data(sessions), 'all', '', true).shown.map((s) => s.sessionId)).toEqual(['a1', 'p1']);
+    expect(runningShown(data([sessions[1]!]), 'all', '', false).shown.map((s) => s.sessionId)).toEqual(['p1']);
   });
 });
 

@@ -18,13 +18,14 @@ export const STATE_LABELS = {
   working: { label: 'Working', tone: 'green' },
   'in-review': { label: 'In review', tone: 'purple' },
   paused: { label: 'Paused', tone: '' },
+  ended: { label: 'Ended', tone: '' },
   'not-started': { label: 'Not started', tone: '' },
   done: { label: 'Done', tone: '' },
   dropped: { label: 'Dropped', tone: '' },
 };
 
 // Work under way before work not started, within a group.
-const STATE_ORDER = ['needs-you', 'closing', 'deleting', 'starting', 'working', 'in-review', 'paused', 'not-started', 'done', 'dropped'];
+const STATE_ORDER = ['needs-you', 'closing', 'deleting', 'starting', 'working', 'in-review', 'paused', 'ended', 'not-started', 'done', 'dropped'];
 
 const GROUPS = [
   { key: 'needs-you', label: 'Needs you' },
@@ -57,7 +58,8 @@ export function startOf(task, starts = []) {
 
 /**
  * Where a task stands: done or dropped, needs you, starting, working, in
- * review, paused (work but nothing running), or not started. `starts` are the
+ * review, paused (work but nothing running), ended (a lead's worker whose
+ * session has ended: it isn't coming back by itself), or not started. `starts` are the
  * tasks the server is watching start: one asking to trust its folder needs
  * you, and one that quit is paused.
  */
@@ -75,7 +77,8 @@ export function taskState(task, starts = []) {
   if (task.creating || start?.state === 'starting') return 'starting';
   if (live.some((s) => s.status === 'busy')) return 'working';
   if (work.some((w) => w.pr?.state === 'OPEN')) return 'in-review';
-  return work.length > 0 ? 'paused' : 'not-started';
+  if (work.length === 0) return 'not-started';
+  return task.parentId && live.length === 0 ? 'ended' : 'paused';
 }
 
 /** A local day as a count of days, so two days can be subtracted. */
