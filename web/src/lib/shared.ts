@@ -5,13 +5,15 @@
 import * as sessionText from '../../../public/session-text.js';
 import * as pending from '../../../public/pending-tasks.js';
 import { BRANCH_INPUT_PATTERN as branchPattern, branchFromTask as fromTask } from '../../../public/branch-name.js';
-import type { Approval, Capabilities, Detail, EndedSession, Host, LiveSession, TaskStart } from './types';
+import type { Approval, Capabilities, Detail, Host, LiveSession, TaskStart, Transcript } from './types';
 
-type AnySession = LiveSession | EndedSession;
+/** What the session words read: a live session, an ended one, or a worktree's last one all have these. */
+export type SessionLike = Partial<Pick<LiveSession, 'name' | 'nameIsCustom' | 'needsYou' | 'screenPrompt' | 'status' | 'inBackground'>>
+  & { transcript?: Transcript; endState?: string | null };
 
-export const sessionTitle = sessionText.sessionTitle as (s: AnySession) => string;
-export const sessionDetail = sessionText.sessionDetail as (s: AnySession) => Detail | null;
-export const sessionSearchText = sessionText.sessionSearchText as (s: AnySession) => (string | null | undefined)[];
+export const sessionTitle = sessionText.sessionTitle as (s: SessionLike) => string;
+export const sessionDetail = sessionText.sessionDetail as (s: SessionLike) => Detail | null;
+export const sessionSearchText = sessionText.sessionSearchText as (s: SessionLike) => (string | null | undefined)[];
 export const sessionLabel = sessionText.sessionLabel as (s: LiveSession) => string;
 export const sessionDot = sessionText.sessionDot as (s: LiveSession) => string;
 export const answerElsewhere = sessionText.answerElsewhere as (s: LiveSession, approvals: Approval[]) => string | null;

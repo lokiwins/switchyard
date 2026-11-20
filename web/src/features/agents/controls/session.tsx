@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { ActionButton } from '../../../components/ActionButton';
 import { Menu } from '../../../components/Menu';
-import { resumedMessage, resumeWhere } from '../../../components/OpenMenu';
 import { post } from '../../../lib/api';
 import { tmuxPlace } from '../../../lib/paths';
 import { canShowTerminalSessions } from '../../../lib/shared';
-import type { Capabilities, EndedSession, Host, HubTaskRef, LiveSession } from '../../../lib/types';
-import { openPane, type MakeTaskFrom } from '../../../stores/panes';
+import type { Capabilities, Host, LiveSession } from '../../../lib/types';
 
 /* A session's controls: stop it, end it, go to it, resume it, see its graph, make a task from it. */
 
@@ -97,30 +95,6 @@ export function GraphLink({ sessionId }: { sessionId: string }) {
   );
 }
 
-/** Resume an ended session: in tmux when it's installed, so it can be watched and steered from here. */
-export function ResumeButton({ session, caps }: { session: EndedSession; caps: Capabilities }) {
-  return (
-    <ActionButton label="Resume" title={`Resume this session in ${resumeWhere(caps)}`}
-      perform={async () => {
-        return resumedMessage(await post<{ window?: string; host?: string }>('/api/terminal/resume', { sessionId: session.sessionId }));
-      }} />
-  );
-}
-
-export const canResume = (caps: Capabilities): boolean => Boolean(caps.terminal || caps.tmux);
-
-/** "Task" to the task this work is on, or "Make task" to make one from it, filled in from its session. */
-export function TaskFromWork({ from, hubTask }: { from: MakeTaskFrom; hubTask?: HubTaskRef | null }) {
-  if (hubTask) {
-    return <a href={`/tasks#${encodeURIComponent(hubTask.id)}`} className="btn btn-sm btn-secondary" title={`Task: ${hubTask.title}`}>Task</a>;
-  }
-  return (
-    <button type="button" className="btn btn-sm btn-secondary" title="Make a task on the Tasks page from this, filled in from its session"
-      onClick={() => openPane({ kind: 'make-task', from })}>
-      Make task
-    </button>
-  );
-}
 
 /** One button that shows every task's tmux window in iTerm, or brings them forward. */
 export function ShowSessionsButton({ caps }: { caps: Capabilities }) {

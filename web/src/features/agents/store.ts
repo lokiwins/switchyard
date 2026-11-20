@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { bareFieldStorage } from '../../lib/pref-storage';
+import { bareField, prefFieldsStorage } from '../../lib/pref-storage';
 import { isFilterKey, type FilterKey } from './filters';
 
 /* The Agents page's own state: what it shows, not what the server says (that's in the query cache). */
@@ -37,6 +37,6 @@ export const useAgentsUi = create<AgentsUi>()(persist((set) => ({
 }), {
   name: FILTER_PREF,
   // The filter is kept as it always was in this browser: the bare key under switchyard.agentFilter.
-  storage: createJSONStorage(() => bareFieldStorage(FILTER_PREF, 'filter', isFilterKey)),
+  storage: createJSONStorage(() => prefFieldsStorage({ filter: bareField(FILTER_PREF, isFilterKey) })),
   partialize: (s) => ({ filter: s.filter }),
 }));

@@ -5,7 +5,7 @@
  * in /assets/ is served: no folders, no dots before the name, no source maps.
  */
 
-export const BUILT_PAGES = { '/': 'agents.html', '/prs': 'prs.html' };
+export const BUILT_PAGES = { '/': 'agents.html', '/prs': 'prs.html', '/worktrees': 'worktrees.html' };
 
 const ASSET = /^\/assets\/[A-Za-z0-9][\w-]*\.(js|css|woff2)$/;
 

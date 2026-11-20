@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Panel } from '../../components/Panel';
 import { SearchBox } from '../../components/SearchBox';
+import { Segmented } from '../../components/Segmented';
 import { useNow } from '../../lib/time';
 import { settlePending } from '../../lib/shared';
 import type { AgentsData, Approval, LiveSession } from '../../lib/types';
@@ -56,16 +57,12 @@ function HookHint() {
   );
 }
 
+const CHOICES = FILTER_KEYS.map((key) => ({ key, label: FILTERS[key].label }));
+
 function ViewFilter() {
   const filter = useAgentsUi((s) => s.filter);
   const setFilter = useAgentsUi((s) => s.setFilter);
-  return (
-    <div className="segmented" role="radiogroup" aria-label="Show" id="views">
-      {FILTER_KEYS.map((key) => (
-        <button key={key} type="button" role="radio" aria-checked={filter === key} onClick={() => setFilter(key)}>{FILTERS[key].label}</button>
-      ))}
-    </div>
-  );
+  return <Segmented choices={CHOICES} value={filter} onChange={setFilter} label="Show" />;
 }
 
 export function RunningPanel({ data, query }: { data: AgentsData; query: string }) {
