@@ -54,14 +54,18 @@ function parseLead(body, task) {
  * @param {{ taskHub: { list }, newTask: { startTask }, rediscover?: () => Promise<unknown>,
  *   getRepos?: () => Promise<object[]>, writeLeadConfig?: (taskId: string) => Promise<string> }} deps
  *   `getRepos()` gives the repos and their worktrees, to find a parent's branch; `writeLeadConfig(id)` writes
- *   the files a lead starts with and gives their paths, { mcpConfig, settings } (see lead-access.js).
+ *   the files a lead starts with and gives their paths, { mcpConfig, settings } (see lead-access.js);
+ *   `prepareWorker(id)` gives how a worker starts, { permissionMode?, settings? } (see worker-launch.js).
  */
 export function createHubStarter({
-  taskHub, newTask, rediscover = async () => {}, getRepos = async () => [], writeLeadConfig = null,
+  taskHub, newTask, rediscover = async () => {}, getRepos = async () => [], writeLeadConfig = null, prepareWorker = null,
 }) {
   return {
-    /** Start a task; with `lead`, as its lead, able to start workers through switchyard's MCP tools. */
-    async start(body) {
+    /**
+     * Start a task; with `lead`, as its lead, able to start workers through switchyard's MCP tools.
+     * With `worker` (only from a lead's start_worker, never the page), as a worker, with the Workers settings.
+     */
+    async start(body, { worker = false } = {}) {
       const tasks = await taskHub.list();
       const task = tasks.find((t) => t.id === body?.id);
       if (!task) throw new ActionError(404, 'That task is not there any more');
@@ -71,7 +75,7 @@ export function createHubStarter({
       // A subtask started in its parent's repo begins from the parent's branch, so its work can be merged back there.
       const base = task.parentId ? parentBranch(tasks, task, await getRepos(), body.repo) : null;
       const prompt = promptForHubTask(task, { lead });
-      const options = lead ? await writeLeadConfig(task.id) : {};
+      const options = lead ? await writeLeadConfig(task.id) : worker && prepareWorker ? await prepareWorker(task.id) : {};
       const started = await newTask.startTask({
         repo: body.repo,
         branch: branchForHubTask(task),

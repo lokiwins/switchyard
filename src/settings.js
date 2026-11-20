@@ -56,6 +56,15 @@ export const DEFAULTS = Object.freeze({
     // A check still running after this long is stopped, and counts as failed.
     timeoutMinutes: 10,
   }),
+  // The workers a lead starts (see lead-tools.js), set as each one starts.
+  workers: Object.freeze({
+    // The permission mode they start in; "claude" adds none, so they start as your Claude settings say.
+    permissionMode: 'claude',
+    // Permission rules they may use without asking, such as "Bash(npm test)" or "Edit".
+    allowedTools: Object.freeze([]),
+    // Whether a lead may use switchyard's tools (start, message and end workers) without asking you.
+    leadWithoutAsking: false,
+  }),
   // The agent CLIs (see src/agents/providers.js): which one is used when none is named, and how each is run.
   providers: Object.freeze({
     default: 'claude',
@@ -79,6 +88,7 @@ const SECTION_KEYS = {
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
   checks: ['commands', 'timeoutMinutes'],
+  workers: ['permissionMode', 'allowedTools', 'leadWithoutAsking'],
   providers: ['default', ...Object.keys(DEFAULTS.providers).filter((key) => key !== 'default')],
 };
 const PROVIDER_IDS = SECTION_KEYS.providers.slice(1);
@@ -154,6 +164,23 @@ function checkCommands(value) {
     })];
   }));
 }
+// A worker's permission modes: Claude's own default, or one of Claude's that still leaves you a say (no bypassPermissions or dontAsk).
+export const WORKER_MODES = ['claude', 'manual', 'acceptEdits', 'plan', 'auto'];
+// A permission rule: a tool's name, maybe with what it may do in brackets, like "Bash(npm test)" or "mcp__github__get_issue".
+const TOOL_RULE = /^[A-Za-z_][A-Za-z0-9_-]*(?:\([^()\n]+\))?$/;
+const MAX_TOOL_RULE = 300;
+const MAX_TOOL_RULES = 100;
+
+function workerSettings(workers) {
+  if (!WORKER_MODES.includes(workers.permissionMode)) fail('workers.permissionMode', `must be one of: ${WORKER_MODES.join(', ')}`);
+  const rules = workers.allowedTools;
+  if (!Array.isArray(rules) || rules.length > MAX_TOOL_RULES || rules.some((rule) => typeof rule !== 'string' || rule.length > MAX_TOOL_RULE || !TOOL_RULE.test(rule))) {
+    fail('workers.allowedTools', `must be a list of up to ${MAX_TOOL_RULES} permission rules such as "Edit" or "Bash(npm test)"`);
+  }
+  if (typeof workers.leadWithoutAsking !== 'boolean') fail('workers.leadWithoutAsking', 'must be true or false');
+  return { permissionMode: workers.permissionMode, allowedTools: [...rules], leadWithoutAsking: workers.leadWithoutAsking };
+}
+
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];
 
 export class SettingsError extends Error {}
@@ -307,6 +334,7 @@ export function parseSettings(file = {}) {
       deleteDoneAfterMs: positiveNumber(tasks.deleteDoneAfterDays, 'tasks.deleteDoneAfterDays') * DAY_MS,
     },
     checks: { commands: checkCommands(checks.commands), timeoutMs: checkMinutes * MINUTE_MS },
+    workers: workerSettings(section(file, 'workers')),
     providers: providers(file),
   };
 }

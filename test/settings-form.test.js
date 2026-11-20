@@ -12,6 +12,7 @@ const VALUES = {
   git: { longLivedBranches: ['main', 'release/*'] },
   ci: { holdPatterns: ['\\bhold\\b'], stripPrefixes: ['ci/circleci: '] },
   tasks: { autoDeleteDone: true, deleteDoneAfterDays: 14 },
+  workers: { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit'], leadWithoutAsking: false },
   providers: { default: 'claude', claude: { enabled: true, program: 'claude', options: '' } },
   checks: { commands: 'billing-api:\n  test: npm test', timeoutMinutes: 10 },
 };
@@ -59,4 +60,12 @@ test('a provider\'s settings are fields one level further in: on or off, program
   assert.equal(fields['providers.claude.options'], '--model opus');
   assert.deepEqual(editsFromFields(fields).providers, values.providers);
   assert.equal(editsFromFields({ ...fields, 'providers.claude.options': '  --model sonnet ' }).providers.claude.options, '--model sonnet');
+});
+
+test('Workers: allowed tools one per line, the lead\'s ask as a checkbox', () => {
+  const fields = fieldsFromValues(VALUES);
+  assert.equal(fields['workers.allowedTools'], 'Bash(npm test)\nEdit');
+  assert.equal(fields['workers.leadWithoutAsking'], 'false');
+  const edits = editsFromFields({ ...fields, 'workers.allowedTools': ' Read \n\nBash(npm run lint)', 'workers.leadWithoutAsking': 'true' });
+  assert.deepEqual(edits.workers, { permissionMode: 'acceptEdits', allowedTools: ['Read', 'Bash(npm run lint)'], leadWithoutAsking: true });
 });

@@ -98,7 +98,7 @@ export function createLeadTools({
     const repo = workerRepo(lead, await getRepos(), named);
     const worker = await taskHub.create({ title, notes, parentId: lead.id });
     try {
-      const started = await hubStarter.start({ id: worker.id, repo: repo.mainPath });
+      const started = await hubStarter.start({ id: worker.id, repo: repo.mainPath }, { worker: true });
       return { id: worker.id, title: worker.title, repo: repo.name, branch: started.branch, path: started.path };
     } catch (error) {
       // So a retry doesn't leave two subtasks for the one worker.

@@ -67,6 +67,12 @@ test('the lead\'s settings make Claude ask you before it uses switchyard\'s tool
   assert.deepEqual(JSON.parse(readFileSync(files.settings, 'utf8')), LEAD_SETTINGS);
 });
 
+test('with "lead without asking" on, the lead\'s settings allow switchyard\'s tools instead', async () => {
+  const dir = freshDir();
+  const files = await createLeadAccess({ dir, port: 4477 }).writeConfig(LEAD, { withoutAsking: true });
+  assert.deepEqual(JSON.parse(readFileSync(files.settings, 'utf8')), { permissions: { allow: ['mcp__switchyard'] } });
+});
+
 test('only a task id gets a config file', async () => {
   const access = createLeadAccess({ dir: freshDir(), port: 4477 });
   await assert.rejects(access.writeConfig('../../x'), /task id/);
