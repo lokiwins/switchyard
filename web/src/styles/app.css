@@ -27,8 +27,10 @@
   --font-sans: var(--font-sans);
 }
 
-@layer components {
-  /* Menus are placed by Radix (a wrapper it positions), so the panel sits in it rather than fixed to the window. */
-  [data-radix-popper-content-wrapper] > .menu-panel { position: static; }
-  .menu-trigger[data-state="open"] { background: var(--accent-fill); color: var(--on-accent); }
-}
+/*
+ * Overrides of public/styles.css, unlayered: a rule in a layer always loses to
+ * an unlayered one, whatever its specificity, and styles.css is unlayered.
+ */
+/* Menus are placed by Radix (a wrapper it positions), so the panel sits in it rather than fixed to the window. */
+[data-radix-popper-content-wrapper] > .menu-panel { position: static; }
+.menu-trigger[data-state="open"] { background: var(--accent-fill); color: var(--on-accent); }

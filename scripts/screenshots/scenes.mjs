@@ -7,8 +7,13 @@
  * keys: renaming one reads as a scene removed and a new one added.
  */
 
-// Menus are <details class="menu"> whose <summary> is the button. Match the label from its
-// start: hasText alone is a case-insensitive substring, so "Clean up" would also match "1 to clean up".
+/**
+ * A menu's button, by the start of its label: a <summary> in the pages built in public/, a
+ * .menu-trigger button in the ones built from web/ (a scene runs against both, before and after).
+ * From the start, since hasText alone is a case-insensitive substring: "Clean up" would also match "1 to clean up".
+ */
+const menuButton = (scope, label) => scope.locator('details.menu > summary, button.menu-trigger', { hasText: new RegExp(`^${label}`) });
+
 const settle = (page) => page.waitForLoadState('networkidle');
 
 /**
@@ -96,7 +101,7 @@ export const SCENES = [
     path: '/',
     prepare: async (page) => {
       await agentsLoaded(page);
-      await page.locator('details.menu > summary', { hasText: /^New task/ }).click();
+      await menuButton(page, 'New task').click();
       await page.getByPlaceholder('What should Claude do?').fill('Show order history on the account page');
     },
   },
@@ -115,7 +120,7 @@ export const SCENES = [
           },
         },
       }));
-      await page.locator('details.menu > summary', { hasText: /^New task/ }).click();
+      await menuButton(page, 'New task').click();
       await page.locator('select[name="repo"]').selectOption({ label: 'storefront' });
       await page.getByPlaceholder('What should Claude do?').fill('Show order history on the account page');
       await page.getByRole('button', { name: 'Start', exact: true }).click();
@@ -139,7 +144,7 @@ export const SCENES = [
     path: '/',
     prepare: async (page) => {
       await agentsLoaded(page);
-      await rowOf(page, 'Download invoices as PDF').locator('details.menu > summary', { hasText: /^Answer/ }).click();
+      await menuButton(rowOf(page, 'Download invoices as PDF'), 'Answer').click();
       await page.locator('.answer-panel').filter({ visible: true }).waitFor();
     },
   },
@@ -169,7 +174,7 @@ export const SCENES = [
     path: '/worktrees',
     prepare: async (page) => {
       await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
-      await page.locator('details.menu > summary', { hasText: /^Clean up/ }).first().click();
+      await menuButton(page, 'Clean up').first().click();
       await page.getByRole('menu').filter({ visible: true }).first().waitFor();
     },
   },
@@ -235,7 +240,7 @@ export const SCENES = [
     path: '/tasks',
     prepare: async (page) => {
       await page.getByText('Email a receipt after each charge').waitFor();
-      await page.locator('form.hub-new details.menu > summary', { hasText: /^Add from/ }).click();
+      await menuButton(page.locator('form.hub-new'), 'Add from').click();
       await page.locator('.picker-panel .picker-item').first().waitFor();
     },
   },
