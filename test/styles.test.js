@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const css = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+const css = await readFile(new URL('../web/src/styles/legacy.css', import.meta.url), 'utf8');
 
 /** The declarations of the first rule whose selector is exactly `selector`. */
 function rule(selector) {

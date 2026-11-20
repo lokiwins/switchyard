@@ -1,7 +1,7 @@
 /*
  * The themes switchyard can be drawn in, each in light and dark, and the
- * modes that choose between those. The colors are in styles.css (Classic)
- * and themes.css (the rest); the server checks settings against these ids.
+ * modes that choose between those. The colors are in web/src/styles/themes.css;
+ * the server checks settings against these ids.
  */
 
 export const THEMES = Object.freeze([

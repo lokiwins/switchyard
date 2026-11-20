@@ -1,35 +1,91 @@
 /*
- * Tailwind, over the pages' existing styles. public/styles.css and themes.css
- * still hold every colour token (each theme, light and dark) and the classes
- * the pages not yet moved to React share, so Tailwind's base reset is left
- * out and its utilities read the same tokens: `bg-surface`, `text-accent`
- * follow the theme, and `dark:` follows the page's own light/dark choice.
+ * The pages' styles: Tailwind, configured here in CSS (no tailwind.config.js),
+ * on switchyard's own scale rather than Tailwind's defaults.
+ *
+ * - themes.css is the one source of colour: each theme sets its tokens for
+ *   light and dark on <html data-theme data-scheme> (theme-boot.js picks them),
+ *   and the colour utilities read those tokens live (`bg-surface`, `text-accent`).
+ * - The layout scale (spacing, type, radii, fonts) is the theme below; a theme
+ *   may override a token (Signal's square corners, its own fonts) the same way.
+ * - legacy.css holds the component classes not yet moved to utilities. It's
+ *   unlayered, so it wins over any utility; a component moves off it whole.
+ *   Tailwind's base reset (preflight) comes in once it's gone.
  */
-@layer theme, components, utilities;
+@layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+@import "./legacy.css";
+@import "./themes.css";
 
+/* `dark:` follows the page's own light or dark choice, not only the system's. */
 @custom-variant dark (&:where([data-scheme="dark"], [data-scheme="dark"] *));
 
+/* Always emitted, since the legacy classes and the themes read these by name. */
+@theme static {
+  --*: initial;
+
+  /* p-1 is 4px, p-2.5 10px. */
+  --spacing: 4px;
+
+  /* max-phone: and the rest are "at most N px", as the old media queries were. */
+  --breakpoint-tiny: 361px;
+  --breakpoint-phone: 641px;
+  --breakpoint-narrow: 761px;
+  --breakpoint-tablet: 901px;
+
+  /* Sizes only: a line height comes from the parent unless leading-* is set. */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-2xl: 24px;
+  --leading-xs: 16px;
+  --leading-sm: 20px;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  /* The brand and the tiles' numbers; a theme can give them a face of their own. */
+  --font-display: var(--font-sans);
+  --font-weight-display: 700;
+}
+
+/* The colour utilities, each reading its token from themes.css as the theme and mode change. */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-hover: var(--hover);
+  --color-divider: var(--divider);
+  --color-hairline: var(--hairline);
+  --color-highlight: var(--highlight);
+  --color-gray-900: var(--gray-900);
+  --color-gray-700: var(--gray-700);
+  --color-gray-500: var(--gray-500);
+  --color-gray-400: var(--gray-400);
+  --color-gray-200: var(--gray-200);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
-  --color-hairline: var(--hairline);
-  --color-gray-500: var(--gray-500);
-  --color-gray-900: var(--gray-900);
+  --color-on-red: var(--on-red);
   --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
   --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
   --color-red: var(--red);
-  --font-sans: var(--font-sans);
+  --color-red-soft: var(--red-soft);
+  --color-purple: var(--purple);
+  --color-purple-soft: var(--purple-soft);
+  --color-neutral-soft: var(--neutral-soft);
 }
 
 /*
- * Overrides of public/styles.css, unlayered: a rule in a layer always loses to
- * an unlayered one, whatever its specificity, and styles.css is unlayered.
+ * Overrides of legacy.css, unlayered: a rule in a layer always loses to an
+ * unlayered one, whatever its specificity.
  */
 /* Menus are placed by Radix (a wrapper it positions), so the panel sits in it rather than fixed to the window. */
 [data-radix-popper-content-wrapper] > .menu-panel { position: static; }

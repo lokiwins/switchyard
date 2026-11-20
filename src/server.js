@@ -50,7 +50,6 @@ import { createLiveTerminals } from './live-terminal.js';
 import { canReadScreen, createTerminal } from './terminal.js';
 import { conditionalState } from './state-etag.js';
 import { themeBootScript } from './theme-boot.js';
-import { STATIC_FILES } from './static-files.js';
 import { builtFile } from './built-pages.js';
 import { createTmux } from './tmux.js';
 
@@ -101,12 +100,6 @@ async function sendThemeBoot(res, settingsService) {
   const { appearance } = settingsService.view().values;
   res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES['.js'], 'Cache-Control': 'no-store' });
   res.end(themeBootScript(source, appearance));
-}
-
-async function sendStatic(res, file) {
-  const body = await readFile(join(PUBLIC_DIR, file));
-  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES[extname(file)], 'Cache-Control': 'no-cache' });
-  res.end(body);
 }
 
 /**
@@ -558,8 +551,6 @@ function createHandler(services) {
       if (url.pathname === '/theme-boot.js') return await sendThemeBoot(res, services.settingsService);
       const built = builtFile(url.pathname);
       if (built) return await sendBuilt(res, built);
-      const file = STATIC_FILES[url.pathname];
-      if (file) return await sendStatic(res, file);
       return sendJson(res, 404, { success: false, error: 'Not found' });
     } catch (error) {
       if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });

@@ -84,7 +84,7 @@ The default for every browser is set on the **Settings** page, under *Appearance
 
 Every theme's text meets WCAG AA contrast in light and dark (4.5:1, or 3:1 for the tiles' large numbers), checked by a test for each pairing of text and background. In dark mode, menus and popovers sit on a slightly lighter surface with a lit top edge rather than under a heavier shadow.
 
-Signal uses Manrope, JetBrains Mono and Fraunces, and Heatwave uses Anton, all bundled in `public/vendor/fonts` under the SIL Open Font License; a browser only downloads them while their theme is on.
+Signal uses Manrope, JetBrains Mono and Fraunces, and Heatwave uses Anton, all bundled in `web/src/fonts` under the SIL Open Font License; a browser only downloads them while their theme is on.
 
 The live terminal has colours of its own, chosen in the same places (the ◐ menu's *Terminal* section, and *Terminal colours* on the Settings page). *Match page theme*, the default, uses a palette made for each theme, in its light or dark. Or pick a named scheme: Dracula, Solarized Dark or Light, Nord, Gruvbox Dark, Tokyo Night, Catppuccin Mocha or Latte, or One Dark. The glass panes (the terminal, a prompt's review, a task's details) take its colours too, and an open terminal changes at once. The terminal pane covers the top bar, so it has the same choice in its own header, beside Close; it changes this browser's choice, like the ◐ menu, and gives the keyboard back to the terminal. On a light terminal, switchyard keeps all text at a 4.5:1 contrast at least, because Claude Code may be drawing colours meant for a dark one.
 

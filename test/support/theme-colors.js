@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /*
- * The page themes' colour tokens, read from styles.css (Classic) and
- * themes.css (the rest) and resolved to sRGB, for contrast checks. Handles
+ * The page themes' colour tokens, read from web/src/styles/themes.css and
+ * resolved to sRGB, for contrast checks. Handles
  * the forms the themes use: #hex, oklch(L C H [/ a]) and
  * color-mix(in oklab, <colour> N%, transparent).
  */
 
-const PUBLIC_DIR = join(import.meta.dirname, '..', '..', 'public');
-const read = (file) => readFileSync(join(PUBLIC_DIR, file), 'utf8');
+const STYLES_DIR = join(import.meta.dirname, '..', '..', 'web', 'src', 'styles');
+const read = (file) => readFileSync(join(STYLES_DIR, file), 'utf8');
 
 /** The custom properties a rule for `selector` sets, as written. */
 function block(css, selector) {
@@ -19,12 +19,11 @@ function block(css, selector) {
   return Object.fromEntries([...rule[1].matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 }
 
-/** Every token, as written, for a theme and scheme (Classic's from styles.css, the rest layered over it). */
+/** Every token, as written, for a theme and scheme (Classic's from :root, the rest layered over it). */
 export function themeTokens(theme, scheme) {
-  const styles = read('styles.css');
   const themes = read('themes.css');
-  const root = block(styles, ':root');
-  const classicDark = scheme === 'dark' ? block(styles, ':root[data-scheme="dark"]') : {};
+  const root = block(themes, ':root');
+  const classicDark = scheme === 'dark' ? block(themes, ':root[data-scheme="dark"]') : {};
   if (theme === 'classic') return { ...root, ...classicDark };
   return { ...root, ...block(themes, `:root[data-theme="${theme}"]`), ...(scheme === 'dark' ? block(themes, `:root[data-theme="${theme}"][data-scheme="dark"]`) : {}) };
 }

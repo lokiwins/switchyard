@@ -1,17 +1,88 @@
 /*
- * The themes besides Classic (whose colors are in styles.css). theme-boot.js
- * sets <html data-theme data-scheme>; each theme sets every color token for
- * light, then again for dark. The list of themes is public/themes.js.
+ * Every theme's colours. theme-boot.js sets <html data-theme data-scheme>;
+ * Classic is the default (:root), and each other theme sets every color token
+ * for light, then again for dark. The list of themes is public/themes.js.
  *
  * Fonts: Manrope, JetBrains Mono, Fraunces and Anton, under the SIL Open Font
- * License (public/vendor/fonts/OFL-*.txt), Latin subset. A browser only
+ * License (web/src/fonts/OFL-*.txt), Latin subset. A browser only
  * downloads them when a theme that uses them is on.
  */
-@font-face { font-family: "Manrope"; font-style: normal; font-weight: 400 700; font-display: swap; src: url(/vendor/fonts/manrope.woff2) format("woff2"); }
-@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400 600; font-display: swap; src: url(/vendor/fonts/jetbrains-mono.woff2) format("woff2"); }
-@font-face { font-family: "Anton"; font-style: normal; font-weight: 400; font-display: swap; src: url(/vendor/fonts/anton.woff2) format("woff2"); }
-@font-face { font-family: "Fraunces"; font-style: normal; font-weight: 300 400; font-display: swap; src: url(/vendor/fonts/fraunces.woff2) format("woff2"); }
+@font-face { font-family: "Manrope"; font-style: normal; font-weight: 400 700; font-display: swap; src: url(../fonts/manrope.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400 600; font-display: swap; src: url(../fonts/jetbrains-mono.woff2) format("woff2"); }
+@font-face { font-family: "Anton"; font-style: normal; font-weight: 400; font-display: swap; src: url(../fonts/anton.woff2) format("woff2"); }
+@font-face { font-family: "Fraunces"; font-style: normal; font-weight: 300 400; font-display: swap; src: url(../fonts/fraunces.woff2) format("woff2"); }
 
+
+/* Classic: the default theme, light then dark (as theme-boot.js chooses it: the system's, or your own choice). */
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  /* Menus and popovers. In dark mode they're lighter than the card under them, with a lit top edge, instead of a heavier shadow. */
+  --surface-raised: #ffffff;
+  --highlight: oklch(100% 0 0 / 0);
+  --surface-sunken: #f7f9fb;
+  --hover: #f1f4f8;
+  --divider: #e9edf2;
+  --hairline: rgb(16 42 67 / 0.08);
+  --gray-900: #102a43;
+  --gray-700: #334e68;
+  --gray-500: #56708a;
+  --gray-400: #7a92aa;
+  --gray-200: #d9e2ec;
+  --accent: #3366cc;
+  --accent-soft: #e8effc;
+  /* A primary button's fill: the accent, or a gradient in a theme that has one (its ends, for the contrast test). */
+  --accent-fill: var(--accent);
+  /* Text on a filled accent or danger color. */
+  --on-accent: #fff;
+  --on-red: #fff;
+  --green: #15803d;
+  --green-soft: #ecfdf3;
+  --amber: #a15c07;
+  --amber-soft: #fef7e6;
+  --red: #b42318;
+  --red-soft: #fef1f0;
+  --purple: #6941c6;
+  --purple-soft: #f4f0ff;
+  --neutral-soft: #f1f4f8;
+  --shadow-sm: 0 1px 2px rgb(16 42 67 / 0.05);
+  --shadow-md: 0 1px 2px rgb(16 42 67 / 0.05), 0 4px 12px rgb(16 42 67 / 0.07);
+  --ring: 0 0 0 3px rgb(51 102 204 / 0.35);
+  color-scheme: light;
+}
+
+:root[data-scheme="dark"] {
+  --bg: #0b0f14;
+  --surface: #12171d;
+  --surface-raised: #1a212a;
+  --highlight: oklch(100% 0 0 / 0.07);
+  --surface-sunken: #0f141a;
+  --hover: #171d24;
+  --divider: #1d242d;
+  --hairline: rgb(255 255 255 / 0.07);
+  --gray-900: #e8eef5;
+  --gray-700: #bccad8;
+  --gray-500: #8496aa;
+  --gray-400: #66788c;
+  --gray-200: #2a3441;
+  --accent: #7aa5ff;
+  --accent-soft: #1a2640;
+  /* The dark accent and red are light, so the text on them is dark. */
+  --on-accent: #0b0f14;
+  --on-red: #0b0f14;
+  --green: #56d389;
+  --green-soft: #10251a;
+  --amber: #f2c14e;
+  --amber-soft: #2a210d;
+  --red: #ff8a80;
+  --red-soft: #2e1514;
+  --purple: #b9a2ff;
+  --purple-soft: #211a38;
+  --neutral-soft: #1a2028;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 18px rgb(0 0 0 / 0.35);
+  color-scheme: dark;
+}
 
 /* Signal: Near-black and cool, with a cyan accent; sharp corners and its own type (Manrope, JetBrains Mono, Fraunces). */
 :root[data-theme="signal"] {
@@ -44,12 +115,12 @@
   --ring: 0 0 0 3px color-mix(in oklab, oklch(52% .1 215) 35%, transparent);
   --on-red: oklch(100% 0 0);
   --on-accent: oklch(100% 0 0);
-  --radius: 5px;
+  --radius-md: 5px;
   --radius-sm: 4px;
   --font-sans: "Manrope", system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --font-display: "Fraunces", Georgia, serif;
-  --font-display-weight: 400;
+  --font-weight-display: 400;
   color-scheme: light;
 }
 :root[data-theme="signal"][data-scheme="dark"] {
@@ -116,7 +187,7 @@
   --ring: 0 0 0 3px color-mix(in oklab, oklch(53% .15 45) 35%, transparent);
   --on-red: oklch(100% 0 0);
   --on-accent: oklch(100% 0 0);
-  --radius: 8px;
+  --radius-md: 8px;
   --radius-sm: 5px;
   color-scheme: light;
 }
@@ -184,7 +255,7 @@
   --ring: 0 0 0 3px color-mix(in oklab, oklch(52% .2 285) 35%, transparent);
   --on-red: oklch(100% 0 0);
   --on-accent: oklch(100% 0 0);
-  --radius: 12px;
+  --radius-md: 12px;
   --radius-sm: 8px;
   color-scheme: light;
 }
@@ -252,7 +323,7 @@
   --ring: 0 0 0 2px oklch(12% 0 0);
   --on-red: oklch(100% 0 0);
   --on-accent: oklch(100% 0 0);
-  --radius: 3px;
+  --radius-md: 3px;
   --radius-sm: 2px;
   color-scheme: light;
 }
@@ -321,7 +392,7 @@
   --ring: 0 0 0 3px color-mix(in oklab, oklch(52% .2 355) 35%, transparent);
   --on-red: oklch(100% 0 0);
   --on-accent: oklch(100% 0 0);
-  --radius: 10px;
+  --radius-md: 10px;
   --radius-sm: 7px;
   color-scheme: light;
 }
@@ -408,11 +479,11 @@
   --ring: 0 0 0 3px rgb(201 52 155 / 0.35);
   --on-accent: #ffffff;
   --on-red: #ffffff;
-  --radius: 10px;
+  --radius-md: 10px;
   --radius-sm: 7px;
   /* A poster's condensed type for the brand and the tiles' numbers. */
   --font-display: "Anton", var(--font-sans);
-  --font-display-weight: 400;
+  --font-weight-display: 400;
   color-scheme: light;
 }
 :root[data-theme="heatwave"][data-scheme="dark"] {

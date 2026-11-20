@@ -177,7 +177,7 @@ export function xtermOptions(p) {
 }
 
 /**
- * The glass pane's tokens (see .glass-pane in styles.css). Only the pane: the
+ * The glass pane's tokens (see .glass-pane in web/src/styles/legacy.css). Only the pane: the
  * dimming of the page behind it (--pane-backdrop) stays the same whatever the
  * terminal, so a terminal theme never changes how the page itself looks.
  */
