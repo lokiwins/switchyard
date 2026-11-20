@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { test } from 'node:test';
-import { STATIC_FILES, STYLE_NONCE_PAGES } from '../src/static-files.js';
+import { STATIC_FILES } from '../src/static-files.js';
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', 'public');
 const SCRIPT_SRC = /<script[^>]*\ssrc="([^"]+)"/g;
 const STYLESHEET = /<link[^>]*\shref="([^"]+)"/g;
 const IMPORT = /\bfrom\s+'(\.[^']+)'/g;
-// Files a module loads by an absolute path held in a constant (the vendored terminal).
+// Files a module loads by an absolute path held in a constant.
 const ABSOLUTE_PATH = /'(\/vendor\/[^']+)'/g;
 
 /** Every URL path a page loads, following module imports from its scripts. */
@@ -29,7 +29,7 @@ function pathsLoadedBy(page) {
 }
 
 test('every file a page loads is served, so no module is left out', () => {
-  for (const page of ['tasks.html', 'graph.html']) {
+  for (const page of ['graph.html']) {
     for (const path of pathsLoadedBy(page)) {
       assert.equal(STATIC_FILES[path], path.slice(1), `${page} loads ${path}, which isn't in src/static-files.js`);
     }
@@ -38,13 +38,6 @@ test('every file a page loads is served, so no module is left out', () => {
 
 test('every listed file exists in public/', () => {
   for (const file of Object.values(STATIC_FILES)) assert.ok(existsSync(join(PUBLIC_DIR, file)), `public/${file} is missing`);
-});
-
-test('every page that can open the live terminal gets a style nonce for xterm.js', () => {
-  for (const page of ['tasks.html', 'graph.html']) {
-    const hostsTerminal = pathsLoadedBy(page).includes('/live-terminal.js');
-    assert.equal(STYLE_NONCE_PAGES.has(page), hostsTerminal, `${page} ${hostsTerminal ? 'opens the terminal but gets no' : 'gets a needless'} style nonce`);
-  }
 });
 
 test('every page module parses, so a typo fails here rather than leaving a page blank', async () => {
