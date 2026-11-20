@@ -41,6 +41,8 @@ export const STATIC_FILES = {
   '/session-delete.js': 'session-delete.js',
   '/check-status.js': 'check-status.js',
   '/check-view.js': 'check-view.js',
+  '/review-status.js': 'review-status.js',
+  '/review-view.js': 'review-view.js',
   '/worktree-choices.js': 'worktree-choices.js',
   '/new-task.js': 'new-task.js',
   '/branch-name.js': 'branch-name.js',

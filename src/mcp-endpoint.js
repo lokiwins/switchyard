@@ -43,7 +43,8 @@ const WORKER_ID = z.string().regex(/^sy-[a-z0-9]{6}$/).describe('The worker\'s i
 const WORKER_STATUS = {
   title: 'Worker status',
   description: 'One worker in detail: its state; each session\'s last reply and current activity; its commits not on your branch, '
-    + 'what they change, and what is not committed yet; and its check results. Use it to decide whether a worker is done, stuck or needs a nudge.',
+    + 'what they change, and what is not committed yet; its check results; and its latest review, if the user asked for one (reviewing, passed, '
+    + 'changes or no verdict, with the reviewer\'s reasons). Use it to decide whether a worker is done, stuck or needs a nudge.',
   inputSchema: z.object({ id: WORKER_ID }),
 };
 

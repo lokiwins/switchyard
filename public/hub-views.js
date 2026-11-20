@@ -312,7 +312,11 @@ function buildPart(key, task, context) {
   }
   if (key === 'actions') return h('div', { class: 'actions' }, rowActions(task, context));
   const link = task.work.find((w) => `link:${w.path}` === key);
-  return linkLine(link, context.caps, context.approvals, { onRunCheck: context.actions.runCheck });
+  return linkLine(link, context.caps, context.approvals, {
+    onRunCheck: context.actions.runCheck,
+    // Open tasks only: a closed one's work is put away.
+    onReview: !task.closedAs && ((path) => context.actions.review(currentTask(task), path)),
+  });
 }
 
 /** Bring a row up to date in place: only the parts whose data changed are built again. */

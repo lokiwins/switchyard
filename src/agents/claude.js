@@ -27,6 +27,8 @@ const isResumable = (transcript) => Boolean(transcript?.lastPrompt) || transcrip
 
 // How Claude Code runs when Settings say nothing else.
 const DEFAULT_RUN = Object.freeze({ program: 'claude', options: [] });
+// A session id switchyard chooses for a session it starts (see review.js), typed as is.
+const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * `claude --resume` only finds sessions recorded for the current directory.
@@ -95,14 +97,21 @@ export function createClaudeProvider({
   }
   /**
    * Start Claude Code, on `prompt` when given (quoted even when it looks safe: zsh expands a leading "="),
-   * in a permission mode and with a settings file and an MCP config file when given. Those come after the
+   * named, with a session id switchyard chose, in a permission mode and with a settings file and an MCP
+   * config file, each when given. Those come after the
    * task, the MCP config last: --mcp-config takes several values, so anything after it would be read as one
    * more. The mode is one of a fixed list, checked by the caller (see tasks.js), so it's typed as is.
    */
-  const launchCommand = (prompt, { permissionMode, mcpConfig, settings } = {}) => [
-    run(), prompt && shellQuoteAlways(prompt), permissionMode && `--permission-mode ${permissionMode}`,
-    settings && `--settings ${shellQuoteAlways(settings)}`, mcpConfig && `--mcp-config ${shellQuoteAlways(mcpConfig)}`,
-  ].filter(Boolean).join(' ');
+  const launchCommand = (prompt, {
+    name, sessionId, permissionMode, mcpConfig, settings,
+  } = {}) => {
+    if (sessionId !== undefined && !SESSION_UUID.test(sessionId)) throw new Error('A session id to start with must be a UUID');
+    return [
+      run(), prompt && shellQuoteAlways(prompt), name && `--name ${shellQuoteAlways(name)}`, sessionId && `--session-id ${sessionId}`,
+      permissionMode && `--permission-mode ${permissionMode}`,
+      settings && `--settings ${shellQuoteAlways(settings)}`, mcpConfig && `--mcp-config ${shellQuoteAlways(mcpConfig)}`,
+    ].filter(Boolean).join(' ');
+  };
   /** Resume one of its sessions, from the folder it ran in. */
   const resumeInPlace = (sessionId) => `${run()} --resume ${sessionId}`;
   const resumeHere = (cwd, sessionId) => resumeCommand(cwd, sessionId, run());
@@ -252,6 +261,8 @@ export function createClaudeProvider({
       return basename(settings().program);
     },
     launchCommand,
+    /** One session's summary (its last reply, activity…) by its folder and id, live or ended; null when it has no transcript. */
+    readSession: async (cwd, sessionId) => (SESSION_UUID.test(sessionId) ? summarize(transcriptPath(cwd, sessionId)) : null),
     // A lead or a worker (see hub-start.js) is started with a permission mode, settings or switchyard's MCP config.
     takesLaunchOptions: true,
     resumeCommand: resumeInPlace,

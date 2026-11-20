@@ -37,8 +37,9 @@ function setup({
   };
   const reports = [];
   const gitReport = async (args) => { reports.push(args); return { base: args.base, commits: [], changes: null, uncommitted: [] }; };
+  const reviewStatus = async (review, live) => ({ ...review, live: live.some((s) => s.sessionId === review.sessionId), state: 'reviewing', summary: null });
   const tools = createLeadTools({
-    taskHub, hubStarter, getRepos: async () => repos, actions, checkResults: async () => checks, gitReport,
+    taskHub, hubStarter, getRepos: async () => repos, actions, checkResults: async () => checks, gitReport, reviewStatus,
   });
   return { tools, taskHub, starts, startOptions, acted, reports };
 }
@@ -150,6 +151,7 @@ test('worker_status: its state, sessions with their last reply, and its work nex
       sessions: [{ sessionId: 'abc', status: 'idle', needsYou: false, lastReply: 'Tests written; 2 fail on rounding.', activity: null }],
       work: { base: `${LEAD}-build`, commits: [], changes: null, uncommitted: [] },
       checks: [{ name: 'test', state: 'failed', outOfDate: false }],
+      review: null,
     }],
   });
 });
@@ -202,4 +204,24 @@ test('a worker is started as a worker, so it gets the Workers settings', async (
   const { tools, startOptions } = setup();
   await tools.forLead(LEAD).startWorker({ title: 'Write the tests' });
   assert.deepEqual(startOptions, [{ worker: true }]);
+});
+
+test('a reviewer\'s session isn\'t the worker\'s: the lead neither counts it, messages it, nor ends it, and sees the review', async () => {
+  const REVIEWER = '0b6f1c2e-4a8d-4c1e-9f3a-2d5e6f7a8b9c';
+  const tasks = [hubTask(LEAD), hubTask('sy-wrk001', { parentId: LEAD, title: 'Tests', reviews: [{ path: '/code/shop-tests', sessionId: REVIEWER, startedAt: 1 }] })];
+  const repos = [repo('shop', [
+    worktree('/code/shop-lead', `${LEAD}-build`),
+    worktree('/code/shop-tests', 'sy-wrk001-tests', [session({ sessionId: 'abc', status: 'idle' }), session({ sessionId: REVIEWER, status: 'busy' })]),
+  ])];
+  const { tools, acted } = setup({ tasks, repos });
+  const lead = tools.forLead(LEAD);
+  const [listed] = await lead.listWorkers();
+  assert.equal(listed.state, 'idle', 'the busy reviewer doesn\'t make the worker look busy');
+  assert.deepEqual(listed.worktrees[0].sessions.map((s) => s.sessionId), ['abc']);
+  const status = await lead.workerStatus({ id: 'sy-wrk001' });
+  assert.deepEqual(status.worktrees[0].sessions.map((s) => s.sessionId), ['abc']);
+  assert.deepEqual(status.worktrees[0].review, { state: 'reviewing', summary: null, startedAt: 1 });
+  await lead.messageWorker({ id: 'sy-wrk001', text: 'Go on' });
+  await lead.endWorker({ id: 'sy-wrk001' });
+  assert.deepEqual(acted, [['reply', { sessionId: 'abc', text: 'Go on' }], ['end', { sessionId: 'abc' }]]);
 });

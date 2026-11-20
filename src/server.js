@@ -29,11 +29,13 @@ import { CLICKUP_API, createClickUp } from './clickup.js';
 import { createTaskTools } from './task-tools.js';
 import { createTaskHub } from './task-hub.js';
 import { createHubStarter } from './hub-start.js';
+import { chooseWorktree, closeHubTask, createHubTask, deleteHubTask } from './hub-actions.js';
 import { readJsonBody } from './http-body.js';
 import { createLeadAccess } from './lead-access.js';
 import { createLeadTools } from './lead-tools.js';
 import { createMcpEndpoint } from './mcp-endpoint.js';
 import { createWorkerLaunch } from './worker-launch.js';
+import { createReviews, withReviews } from './review.js';
 import { defaultStoreDir } from './json-store.js';
 import { createChecks } from './checks.js';
 import { createCheckTriggers } from './check-triggers.js';
@@ -136,57 +138,6 @@ async function answerPrompt({ actions, agentFeed }, body) {
 }
 
 /** A new task; made from a session or worktree (`from`), it's saved with where that work is, so it shows under it. */
-/**
- * After a task's work was put away: every view afresh, and the worktree list
- * found again only when a worktree went (it means a git call per repo).
- */
-async function workPutAway({ stateService }, { removed = [] } = {}) {
-  if (removed.length > 0) await stateService.rediscover();
-  stateService.sessionsRemoved();
-}
-
-/** Put away each task's work (see task-cleanup.js), as one summary of what happened. */
-async function putAwayAll({ taskCleanup }, tasks) {
-  const all = { ended: [], hidden: 0, removed: [], choices: [], errors: [] };
-  for (const task of tasks) {
-    const one = await taskCleanup.afterClose(task);
-    all.ended.push(...one.ended);
-    all.hidden += one.hidden;
-    all.removed.push(...one.removed);
-    all.choices.push(...one.choices);
-    all.errors.push(...one.errors);
-  }
-  return all;
-}
-
-/** Done or dropped: the task and its open subtasks close; their sessions end, come off the lists, and their worktrees go. */
-async function closeHubTask(services, body) {
-  const [task, ...subtasks] = await services.taskHub.closeWithSubtasks(body);
-  const cleanup = await putAwayAll(services, [task, ...subtasks]);
-  await workPutAway(services, cleanup);
-  return { ...task, subtasksClosed: subtasks.length, cleanup };
-}
-
-/** Deleted, with its subtasks: their work is put away as when they're closed, found while the tasks are still there. */
-async function deleteHubTask(services, body) {
-  const removed = await services.taskHub.removeWithSubtasks(body);
-  const cleanup = await putAwayAll(services, removed);
-  await workPutAway(services, cleanup);
-  return { removed: body.id, subtasksRemoved: removed.length - 1, cleanup };
-}
-
-/** Keep or Delete for a worktree a closed task left waiting. */
-async function chooseWorktree(services, body) {
-  const result = await services.taskCleanup.choose(body);
-  if (result.removed) await workPutAway(services, { removed: [result.removed] });
-  return result;
-}
-
-async function createHubTask({ taskHub, taskSources }, body) {
-  const attached = body?.from ? await taskSources.attach(body.from) : [];
-  return taskHub.create(body, { attached });
-}
-
 const POST_ROUTES = {
   '/api/prs/copilot-review': ({ prService }, body) => prService.copilotReview(body),
   '/api/approvals/decide': ({ approvals }, body) => approvals.decide(body),
@@ -216,6 +167,7 @@ const POST_ROUTES = {
   '/api/hub/tasks/delete': deleteHubTask,
   '/api/hub/tasks/worktree-choice': chooseWorktree,
   '/api/hub/tasks/start': ({ hubStarter }, body) => hubStarter.start(body),
+  '/api/hub/tasks/review': ({ reviews }, body) => reviews.start(body),
   '/api/checks/run': ({ checks }, body) => checks.start(body),
   '/api/hub/ticket/status': ({ ticketDetails }, body) => ticketDetails.setStatus(body),
   '/api/task-tools/connect': ({ taskTools }, body) => taskTools.connect(body),
@@ -328,7 +280,7 @@ async function tasksPayload({ taskTools, stateService, capabilities }, { force }
 
 /** Your own tasks, each with the worktrees working on it (their PRs and sessions), and what the page's buttons can do. */
 async function hubPayload({
-  taskHub, taskCleanup, stateService, approvals, taskStarts, capabilities, checks,
+  taskHub, taskCleanup, stateService, approvals, taskStarts, capabilities, checks, reviews,
 }, { force }) {
   const [tasks, sessions] = await Promise.all([
     taskHub.list(),
@@ -340,7 +292,8 @@ async function hubPayload({
     }),
   ]);
   return {
-    tasks: linkHubTasks(tasks, sessions.repos),
+    // Each work line with its latest review (see review.js), the reviewer's session apart from the work's own.
+    tasks: withReviews(linkHubTasks(tasks, sessions.repos), await reviews.forTasks(tasks, sessions.liveSessions ?? [])),
     // For Start ▾: the repos a task can be started in.
     repos: sessions.repos.map((repo) => ({ name: repo.name, mainPath: repo.mainPath })),
     // For the work's controls (Allow/Deny), and for tasks just started: asking to trust the folder, or quit.
@@ -701,9 +654,20 @@ async function main() {
     writeLeadConfig: (id) => leadAccess.writeConfig(id, { withoutAsking: config.settings.workers.leadWithoutAsking }),
     prepareWorker: (id) => workerLaunch.prepare(id, config.settings.workers),
   });
-  // `checks` is made below; it's only needed once a lead asks.
+  // Review: a read-only reviewer on a task's worktree, its verdict read back from its transcript (see review.js).
+  // `checks` is made below; reviews and leads only need it once asked.
+  const reviews = createReviews({
+    taskHub,
+    tmux,
+    provider: () => agents.default,
+    getRepos: freshRepos,
+    checkResults: (options) => checks.results(options),
+    readSession: async (cwd, sessionId) => (agents.default.readSession ? agents.default.readSession(cwd, sessionId) : null),
+    dir: defaultStoreDir(),
+    starts: taskStarts,
+  });
   const leadTools = createLeadTools({
-    taskHub, hubStarter, getRepos: freshRepos, actions, checkResults: (options) => checks.results(options),
+    taskHub, hubStarter, getRepos: freshRepos, actions, checkResults: (options) => checks.results(options), reviewStatus: reviews.status,
   });
   const mcpEndpoint = createMcpEndpoint({ leadFrom: leadAccess.leadFrom, toolsFor: leadTools.forLead });
   const taskSources = createTaskSources({
@@ -732,7 +696,7 @@ async function main() {
   });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, mcpEndpoint, port: config.port,
+    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, mcpEndpoint, reviews, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const doneTaskSweep = createDoneTaskSweep({

@@ -69,7 +69,9 @@ export function taskState(task, starts = []) {
   if (work.some((w) => w.pr?.state === 'MERGED')) return 'done';
   const live = work.flatMap((w) => w.live ?? []);
   const start = startOf(task, starts);
-  if (live.some(waitsOnYou) || start?.state === 'asking-trust') return 'needs-you';
+  // A reviewer (see review-view.js) needs you only while it asks something; idle, it has said its piece.
+  const reviewerAsks = work.some((w) => w.review?.session?.needsYou);
+  if (live.some(waitsOnYou) || reviewerAsks || start?.state === 'asking-trust') return 'needs-you';
   if (task.creating || start?.state === 'starting') return 'starting';
   if (live.some((s) => s.status === 'busy')) return 'working';
   if (work.some((w) => w.pr?.state === 'OPEN')) return 'in-review';

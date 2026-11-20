@@ -675,9 +675,12 @@ details.hub-group[open] > summary::before { content: "▾"; }
 .check-status.is-failed > summary { color: var(--red); background: var(--red-soft); }
 .check-status.is-running > summary { color: var(--amber); background: var(--amber-soft); }
 .check-status.is-stale > summary { color: var(--gray-500); }
+.check-status.is-needs-you > summary { color: var(--amber); background: var(--amber-soft); font-weight: 600; }
 .checks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .checks:has(.check-status[open]) { flex-basis: 100%; }
 .check-status[open] { flex-basis: 100%; }
+.review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.review-reasons { margin: 0; font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--gray-900); white-space: pre-wrap; overflow-wrap: anywhere; }
 .check-body { display: grid; gap: var(--space-2); margin-top: var(--space-2); justify-items: start; }
 .check-output { justify-self: stretch; }
 .check-meta { margin: 0; color: var(--gray-500); overflow-wrap: anywhere; }
