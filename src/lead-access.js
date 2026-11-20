@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writePrivateFile as writePrivate } from './json-store.js';
+import { ACTION_TOOLS, READ_TOOLS } from './mcp-endpoint.js';
 import { TASK_ID } from './task-hub.js';
 
 /*
@@ -11,8 +12,9 @@ import { TASK_ID } from './task-hub.js';
  * one task whose workers it may start, survives a restart, and needs no
  * list of tokens kept anywhere. The token reaches Claude in a config file,
  * also readable by you alone, never on a command line where the screen or
- * ps would show it. A settings file beside it has Claude ask you before it
- * uses switchyard's tools. Like the rest of switchyard, this keeps out web
+ * ps would show it. A settings file beside it lets Claude use switchyard's
+ * tools without asking (Settings › Workers), or, with that off, has it ask
+ * you before it starts, messages or ends a worker; looking never asks. Like the rest of switchyard, this keeps out web
  * pages and other users, not programs running as you: those can read the
  * secret, as they can your files.
  */
@@ -23,12 +25,18 @@ const SECRET_BYTES = 32;
 const SECRET_PATTERN = /^[0-9a-f]{64}$/;
 const BEARER = /^Bearer (\S+)$/;
 
+const rule = (tool) => `mcp__switchyard__${tool}`;
+
 /**
- * The settings a lead's Claude is started with: ask you before using any of switchyard's tools. An ask rule
- * holds in every permission mode, auto mode included, which would otherwise run them by itself.
+ * The settings a lead's Claude is started with when it should ask: its tools that only look at workers are
+ * allowed, and it asks you before one that starts, messages or ends a worker. An ask rule holds in every
+ * permission mode, auto mode included, which would otherwise run them by itself. Each tool is named, as an
+ * ask rule for the whole server would outrank the allowed ones.
  */
-export const LEAD_SETTINGS = Object.freeze({ permissions: Object.freeze({ ask: Object.freeze(['mcp__switchyard']) }) });
-// With Settings › Workers › "Lead may use switchyard's tools without asking" on: allowed instead.
+export const LEAD_SETTINGS = Object.freeze({
+  permissions: Object.freeze({ allow: Object.freeze(READ_TOOLS.map(rule)), ask: Object.freeze(ACTION_TOOLS.map(rule)) }),
+});
+// With Settings › Workers › "Lead uses switchyard's tools without asking" on (the default): all allowed.
 const LEAD_SETTINGS_WITHOUT_ASKING = Object.freeze({ permissions: Object.freeze({ allow: Object.freeze(['mcp__switchyard']) }) });
 
 /** The MCP config a lead's Claude is started with: this switchyard's /mcp, with the lead's token. */

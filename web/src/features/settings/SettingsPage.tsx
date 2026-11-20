@@ -142,7 +142,7 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
         </div>
         <div className="setting-row">
           <ToggleSetting name="workers.leadWithoutAsking" label="Lead uses switchyard's tools without asking"
-            hint="When off, a lead asks you each time before it starts, messages or ends a worker, or looks at one, whatever its permission mode." />
+            hint="When off, a lead asks you each time before it starts, messages or ends a worker, whatever its permission mode. Looking at its workers never asks." />
         </div>
       </Panel>
 
