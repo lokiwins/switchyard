@@ -9,13 +9,10 @@ export const STYLE_NONCE_PAGES = new Set(['tasks.html']);
 
 export const STATIC_FILES = {
   '/tasks': 'tasks.html',
-  '/settings': 'settings.html',
   '/graph': 'graph.html',
   '/graph.js': 'graph.js',
   '/graph-model.js': 'graph-model.js',
   '/vendor/cytoscape/cytoscape.esm.min.mjs': 'vendor/cytoscape/cytoscape.esm.min.mjs',
-  '/settings.js': 'settings.js',
-  '/settings-form.js': 'settings-form.js',
   '/tasks.js': 'tasks.js',
   '/task-views.js': 'task-views.js',
   '/task-link-views.js': 'task-link-views.js',
