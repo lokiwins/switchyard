@@ -123,3 +123,19 @@ test('a subtask can\'t lead (workers are one level deep), and lead must be true 
   await assert.rejects(starter.start({ id: 'sy-child1', repo: '/code/shop', lead: true }), (error) => error.status === 400 && /subtask/.test(error.message));
   await assert.rejects(starter.start({ id: 'sy-k3x9q2', repo: '/code/shop', lead: 'yes' }), (error) => error.status === 400);
 });
+
+test('a worker (started by its lead) gets the Workers settings: its permission mode and settings file', async () => {
+  const calls = [];
+  const prepared = [];
+  const starter = createHubStarter({
+    taskHub: { list: async () => [task({ id: 'sy-child1', parentId: 'sy-k3x9q2' }), task()] },
+    newTask: { startTask: async (body, options) => { calls.push(options); return { path: '/x', branch: body.branch }; } },
+    prepareWorker: async (id) => { prepared.push(id); return { permissionMode: 'acceptEdits', settings: `/cfg/workers/${id}.settings.json` }; },
+  });
+  await starter.start({ id: 'sy-child1', repo: '/code/shop' }, { worker: true });
+  assert.deepEqual(prepared, ['sy-child1']);
+  assert.deepEqual(calls[0], { permissionMode: 'acceptEdits', settings: '/cfg/workers/sy-child1.settings.json' });
+  // Started from the page (Start ▾), a subtask is yours: no Workers settings.
+  await starter.start({ id: 'sy-child1', repo: '/code/shop', worker: true });
+  assert.deepEqual(calls[1], {});
+});

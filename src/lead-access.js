@@ -1,6 +1,7 @@
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { writePrivateFile as writePrivate } from './json-store.js';
 import { TASK_ID } from './task-hub.js';
 
 /*
@@ -27,6 +28,8 @@ const BEARER = /^Bearer (\S+)$/;
  * holds in every permission mode, auto mode included, which would otherwise run them by itself.
  */
 export const LEAD_SETTINGS = Object.freeze({ permissions: Object.freeze({ ask: Object.freeze(['mcp__switchyard']) }) });
+// With Settings › Workers › "Lead may use switchyard's tools without asking" on: allowed instead.
+const LEAD_SETTINGS_WITHOUT_ASKING = Object.freeze({ permissions: Object.freeze({ allow: Object.freeze(['mcp__switchyard']) }) });
 
 /** The MCP config a lead's Claude is started with: this switchyard's /mcp, with the lead's token. */
 export function mcpConfigFor({ port, token }) {
@@ -39,15 +42,6 @@ export function mcpConfigFor({ port, token }) {
 
 const sign = (secret, id) => createHmac('sha256', secret).update(id).digest('hex');
 const asJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
-
-/** Write `text` to `file` in `dir`, readable by you alone, whole or not at all. */
-async function writePrivate(dir, file, text) {
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  await chmod(dir, 0o700);
-  const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile(temp, text, { mode: 0o600 });
-  await rename(temp, file);
-}
 
 /**
  * @param {{ dir: string, port: number }} deps `dir` is switchyard's own folder (see json-store.js).
@@ -101,15 +95,16 @@ export function createLeadAccess({ dir, port }) {
 
     /**
      * Write the files a lead's Claude starts with: its MCP config (with its token) and its settings.
-     * Resolves to their paths, for `claude --mcp-config` and `--settings`.
+     * Resolves to their paths, for `claude --mcp-config` and `--settings`. With `withoutAsking`, the settings
+     * allow switchyard's tools rather than ask before them.
      */
-    async writeConfig(id) {
+    async writeConfig(id, { withoutAsking = false } = {}) {
       if (!TASK_ID.pattern.test(id)) throw new Error('A lead config is for a task id');
       const leads = join(dir, LEADS_DIR);
       const mcpConfig = join(leads, `${id}.mcp.json`);
       const settings = join(leads, `${id}.settings.json`);
       await writePrivate(leads, mcpConfig, asJson(mcpConfigFor({ port, token: await tokenFor(id) })));
-      await writePrivate(leads, settings, asJson(LEAD_SETTINGS));
+      await writePrivate(leads, settings, asJson(withoutAsking ? LEAD_SETTINGS_WITHOUT_ASKING : LEAD_SETTINGS));
       return { mcpConfig, settings };
     },
   };

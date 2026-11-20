@@ -33,6 +33,7 @@ import { readJsonBody } from './http-body.js';
 import { createLeadAccess } from './lead-access.js';
 import { createLeadTools } from './lead-tools.js';
 import { createMcpEndpoint } from './mcp-endpoint.js';
+import { createWorkerLaunch } from './worker-launch.js';
 import { defaultStoreDir } from './json-store.js';
 import { createChecks } from './checks.js';
 import { createCheckTriggers } from './check-triggers.js';
@@ -689,9 +690,16 @@ async function main() {
   const ticketDetails = createTicketDetails({ taskTools, github: githubIssues });
   const freshRepos = () => stateService.getSessions({ force: true }).then((s) => s.repos);
   // Start as lead: Claude gets switchyard's MCP server, with a token for its own task's workers.
+  // Settings › Workers are read as each lead or worker starts, so a saved change applies to the next one.
   const leadAccess = createLeadAccess({ dir: defaultStoreDir(), port: config.port });
+  const workerLaunch = createWorkerLaunch({ dir: defaultStoreDir() });
   const hubStarter = createHubStarter({
-    taskHub, newTask: tasks, rediscover: stateService.rediscover, getRepos: freshRepos, writeLeadConfig: leadAccess.writeConfig,
+    taskHub,
+    newTask: tasks,
+    rediscover: stateService.rediscover,
+    getRepos: freshRepos,
+    writeLeadConfig: (id) => leadAccess.writeConfig(id, { withoutAsking: config.settings.workers.leadWithoutAsking }),
+    prepareWorker: (id) => workerLaunch.prepare(id, config.settings.workers),
   });
   // `checks` is made below; it's only needed once a lead asks.
   const leadTools = createLeadTools({

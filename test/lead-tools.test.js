@@ -21,9 +21,11 @@ function setup({
   let ids = 0;
   const taskHub = createTaskHub({ file: memoryFile({ tasks }), newId: () => `sy-wrk${String(ids += 1).padStart(3, '0')}` });
   const starts = [];
+  const startOptions = [];
   const hubStarter = {
-    start: async (body) => {
+    start: async (body, options) => {
       starts.push(body);
+      startOptions.push(options);
       if (failStart) throw Object.assign(new Error('The worktree is there already'), { status: 409 });
       return { path: `/code/shop-${body.id}`, branch: `${body.id}-work`, window: 'shop-w' };
     },
@@ -38,7 +40,7 @@ function setup({
   const tools = createLeadTools({
     taskHub, hubStarter, getRepos: async () => repos, actions, checkResults: async () => checks, gitReport,
   });
-  return { tools, taskHub, starts, acted, reports };
+  return { tools, taskHub, starts, startOptions, acted, reports };
 }
 
 test('start_worker adds a subtask under the lead\'s task and starts it in the lead\'s repo', async () => {
@@ -194,4 +196,10 @@ test('end_worker ends its sessions and keeps its worktree, branch and subtask, s
   assert.deepEqual(acted, [['end', { sessionId: 'abc' }], ['end', { sessionId: 'def' }]]);
   assert.deepEqual(result, { ended: ['abc', 'def'], kept: ['/code/shop-tests'] });
   assert.equal((await taskHub.list()).find((t) => t.id === 'sy-wrk001').closedAs, null);
+});
+
+test('a worker is started as a worker, so it gets the Workers settings', async () => {
+  const { tools, startOptions } = setup();
+  await tools.forLead(LEAD).startWorker({ title: 'Write the tests' });
+  assert.deepEqual(startOptions, [{ worker: true }]);
 });

@@ -5,6 +5,7 @@ import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { TASK_SESSION, runInWindow } from './task-session.js';
 import { hasControlCharacters, windowNameFor } from './tmux.js';
+import { WORKER_MODES } from './settings.js';
 
 // git's own check runs too; this keeps names to characters that need no quoting anywhere.
 const BRANCH_PATTERN = /^(?![-./])[A-Za-z0-9._/-]{1,100}(?<![./])$/;
@@ -43,6 +44,15 @@ export function parseNewTask(body) {
   return {
     repo, branch: branch || null, prompt, provider: body.provider ?? null, base,
   };
+}
+
+/** The launch options given, checked: a permission mode from the fixed list, and the files' paths. */
+function launchOptions({ permissionMode = null, settings = null, mcpConfig = null }) {
+  // "claude" (your Claude default) is sent as no mode at all; bypassPermissions and the like never.
+  if (permissionMode !== null && (permissionMode === 'claude' || !WORKER_MODES.includes(permissionMode))) {
+    throw new ActionError(400, `${permissionMode} is not a permission mode a worker can start in`);
+  }
+  return Object.fromEntries(Object.entries({ permissionMode, settings, mcpConfig }).filter(([, value]) => value));
 }
 
 /** Beside the main checkout, named <repo>-<last branch segment>, like "my-repo-login-bug" for "fix/login-bug". */
@@ -130,9 +140,9 @@ export function createTaskService({
   }
 
   /** Open the task's window and start the agent in it; on failure, remove the worktree too, so a retry starts clean. */
-  async function startAgent(provider, mainPath, path, name, prompt, leadFiles) {
+  async function startAgent(provider, mainPath, path, name, prompt, options) {
     try {
-      return await runInWindow(tmux, { name, cwd: path, command: provider.launchCommand(prompt, leadFiles) });
+      return await runInWindow(tmux, { name, cwd: path, command: provider.launchCommand(prompt, options) });
     } catch (error) {
       await rollBack(mainPath, path);
       throw error;
@@ -140,15 +150,16 @@ export function createTaskService({
   }
 
   /**
-   * `mcpConfig` and `settings`, the files a lead starts with (see hub-start.js), come from switchyard
-   * itself, never from the page's body.
+   * `launch` is how a lead or a worker starts (see hub-start.js): { permissionMode, settings, mcpConfig }.
+   * It comes from switchyard itself, never from the page's body.
    */
-  async function startTask(body, { mcpConfig = null, settings = null } = {}) {
+  async function startTask(body, launch = {}) {
     const {
       repo: mainPath, branch: chosen, prompt, provider: providerId, base,
     } = parseNewTask(body);
     const provider = providerId === null ? agents.default : agents.get(providerId);
-    if (mcpConfig && !provider.takesMcpConfig) throw new ActionError(400, `${provider.label} can't be started as a lead`);
+    const options = launchOptions(launch);
+    if (Object.keys(options).length > 0 && !provider.takesLaunchOptions) throw new ActionError(400, `${provider.label} can't be started as a lead or a worker`);
     const state = await stateService.getState();
     const repo = state.repos.find((r) => r.mainPath === mainPath);
     if (!repo) throw new ActionError(404, 'That folder is not one of your repositories');
@@ -161,8 +172,7 @@ export function createTaskService({
     if (base && !await refExists(mainPath, `refs/heads/${base}`)) throw new ActionError(409, `The branch to start from, ${base}, isn't in ${repo.name}`);
 
     await addWorktree(mainPath, path, branch, base);
-    const leadFiles = mcpConfig ? { mcpConfig, ...(settings ? { settings } : {}) } : {};
-    const started = await startAgent(provider, mainPath, path, window, prompt, leadFiles);
+    const started = await startAgent(provider, mainPath, path, window, prompt, options);
     // Watched until its session shows up: it may first ask whether to trust the folder, or quit.
     starts.track({ path, place: started.place, pane: started.pane, command: provider.command });
     return { path, branch, session: TASK_SESSION, window, provider: provider.id };

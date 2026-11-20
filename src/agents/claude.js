@@ -95,11 +95,12 @@ export function createClaudeProvider({
   }
   /**
    * Start Claude Code, on `prompt` when given (quoted even when it looks safe: zsh expands a leading "="),
-   * with a settings file and an MCP config file when given. Those come after the task, the MCP config last:
-   * --mcp-config takes several values, so anything after it would be read as one more.
+   * in a permission mode and with a settings file and an MCP config file when given. Those come after the
+   * task, the MCP config last: --mcp-config takes several values, so anything after it would be read as one
+   * more. The mode is one of a fixed list, checked by the caller (see tasks.js), so it's typed as is.
    */
-  const launchCommand = (prompt, { mcpConfig, settings } = {}) => [
-    run(), prompt && shellQuoteAlways(prompt),
+  const launchCommand = (prompt, { permissionMode, mcpConfig, settings } = {}) => [
+    run(), prompt && shellQuoteAlways(prompt), permissionMode && `--permission-mode ${permissionMode}`,
     settings && `--settings ${shellQuoteAlways(settings)}`, mcpConfig && `--mcp-config ${shellQuoteAlways(mcpConfig)}`,
   ].filter(Boolean).join(' ');
   /** Resume one of its sessions, from the folder it ran in. */
@@ -251,8 +252,8 @@ export function createClaudeProvider({
       return basename(settings().program);
     },
     launchCommand,
-    // A lead (see hub-start.js) is started with switchyard's MCP config and settings.
-    takesMcpConfig: true,
+    // A lead or a worker (see hub-start.js) is started with a permission mode, settings or switchyard's MCP config.
+    takesLaunchOptions: true,
     resumeCommand: resumeInPlace,
     liveSessions,
     latestSession,

@@ -240,3 +240,14 @@ test('a lead needs an agent that takes an MCP config', async () => {
   await rejectsWith(tasks.startTask({ repo: MAIN, prompt: 'Lead it', branch: 'lead-it', provider: 'other' }, { mcpConfig: '/x.json' }), 400);
   assert.equal(calls.some((c) => c[1] === '-C' && c[3] === 'worktree'), false, 'refused before making a worktree');
 });
+
+test('a worker starts with its permission mode and settings file; the page can\'t ask for them, and only known modes are typed', async () => {
+  const { tasks, calls } = setup();
+  await tasks.startTask({ repo: MAIN, prompt: 'Work it', branch: 'work-it' }, { permissionMode: 'plan', settings: '/c/w.settings.json' });
+  assert.match(calls.find((c) => c[0] === 'type')[2], / 'Work it' --permission-mode plan --settings '\/c\/w.settings.json'$/);
+  const page = setup();
+  await page.tasks.startTask({ repo: MAIN, prompt: 'Fix it', branch: 'fix-it', permissionMode: 'bypassPermissions' });
+  assert.doesNotMatch(page.calls.find((c) => c[0] === 'type')[2], /permission-mode/);
+  await rejectsWith(setup().tasks.startTask({ repo: MAIN, prompt: 'X', branch: 'x' }, { permissionMode: 'bypassPermissions' }), 400);
+  await rejectsWith(setup().tasks.startTask({ repo: MAIN, prompt: 'X', branch: 'x', provider: 'other' }, { permissionMode: 'plan' }), 400);
+});

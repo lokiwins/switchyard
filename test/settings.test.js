@@ -199,3 +199,17 @@ test('checks: an unknown "run", a bad timeout, an unknown option or no command i
     assert.throws(() => parseSettings({ checks: { commands: { 'billing-api': { test: check } } } }), (e) => e instanceof SettingsError && /checks\.commands/.test(e.message) && /billing-api test/.test(e.message), JSON.stringify(check));
   }
 });
+
+test('workers: the permission mode a lead\'s workers start in, the tools they may use without asking, and whether the lead asks before its own tools', () => {
+  // By default nothing changes: workers start as Claude would, and the lead asks you before using switchyard's tools.
+  assert.deepEqual(parseSettings({}).workers, { permissionMode: 'claude', allowedTools: [], leadWithoutAsking: false });
+  assert.deepEqual(parseSettings({ workers: { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit', 'mcp__github__get_issue', 'Bash(git log:*)'], leadWithoutAsking: true } }).workers,
+    { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit', 'mcp__github__get_issue', 'Bash(git log:*)'], leadWithoutAsking: true });
+  for (const mode of ['manual', 'plan', 'auto']) assert.equal(parseSettings({ workers: { permissionMode: mode } }).workers.permissionMode, mode);
+  // Never a mode that skips your say altogether.
+  for (const bad of ['bypassPermissions', 'dontAsk', 'yolo', '']) assert.throws(() => parseSettings({ workers: { permissionMode: bad } }), /workers.permissionMode/, bad);
+  for (const bad of [['Bash(rm -rf /'], ['two words'], ['Bash(a)(b)'], [''], ['x'.repeat(400)], 'Edit']) {
+    assert.throws(() => parseSettings({ workers: { allowedTools: bad } }), /workers.allowedTools/, JSON.stringify(bad));
+  }
+  assert.throws(() => parseSettings({ workers: { leadWithoutAsking: 'yes' } }), /workers.leadWithoutAsking/);
+});
