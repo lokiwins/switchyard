@@ -32,8 +32,12 @@ const START_WORKER = {
   }),
 };
 
+// Looking, not doing: told to MCP clients, and allowed without asking (see lead-access.js).
+const READ_ONLY = { readOnlyHint: true };
+
 const LIST_WORKERS = {
   title: 'List workers',
+  annotations: READ_ONLY,
   description: 'Your workers (the subtasks of your task): each one\'s state (not started, working, idle, needs you, no session, done, dropped), '
     + 'and its worktree, branch and sessions. "needs you" means it waits on the user (a permission prompt, say), not on you.',
 };
@@ -42,6 +46,7 @@ const WORKER_ID = z.string().regex(/^sy-[a-z0-9]{6}$/).describe('The worker\'s i
 
 const WORKER_STATUS = {
   title: 'Worker status',
+  annotations: READ_ONLY,
   description: 'One worker in detail: its state; each session\'s last reply and current activity; its commits not on your branch, '
     + 'what they change, and what is not committed yet; its check results; and its latest review, if the user asked for one (reviewing, passed, '
     + 'changes or no verdict, with the reviewer\'s reasons). Use it to decide whether a worker is done, stuck or needs a nudge.',
@@ -74,13 +79,22 @@ async function answer(work) {
   }
 }
 
+/** Each tool: its name, how it's described, and what it calls on the lead's tools. */
+const TOOLS = [
+  { name: 'start_worker', spec: START_WORKER, run: (tools, args) => tools.startWorker(args) },
+  { name: 'list_workers', spec: LIST_WORKERS, run: (tools) => tools.listWorkers() },
+  { name: 'worker_status', spec: WORKER_STATUS, run: (tools, args) => tools.workerStatus(args) },
+  { name: 'message_worker', spec: MESSAGE_WORKER, run: (tools, args) => tools.messageWorker(args) },
+  { name: 'end_worker', spec: END_WORKER, run: (tools, args) => tools.endWorker(args) },
+];
+
+/** The tools that only look (a lead uses them without asking), and the ones that act (asked about, unless Settings say not to). */
+export const READ_TOOLS = Object.freeze(TOOLS.filter((tool) => tool.spec.annotations?.readOnlyHint).map((tool) => tool.name));
+export const ACTION_TOOLS = Object.freeze(TOOLS.filter((tool) => !tool.spec.annotations?.readOnlyHint).map((tool) => tool.name));
+
 function serverFor(tools) {
   const server = new McpServer({ name: 'switchyard', version: VERSION });
-  server.registerTool('start_worker', START_WORKER, (args) => answer(() => tools.startWorker(args)));
-  server.registerTool('list_workers', LIST_WORKERS, () => answer(() => tools.listWorkers()));
-  server.registerTool('worker_status', WORKER_STATUS, (args) => answer(() => tools.workerStatus(args)));
-  server.registerTool('message_worker', MESSAGE_WORKER, (args) => answer(() => tools.messageWorker(args)));
-  server.registerTool('end_worker', END_WORKER, (args) => answer(() => tools.endWorker(args)));
+  for (const { name, spec, run } of TOOLS) server.registerTool(name, spec, (args) => answer(() => run(tools, args)));
   return server;
 }
 
