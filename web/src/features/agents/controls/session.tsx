@@ -5,6 +5,7 @@ import { post } from '../../../lib/api';
 import { tmuxPlace } from '../../../lib/paths';
 import { canShowTerminalSessions } from '../../../lib/shared';
 import type { Capabilities, Host, LiveSession } from '../../../lib/types';
+import { buttonClass } from '../../../components/Button';
 
 /* A session's controls: stop it, end it, go to it, resume it, see its graph, make a task from it. */
 
@@ -17,7 +18,7 @@ const inTmux = (session: LiveSession) => session.host?.kind === 'tmux';
 export function StopButton({ session }: { session: LiveSession }) {
   if (!inTmux(session) || session.status !== 'busy') return null;
   return (
-    <ActionButton label="Stop" title="Interrupt what Claude is doing (Esc), as in its terminal" className="btn btn-sm btn-secondary"
+    <ActionButton label="Stop" title="Interrupt what Claude is doing (Esc), as in its terminal" look={{ variant: 'secondary', size: 'sm' }}
       perform={async () => {
         await post('/api/terminal/interrupt', { sessionId: session.sessionId });
         return 'Interrupted';
@@ -42,14 +43,14 @@ export function EndMenu({ session }: { session: LiveSession }) {
   const tmux = inTmux(session) && session.host;
   const place = tmux ? `tmux window ${tmuxPlace(tmux)}` : hostPlace(session.host);
   return (
-    <Menu label="End ▾" className="btn btn-sm btn-secondary" panelClass="end-panel" focusInput={false} open={open} onOpenChange={setOpen}
+    <Menu label="End ▾" look={{ variant: 'secondary', size: 'sm' }} panelClass="end-panel" focusInput={false} open={open} onOpenChange={setOpen}
       title={tmux ? 'End this Claude session and close its tmux window' : `End this Claude session; its ${place} stays open`}>
       <p className="reply-hint">
         {tmux
           ? `Ends Claude and closes ${place}. You can resume the session from Recently ended.`
           : `Ends Claude, as closing its ${place} would, with anything it's running; the ${place} stays open at your shell. You can resume the session from Recently ended.`}
       </p>
-      <ActionButton label="End session" title={tmux ? 'End Claude and close its tmux window' : 'End Claude'} className="btn btn-sm btn-danger"
+      <ActionButton label="End session" title={tmux ? 'End Claude and close its tmux window' : 'End Claude'} look={{ variant: 'danger', size: 'sm' }}
         onDone={() => setOpen(false)}
         perform={async () => {
           await post('/api/terminal/end', { sessionId: session.sessionId });
@@ -88,7 +89,7 @@ export function JumpButton({ session }: { session: LiveSession }) {
 export function GraphLink({ sessionId }: { sessionId: string }) {
   return (
     // Same site, so no `noopener`: the graph tab keeps its opener, which is what lets its Close button close it.
-    <a href={`/graph?session=${encodeURIComponent(sessionId)}`} target={GRAPH_TAB} className="btn btn-sm btn-secondary"
+    <a href={`/graph?session=${encodeURIComponent(sessionId)}`} target={GRAPH_TAB} className={buttonClass({ variant: 'secondary', size: 'sm' })}
       title="See what this session brought into context: prompts, files, tools, memory, skills and subagents">
       Graph
     </a>
@@ -100,7 +101,7 @@ export function GraphLink({ sessionId }: { sessionId: string }) {
 export function ShowSessionsButton({ caps }: { caps: Capabilities }) {
   if (!canShowTerminalSessions(caps)) return null;
   return (
-    <ActionButton label="Show Terminal Sessions" className="btn" title="Show every task's tmux window in iTerm, through its tmux integration"
+    <ActionButton label="Show Terminal Sessions" look={{ variant: 'primary' }} title="Show every task's tmux window in iTerm, through its tmux integration"
       perform={async () => {
         const result = await post<{ precision: string }>('/api/terminal/show-sessions', {});
         return result.precision === 'opened' ? 'Opening your terminal sessions in iTerm' : null;
@@ -116,8 +117,8 @@ export function TrustButtons({ path }: { path: string }) {
   };
   return (
     <>
-      <ActionButton label="Trust folder" title={`Let Claude read, edit and run files in ${path}`} className="btn btn-sm" perform={answer(true)} />
-      <ActionButton label="Don't trust" title="Claude exits; the worktree is kept" className="btn btn-sm btn-secondary" perform={answer(false)} />
+      <ActionButton label="Trust folder" title={`Let Claude read, edit and run files in ${path}`} look={{ size: 'sm' }} perform={answer(true)} />
+      <ActionButton label="Don't trust" title="Claude exits; the worktree is kept" look={{ variant: 'secondary', size: 'sm' }} perform={answer(false)} />
     </>
   );
 }

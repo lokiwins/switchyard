@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { announceChange } from '../lib/changes';
 import { toast } from '../stores/toast';
+import { buttonClass, type ButtonLook } from './Button';
 
 /**
  * A button that runs a server action: disabled while it runs, its outcome
@@ -9,11 +10,11 @@ import { toast } from '../stores/toast';
  * looked at again after.
  */
 export function ActionButton({
-  label, title, className = 'btn btn-action', perform, onDone,
+  label, title, look = { variant: 'action' }, perform, onDone,
 }: {
   label: ReactNode;
   title?: string;
-  className?: string;
+  look?: ButtonLook;
   perform: () => Promise<string | null | void>;
   onDone?: () => void;
 }) {
@@ -27,7 +28,7 @@ export function ActionButton({
     onSettled: () => announceChange(),
   });
   return (
-    <button type="button" className={className} title={title} disabled={action.isPending} onClick={() => action.mutate()}>
+    <button type="button" className={buttonClass(look)} title={title} disabled={action.isPending} onClick={() => action.mutate()}>
       {label}
     </button>
   );

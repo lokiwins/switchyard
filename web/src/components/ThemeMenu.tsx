@@ -29,7 +29,7 @@ export function ThemeMenu() {
     <Menu
       label={<><span aria-hidden="true">◐</span><span className="visually-hidden">Theme</span></>}
       title="Theme, light or dark, and terminal colours for this browser"
-      className="btn btn-sm btn-secondary theme-button"
+      look={{ variant: 'secondary', size: 'glyph' }}
       panelClass="theme-panel"
       focusInput={false}
     >

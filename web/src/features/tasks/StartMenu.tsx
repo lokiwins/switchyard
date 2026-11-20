@@ -3,6 +3,7 @@ import { Menu } from '../../components/Menu';
 import { readPref, writePref } from '../../lib/prefs';
 import { parentWorkFor } from './logic';
 import type { ShownTask } from './types';
+import { Button } from '../../components/Button';
 
 /*
  * Start ▾: pick the repo, then Start: the agent on the task in a new
@@ -34,7 +35,7 @@ export function StartMenu({ task, repos, parent, onStart }: {
     onStart(repo, lead);
   };
   return (
-    <Menu label="Start ▾" title="Start Claude on this task" className="btn btn-sm" panelClass="reply-panel" focusInput={false} open={open} onOpenChange={setOpen}>
+    <Menu label="Start ▾" title="Start Claude on this task" look={{ size: 'sm' }} panelClass="reply-panel" focusInput={false} open={open} onOpenChange={setOpen}>
       <form className="task-form" onSubmit={submit}>
         <label className="task-field">
           <span>Repository</span>
@@ -54,7 +55,7 @@ export function StartMenu({ task, repos, parent, onStart }: {
         )}
         <div className="task-actions">
           <p className="reply-hint">Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session.</p>
-          <button type="submit" className="btn btn-sm">Start</button>
+          <Button type="submit" size="sm">Start</Button>
         </div>
       </form>
     </Menu>

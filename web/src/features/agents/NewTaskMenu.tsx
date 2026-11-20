@@ -8,6 +8,7 @@ import type { AgentsData, Repo } from '../../lib/types';
 import { usePendingStore } from '../../stores/pending';
 import { toast } from '../../stores/toast';
 import { refreshAgents } from './api';
+import { Button } from '../../components/Button';
 
 /*
  * "New task ▾": Claude Code on a task, in a worktree on its own branch beside
@@ -90,7 +91,7 @@ function NewTaskForm({ repos, onStarted }: { repos: Repo[]; onStarted: () => voi
       </TaskField>
       <div className="task-actions">
         <p className="reply-hint">{preview(repos.find((r) => r.mainPath === fields.repo), fields)}</p>
-        <button type="submit" className="btn btn-sm" disabled={start.isPending}>Start</button>
+        <Button type="submit" size="sm" disabled={start.isPending}>Start</Button>
       </div>
     </form>
   );
@@ -102,7 +103,7 @@ export function NewTaskMenu({ data }: { data: AgentsData }) {
   if (!data.capabilities.tmux || data.repos.length === 0) return null;
   const repos = [...data.repos].sort((a, b) => a.name.localeCompare(b.name));
   return (
-    <Menu label="New task ▾" title="Start Claude on a new branch in its own worktree" className="btn" panelClass="reply-panel" open={open} onOpenChange={setOpen}>
+    <Menu label="New task ▾" title="Start Claude on a new branch in its own worktree" look={{ variant: 'primary' }} panelClass="reply-panel" open={open} onOpenChange={setOpen}>
       <NewTaskForm repos={repos} onStarted={() => setOpen(false)} />
     </Menu>
   );

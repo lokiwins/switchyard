@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { LiveTime } from '../../components/LiveTime';
 import { reviewLabel, reviewReasons } from './logic';
 import type { Review } from './types';
+import { Button } from '../../components/Button';
 
 /*
  * A worktree's review (see src/review.js): Review to start one; then its
@@ -13,10 +14,10 @@ import type { Review } from './types';
 function ReviewButton({ label, onReview }: { label: string; onReview: () => Promise<unknown> }) {
   const start = useMutation({ mutationFn: onReview });
   return (
-    <button type="button" className="btn btn-sm btn-secondary" disabled={start.isPending} onClick={() => start.mutate()}
+    <Button type="button" variant="secondary" size="sm" disabled={start.isPending} onClick={() => start.mutate()}
       title="A second Claude reads this work, without changing it, and says whether it does what the task asks">
       {label}
-    </button>
+    </Button>
   );
 }
 

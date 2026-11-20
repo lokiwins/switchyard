@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { LiveTime } from '../../components/LiveTime';
 import { anyRunning, checkLabel, ranBy } from './logic';
 import type { CheckResult } from './types';
+import { Button } from '../../components/Button';
 
 /*
  * A worktree's checks (see src/checks.js): each named check's latest result,
@@ -13,7 +14,7 @@ const OUTPUT_LINES = 40;
 
 function RunButton({ label, title, onRun, disabled = false }: { label: string; title: string; onRun: () => Promise<unknown>; disabled?: boolean }) {
   const run = useMutation({ mutationFn: onRun });
-  return <button type="button" className="btn btn-sm btn-secondary" title={title} disabled={disabled || run.isPending} onClick={() => run.mutate()}>{label}</button>;
+  return <Button type="button" variant="secondary" size="sm" title={title} disabled={disabled || run.isPending} onClick={() => run.mutate()}>{label}</Button>;
 }
 
 /** One check's latest result: a badge that opens to its command, output and Run again. */

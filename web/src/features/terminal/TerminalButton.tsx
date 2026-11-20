@@ -3,6 +3,7 @@ import { tmuxPlace } from '../../lib/paths';
 import type { LiveSession } from '../../lib/types';
 import { openPane } from '../../stores/panes';
 import { prewarmTerminal } from './connection';
+import { Button } from '../../components/Button';
 
 // How long the browser may put off the idle warm-up, and the wait where it has no idle callback (Safari).
 const IDLE_TIMEOUT_MS = 3000;
@@ -26,15 +27,14 @@ export function TerminalButton({ session }: { session: LiveSession }) {
   }, [isTmux]);
   if (!host) return null;
   return (
-    <button
-      type="button"
-      className="btn btn-action"
+    <Button type="button"
+      variant="action"
       title={`Open tmux window ${tmuxPlace(host)} here, live, and type into it`}
       onPointerEnter={prewarmTerminal}
       onFocus={prewarmTerminal}
       onClick={() => openPane({ kind: 'terminal', session })}
     >
       Terminal
-    </button>
+    </Button>
   );
 }

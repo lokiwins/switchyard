@@ -1,6 +1,7 @@
 import * as Popover from '@radix-ui/react-popover';
 import type { ReactNode } from 'react';
 import { cx } from '../lib/cx';
+import { buttonClass, type ButtonLook } from './Button';
 
 /*
  * A dropdown: a button and a panel placed under it (or above, where there's
@@ -10,11 +11,14 @@ import { cx } from '../lib/cx';
  * `focusInput` is false. Pass `open` and `onOpenChange` to close it from inside.
  */
 export function Menu({
-  label, title, className = 'btn btn-action', panelClass, focusInput = true, open, onOpenChange, children,
+  label, title, look = { variant: 'action' }, triggerClass, panelClass, focusInput = true, open, onOpenChange, children,
 }: {
   label: ReactNode;
   title?: string;
-  className?: string;
+  /** The trigger's look: an action chip unless said otherwise. */
+  look?: ButtonLook;
+  /** Layout for the trigger's contents, beside its look. */
+  triggerClass?: string;
   panelClass?: string;
   focusInput?: boolean;
   open?: boolean;
@@ -23,7 +27,7 @@ export function Menu({
 }) {
   return (
     <Popover.Root open={open} onOpenChange={onOpenChange}>
-      <Popover.Trigger className={cx('menu-trigger', className)} title={title}>{label}</Popover.Trigger>
+      <Popover.Trigger className={cx('menu-trigger', buttonClass(look), triggerClass)} title={title}>{label}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
           className={cx('menu-panel', panelClass)}

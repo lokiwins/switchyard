@@ -5,6 +5,7 @@ import { post } from '../../../lib/api';
 import { announceChange } from '../../../lib/changes';
 import type { EndedSession } from '../../../lib/types';
 import { toast } from '../../../stores/toast';
+import { Button } from '../../../components/Button';
 
 /*
  * Deleting ended sessions. "Remove from list" only takes a session off
@@ -61,7 +62,7 @@ export function DeleteMenu({ session }: { session: EndedSession }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   return (
-    <Menu label="Delete ▾" title="Delete this ended session" className="btn btn-sm btn-secondary" panelClass="delete-panel" focusInput={false}
+    <Menu label="Delete ▾" title="Delete this ended session" look={{ variant: 'secondary', size: 'sm' }} panelClass="delete-panel" focusInput={false}
       open={open} onOpenChange={setOpen}>
       <DeleteChoice title="Remove from list" hint="The transcript stays, so claude --resume still finds it." onDone={close}
         perform={() => hideSessions([session.sessionId])} />
@@ -75,9 +76,9 @@ export function DeleteMenu({ session }: { session: EndedSession }) {
 export function DeleteAllButton({ sessions, label }: { sessions: EndedSession[]; label: string }) {
   const action = useMutation({ mutationFn: () => hideSessions(sessions.map((s) => s.sessionId)), onError: (error) => toast(error.message) });
   return (
-    <button type="button" className="btn btn-sm btn-secondary" disabled={action.isPending} onClick={() => action.mutate()}
+    <Button type="button" variant="secondary" size="sm" disabled={action.isPending} onClick={() => action.mutate()}
       title={`Remove ${sessionsLabel(sessions.length)} from switchyard's lists. Their transcripts stay, so you can still resume them.`}>
       {label}
-    </button>
+    </Button>
   );
 }

@@ -13,6 +13,7 @@ import { toast } from '../../stores/toast';
 import { editsFromFields, fieldsFromValues, hasChanges, type Fields, type SettingsView } from './form';
 import { RepoChecklist } from './RepoChecklist';
 import { SelectSetting, SettingsFormProvider, TextSetting, ToggleSetting } from './SettingsForm';
+import { Button } from '../../components/Button';
 
 /* The Settings page: what's saved in config.json, edited and saved here; they apply at once. */
 
@@ -218,12 +219,12 @@ function SettingsEditor({ view }: { view: SettingsView }) {
           <Sections view={view} saved={saved} />
         </SettingsFormProvider>
         <div className="settings-actions">
-          <button type="submit" className="btn" id="save" disabled={!changed || save.isPending}>Save</button>
-          <button type="button" className="btn btn-secondary" id="revert" disabled={!changed} onClick={() => {
+          <Button type="submit"  id="save" disabled={!changed || save.isPending}>Save</Button>
+          <Button type="button" variant="secondary" id="revert" disabled={!changed} onClick={() => {
             setEdited(null);
             setErrors([]);
             save.reset();
-          }}>Undo changes</button>
+          }}>Undo changes</Button>
           <span className="muted" id="save-state" aria-live="polite">{state}</span>
         </div>
       </form>
