@@ -114,8 +114,7 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
           <TextSetting name="checks.commands" label="Check commands (YAML)" rows={7} mono
             hint={(
               <>
-                Each repo&apos;s folder name, then its checks indented under it as <code>name: command</code>, or just one command. Quote a command with <code>: </code> or <code>#</code> in it.
-                {' '}To run one by itself, give it <code>command:</code> and <code>run: after-turn</code> (when an agent in a task&apos;s worktree finishes a turn) or <code>run: on-commit</code>, and optionally <code>timeout:</code> in minutes. Checks only warn; nothing is blocked when one fails.
+                Each repo&apos;s folder name, then its checks indented under it as <code>name: command</code>, or just one command. Quote a command with <code>: </code> or <code>#</code> in it. To run one by itself, give it <code>command:</code> and <code>run: after-turn</code> (when an agent in a task&apos;s worktree finishes a turn) or <code>run: on-commit</code>, and optionally <code>timeout:</code> in minutes. Checks only warn; nothing is blocked when one fails.
               </>
             )} />
           <TextSetting name="checks.timeoutMinutes" inputMode="decimal" label="Stop a check after (minutes)"
