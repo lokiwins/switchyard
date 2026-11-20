@@ -17,6 +17,8 @@ export interface Appearance {
 interface AppearanceApi {
   current: () => Appearance;
   choose: (change: Partial<Record<AppearanceKey, string | null>>) => void;
+  /** The Settings page saved new defaults: use them here at once. */
+  setDefaults: (defaults: Record<string, string>) => void;
 }
 
 declare global {

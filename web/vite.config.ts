@@ -18,7 +18,7 @@ const target = `http://127.0.0.1:${process.env.SWITCHYARD_PORT ?? 4477}`;
 const devOrigins = new Set([`http://localhost:${DEV_PORT}`, `http://127.0.0.1:${DEV_PORT}`]);
 // What the dev server leaves to switchyard. A request from the dev page itself is sent on as
 // switchyard's own origin, so its same-origin check passes; any other origin is sent as it came.
-const SERVER_PATHS = ['/api', '/theme-boot.js', '/styles.css', '/themes.css', '/vendor', '/graph', '/tasks', '/settings'];
+const SERVER_PATHS = ['/api', '/theme-boot.js', '/styles.css', '/themes.css', '/vendor', '/graph', '/tasks'];
 const toSwitchyard: ProxyOptions = {
   target,
   configure: (proxy) => {
@@ -47,7 +47,7 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: true,
-    rolldownOptions: { input: { agents: `${root}agents.html`, prs: `${root}prs.html`, worktrees: `${root}worktrees.html` } },
+    rolldownOptions: { input: { agents: `${root}agents.html`, prs: `${root}prs.html`, worktrees: `${root}worktrees.html`, settings: `${root}settings.html` } },
   },
   server: {
     port: DEV_PORT,
