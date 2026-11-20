@@ -62,7 +62,7 @@ const thousands = (tokens: number) => `${Math.round(tokens / 1000)}k`;
  * the page's clock, so nothing else redraws); and context over the size set
  * there. Alerts only: nothing is stopped.
  */
-function SessionAlerts({ session }: { session: LiveSession }) {
+export function SessionAlerts({ session }: { session: LiveSession }) {
   const now = useNow();
   const stuck = Boolean(session.stuckAt) && isDue(session.stuckAt, now);
   if (!stuck && !session.contextHigh) return null;

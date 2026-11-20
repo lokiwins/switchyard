@@ -1,10 +1,10 @@
 export interface PageError { source: string; message: string }
 
-/** What went wrong getting the page's data: the server's own errors, and a failed load. */
-export function Errors({ errors }: { errors: PageError[] }) {
+/** What went wrong getting the page's data: the server's own errors, and a failed load. `bare` shows the messages alone. */
+export function Errors({ errors, bare = false }: { errors: PageError[]; bare?: boolean }) {
   return (
     <div id="errors" className="errors" hidden={errors.length === 0}>
-      {errors.map((e, i) => <div key={i}>{`${e.source}: ${e.message}`}</div>)}
+      {errors.map((e, i) => <div key={i}>{bare ? e.message : `${e.source}: ${e.message}`}</div>)}
     </div>
   );
 }

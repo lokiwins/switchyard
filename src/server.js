@@ -50,7 +50,7 @@ import { createLiveTerminals } from './live-terminal.js';
 import { canReadScreen, createTerminal } from './terminal.js';
 import { conditionalState } from './state-etag.js';
 import { themeBootScript } from './theme-boot.js';
-import { STATIC_FILES, STYLE_NONCE_PAGES } from './static-files.js';
+import { STATIC_FILES } from './static-files.js';
 import { builtFile } from './built-pages.js';
 import { createTmux } from './tmux.js';
 
@@ -104,10 +104,8 @@ async function sendThemeBoot(res, settingsService) {
 }
 
 async function sendStatic(res, file) {
-  let body = await readFile(join(PUBLIC_DIR, file));
-  let csp = CSP;
-  if (STYLE_NONCE_PAGES.has(file)) ({ csp, body } = withStyleNonce(body.toString('utf8'), newStyleNonce()));
-  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Security-Policy': csp, 'Content-Type': CONTENT_TYPES[extname(file)], 'Cache-Control': 'no-cache' });
+  const body = await readFile(join(PUBLIC_DIR, file));
+  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES[extname(file)], 'Cache-Control': 'no-cache' });
   res.end(body);
 }
 

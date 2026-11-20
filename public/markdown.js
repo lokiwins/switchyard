@@ -1,11 +1,7 @@
-import { h } from './dom.js';
-
 /*
- * A small Markdown renderer for previewing files Claude wants to write.
- * parseMarkdown turns text into blocks (pure, so it's testable without a
- * page); renderMarkdown builds elements from them with h(), never innerHTML,
- * since the text comes from the model. Links open only for http(s) and
- * mailto; images show their alt text, as the page loads nothing from outside.
+ * Markdown for previewing what Claude wants to write: parseMarkdown turns
+ * text into blocks, with no DOM, so it's tested in node. The pages draw the
+ * blocks as elements, never as HTML (web/src/components/Markdown.tsx).
  */
 
 const FENCE = /^(\s*)(`{3,}|~{3,})\s*([\w+#.-]*)/;
@@ -15,7 +11,6 @@ const BULLET = /^(\s*)([-*+])\s+(.*)$/;
 const NUMBERED = /^(\s*)(\d{1,9})[.)]\s+(.*)$/;
 const TASK = /^\[([ xX])\]\s+(.*)$/;
 const TABLE_DIVIDER = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
-const SAFE_LINK = /^(https?:|mailto:)/i;
 const WORD_CHAR = /[\p{L}\p{N}]/u;
 
 // Inline: code first (its contents are literal), then images, links (whose text may be an image, as in a badge), emphasis.
@@ -153,47 +148,3 @@ export function parseMarkdown(text) {
   }
   return blocks;
 }
-
-function renderInline(nodes) {
-  return nodes.map((node) => {
-    switch (node.type) {
-      case 'code': return h('code', {}, node.text);
-      case 'strong': return h('strong', {}, renderInline(node.children));
-      case 'em': return h('em', {}, renderInline(node.children));
-      case 'del': return h('del', {}, renderInline(node.children));
-      case 'image': return h('span', { class: 'md-image' }, `[image${node.alt ? `: ${node.alt}` : ''}]`);
-      case 'link': return SAFE_LINK.test(node.href)
-        ? h('a', { href: node.href, target: '_blank', rel: 'noopener noreferrer' }, renderInline(node.children))
-        : h('span', { class: 'md-link', title: node.href }, renderInline(node.children));
-      default: return node.text;
-    }
-  });
-}
-
-/** A list item; a task item's checkbox goes at the start of its first line. */
-function renderItem(item) {
-  const blocks = item.blocks.map(renderBlock);
-  if (item.checked === null) return h('li', {}, blocks);
-  const box = h('input', { type: 'checkbox', disabled: true, checked: item.checked });
-  if (blocks[0]?.tagName === 'P') blocks[0].prepend(box);
-  else blocks.unshift(box);
-  return h('li', { class: 'md-task' }, blocks);
-}
-
-function renderBlock(block) {
-  switch (block.type) {
-    case 'heading': return h(`h${block.level}`, {}, renderInline(block.inline));
-    case 'code': return h('pre', { class: 'md-code', 'data-lang': block.lang ?? undefined }, h('code', {}, block.text));
-    case 'quote': return h('blockquote', {}, block.blocks.map(renderBlock));
-    case 'rule': return h('hr', {});
-    case 'list': return h(block.ordered ? 'ol' : 'ul', { start: block.start && block.start !== 1 ? String(block.start) : undefined },
-      block.items.map(renderItem));
-    case 'table': return h('div', { class: 'md-table' }, h('table', {},
-      h('thead', {}, h('tr', {}, block.header.map((cell, i) => h('th', { class: block.align[i] ? `md-${block.align[i]}` : undefined }, renderInline(cell))))),
-      h('tbody', {}, block.rows.map((row) => h('tr', {}, row.map((cell, i) => h('td', { class: block.align[i] ? `md-${block.align[i]}` : undefined }, renderInline(cell))))))));
-    default: return h('p', {}, renderInline(block.inline));
-  }
-}
-
-/** Markdown as elements, in a .markdown container. */
-export const renderMarkdown = (text) => h('div', { class: 'markdown' }, parseMarkdown(text).map(renderBlock));
