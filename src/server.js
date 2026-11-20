@@ -682,7 +682,7 @@ async function main() {
     newTask: tasks,
     rediscover: stateService.rediscover,
     getRepos: freshRepos,
-    writeLeadConfig: (id) => leadAccess.writeConfig(id, { withoutAsking: config.settings.workers.leadWithoutAsking }),
+    writeLeadConfig: (id) => leadAccess.writeConfig(id),
     prepareWorker: (id) => workerLaunch.prepare(id, config.settings.workers),
   });
   // Review: a read-only reviewer on a task's worktree, its verdict read back from its transcript (see review.js).

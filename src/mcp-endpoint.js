@@ -88,10 +88,6 @@ const TOOLS = [
   { name: 'end_worker', spec: END_WORKER, run: (tools, args) => tools.endWorker(args) },
 ];
 
-/** The tools that only look (a lead uses them without asking), and the ones that act (asked about, unless Settings say not to). */
-export const READ_TOOLS = Object.freeze(TOOLS.filter((tool) => tool.spec.annotations?.readOnlyHint).map((tool) => tool.name));
-export const ACTION_TOOLS = Object.freeze(TOOLS.filter((tool) => !tool.spec.annotations?.readOnlyHint).map((tool) => tool.name));
-
 function serverFor(tools) {
   const server = new McpServer({ name: 'switchyard', version: VERSION });
   for (const { name, spec, run } of TOOLS) server.registerTool(name, spec, (args) => answer(() => run(tools, args)));

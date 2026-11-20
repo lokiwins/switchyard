@@ -68,8 +68,6 @@ export const DEFAULTS = Object.freeze({
     permissionMode: 'claude',
     // Permission rules they may use without asking, such as "Bash(npm test)" or "Edit".
     allowedTools: Object.freeze([]),
-    // Whether a lead may start, message and end workers without asking you. Looking at them never asks.
-    leadWithoutAsking: true,
   }),
   // The agent CLIs (see src/agents/providers.js): which one is used when none is named, and how each is run.
   providers: Object.freeze({
@@ -94,6 +92,7 @@ const SECTION_KEYS = {
   agents: ['parkedAfterHours', 'endedHistoryDays', 'interruptedAttentionDays', 'maxRunning', 'stuckAfterMinutes', 'contextAlertTokens'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
   checks: ['commands', 'timeoutMinutes'],
+  // leadWithoutAsking is no longer used (a lead uses switchyard's tools without asking), but still read, so an older file loads.
   workers: ['permissionMode', 'allowedTools', 'leadWithoutAsking'],
   providers: ['default', ...Object.keys(DEFAULTS.providers).filter((key) => key !== 'default')],
 };
@@ -183,8 +182,7 @@ function workerSettings(workers) {
   if (!Array.isArray(rules) || rules.length > MAX_TOOL_RULES || rules.some((rule) => typeof rule !== 'string' || rule.length > MAX_TOOL_RULE || !TOOL_RULE.test(rule))) {
     fail('workers.allowedTools', `must be a list of up to ${MAX_TOOL_RULES} permission rules such as "Edit" or "Bash(npm test)"`);
   }
-  if (typeof workers.leadWithoutAsking !== 'boolean') fail('workers.leadWithoutAsking', 'must be true or false');
-  return { permissionMode: workers.permissionMode, allowedTools: [...rules], leadWithoutAsking: workers.leadWithoutAsking };
+  return { permissionMode: workers.permissionMode, allowedTools: [...rules] };
 }
 
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];

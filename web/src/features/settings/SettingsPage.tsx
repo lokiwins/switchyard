@@ -140,10 +140,6 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
           <TextSetting name="workers.allowedTools" label="Allowed without asking" rows={5} mono
             hint={<>Claude permission rules, one per line: a tool such as <code>Edit</code>, or what it may run, such as <code>Bash(npm test)</code>. Added to your own Claude settings&apos; rules, not instead of them.</>} />
         </div>
-        <div className="setting-row">
-          <ToggleSetting name="workers.leadWithoutAsking" label="Lead uses switchyard's tools without asking"
-            hint="When off, a lead asks you each time before it starts, messages or ends a worker, whatever its permission mode. Looking at its workers never asks." />
-        </div>
       </Panel>
 
       <Panel id="github-title" title="GitHub and CI">

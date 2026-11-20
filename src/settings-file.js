@@ -21,7 +21,7 @@ export const EDITABLE = {
   ci: ['holdPatterns', 'stripPrefixes'],
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
   checks: ['commands', 'timeoutMinutes'],
-  workers: ['permissionMode', 'allowedTools', 'leadWithoutAsking'],
+  workers: ['permissionMode', 'allowedTools'],
   // The default, then each provider's settings ({ enabled, program, options }), edited as a whole.
   providers: Object.keys(DEFAULTS.providers),
 };
