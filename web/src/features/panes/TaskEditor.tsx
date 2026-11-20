@@ -29,7 +29,7 @@ function TaskForm({ id, task, onSave }: { id: string; task: TaskDraft; onSave: (
   return (
     <form className="pane-form" id={id} onSubmit={submit}>
       <Field label="Title">
-        <input name="title" type="text" className="pane-input" required maxLength={MAX_TITLE_CHARS} autoFocus value={text.title} onChange={change('title')} />
+        <input name="title" type="text" className="pane-input" required maxLength={MAX_TITLE_CHARS} data-autofocus value={text.title} onChange={change('title')} />
       </Field>
       <Field label="Due"><input name="dueOn" type="date" className="pane-input" value={text.dueOn} onChange={change('dueOn')} /></Field>
       <Field label="Notes (what Claude is told when you start it)">
