@@ -3,18 +3,19 @@ import { test } from 'node:test';
 import { builtFile, BUILT_PAGES } from '../src/built-pages.js';
 
 test('the pages built from web/ are served at their addresses', () => {
-  assert.deepEqual(BUILT_PAGES, { '/': 'agents.html', '/prs': 'prs.html', '/worktrees': 'worktrees.html', '/settings': 'settings.html', '/tasks': 'tasks.html' });
+  assert.deepEqual(BUILT_PAGES, { '/': 'agents.html', '/prs': 'prs.html', '/worktrees': 'worktrees.html', '/settings': 'settings.html', '/tasks': 'tasks.html', '/graph': 'graph.html' });
   assert.deepEqual(builtFile('/'), { file: 'agents.html', page: true });
   assert.deepEqual(builtFile('/prs'), { file: 'prs.html', page: true });
   assert.deepEqual(builtFile('/worktrees'), { file: 'worktrees.html', page: true });
   assert.deepEqual(builtFile('/settings'), { file: 'settings.html', page: true });
   assert.deepEqual(builtFile('/tasks'), { file: 'tasks.html', page: true });
+  assert.deepEqual(builtFile('/graph'), { file: 'graph.html', page: true });
 });
 
 test('hashed assets are served from the build, and nothing else is', () => {
   assert.deepEqual(builtFile('/assets/agents-4GCvw0nE.js'), { file: 'assets/agents-4GCvw0nE.js', page: false });
   assert.deepEqual(builtFile('/assets/xterm-BrP-ENHg.css'), { file: 'assets/xterm-BrP-ENHg.css', page: false });
-  for (const path of ['/assets/../package.json', '/assets/x/y.js', '/assets/.hidden.js', '/assets/a.map', '/assets/', '/agents.html', '/prs.html', '/tasks.html', '/graph']) {
+  for (const path of ['/assets/../package.json', '/assets/x/y.js', '/assets/.hidden.js', '/assets/a.map', '/assets/', '/agents.html', '/prs.html', '/tasks.html', '/graph.html', '/nav.js']) {
     assert.equal(builtFile(path), null, path);
   }
 });
