@@ -20,7 +20,7 @@ const LOCAL_COMMAND = /^<(local-command-stdout|command-name)>/;
  * - stopped: you pressed Esc to interrupt the agent
  * - exited: you ran /exit or /quit
  * - finished: the agent completed its turn
- * - unknown: no conversation found in the tail of the transcript
+ * - unknown: no conversation found in the transcript (as far back as it's read)
  * @typedef {'interrupted'|'stopped'|'exited'|'finished'|'unknown'} EndState
  */
 
@@ -123,23 +123,27 @@ async function readTailLines(handle, size) {
 }
 
 /**
- * Walk the file backwards in chunks looking for a matching entry. Lines are
- * split on raw bytes so multi-byte characters never straddle a chunk.
+ * Walk the file backwards in chunks for the last `count` entries that match, oldest first; a line must hold
+ * one of the markers to be read. Lines are split on raw bytes so multi-byte characters never straddle a chunk.
  */
-async function findLastBackwards(handle, size, { marker, predicate }) {
+async function findLastBackwards(handle, size, { marker, predicate, count = 1 }) {
+  const markers = [marker].flat();
   let carry = Buffer.alloc(0);
+  let found = [];
   const floor = Math.max(0, size - MAX_PROMPT_SCAN_BYTES);
-  for (let end = size; end > floor; end -= SCAN_CHUNK_BYTES) {
+  for (let end = size; end > floor && found.length < count; end -= SCAN_CHUNK_BYTES) {
     const start = Math.max(floor, end - SCAN_CHUNK_BYTES);
     const buffer = Buffer.concat([await readRange(handle, start, end), carry]);
     const firstNewline = start > floor ? buffer.indexOf(10) : -1;
     carry = firstNewline >= 0 ? buffer.subarray(0, firstNewline) : Buffer.alloc(0);
-    const lines = buffer.subarray(firstNewline + 1).toString('utf8').split('\n').filter((line) => line.includes(marker));
-    const found = parseLines(lines).findLast(predicate);
-    if (found) return found;
+    const lines = buffer.subarray(firstNewline + 1).toString('utf8').split('\n').filter((line) => markers.some((m) => line.includes(m)));
+    found = [...parseLines(lines).filter(predicate), ...found];
   }
-  return null;
+  return found.slice(-count);
 }
+
+// Enough of the conversation to tell how it ended (an /exit shows up to three entries back).
+const ENDING_ENTRIES = 3;
 
 /** Summarize a transcript file, scanning further back only for fields the tail lacks. */
 export async function summarizeFile(file) {
@@ -149,14 +153,17 @@ export async function summarizeFile(file) {
     const summary = summarizeTranscript(await readTailLines(handle, size));
     const before = Math.max(0, size - TAIL_BYTES);
     if (before === 0) return summary;
-    const prompt = summary.lastPrompt ? null
-      : await findLastBackwards(handle, before, { marker: '"type":"user"', predicate: isHumanPrompt });
+    const last = async (options) => (await findLastBackwards(handle, before, options)).at(-1) ?? null;
+    const prompt = summary.lastPrompt ? null : await last({ marker: '"type":"user"', predicate: isHumanPrompt });
     const reply = summary.lastReply ? null
-      : await findLastBackwards(handle, before, { marker: '"type":"assistant"', predicate: (e) => lastReply([e]) !== null });
-    const title = summary.title ? null
-      : await findLastBackwards(handle, before, { marker: '"type":"ai-title"', predicate: (e) => e.type === 'ai-title' });
+      : await last({ marker: '"type":"assistant"', predicate: (e) => lastReply([e]) !== null });
+    const title = summary.title ? null : await last({ marker: '"type":"ai-title"', predicate: (e) => e.type === 'ai-title' });
+    // A tail with no conversation in it (a compaction's re-attached files can fill it) says nothing of how it ended.
+    const ending = summary.endState !== 'unknown' ? null
+      : await findLastBackwards(handle, before, { marker: ['"type":"user"', '"type":"assistant"'], predicate: isConversational, count: ENDING_ENTRIES });
     return {
       ...summary,
+      endState: ending?.length ? classifyEnding(ending) : summary.endState,
       lastPrompt: summary.lastPrompt ?? previewPrompt(prompt),
       title: summary.title ?? title?.aiTitle ?? null,
       lastReply: summary.lastReply ?? (reply ? lastReply([reply]) : null),
