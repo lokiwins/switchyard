@@ -113,9 +113,10 @@ main {
 .task-field { display: grid; gap: 2px; font-size: var(--text-xs); color: var(--gray-500); }
 .task-field input, .task-field select {
   padding: 4px 8px; font: inherit; font-size: var(--text-xs); line-height: var(--leading-xs);
-  color: var(--gray-900); background: var(--surface);
+  color: var(--gray-900); background-color: var(--surface);
   border: 0; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--gray-200);
 }
+.task-field select { padding-right: 26px; }
 .task-field input:focus, .task-field select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
 .task-check { display: flex; align-items: flex-start; gap: --spacing(2); font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--gray-500); cursor: pointer; }
 .task-check input { flex: none; margin: 2px 0 0; }
@@ -438,8 +439,8 @@ td .actions { flex-wrap: nowrap; }
 .tool-meta { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--gray-700); }
 .tool-row { display: flex; justify-content: space-between; align-items: center; gap: --spacing(2); }
 .tool-select {
-  padding: 2px 6px; font: inherit; font-size: var(--text-xs); color: var(--gray-900);
-  background: var(--surface); border: 0; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--gray-200);
+  padding: 2px 26px 2px 6px; font: inherit; font-size: var(--text-xs); color: var(--gray-900);
+  background-color: var(--surface); border: 0; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--gray-200);
 }
 .dot.connected { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
 /* --status is the status's own colour from ClickUp, set per pill. */
@@ -567,9 +568,10 @@ details.hub-group[open] > summary::before { content: "▾"; }
 .setting-hint { font-size: var(--text-xs); color: var(--gray-500); overflow-wrap: anywhere; }
 .setting input, .setting select, .setting textarea {
   width: 100%; min-width: 0; max-width: 520px; padding: 6px 10px; font: inherit; font-size: var(--text-sm);
-  color: var(--gray-900); background: var(--surface);
+  color: var(--gray-900); background-color: var(--surface);
   border: 0; border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1px var(--gray-200);
 }
+.setting select { padding-right: 30px; }
 .setting textarea { font-family: var(--font-mono); resize: vertical; }
 .setting input:focus, .setting select:focus, .setting textarea:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
 fieldset.setting { border: 0; padding: 0; margin-inline: 0; min-inline-size: 0; }
@@ -788,8 +790,8 @@ html:has(.glass-pane[open]) { overflow: hidden; }
   border-color: color-mix(in srgb, var(--status, var(--pane-dim)) 60%, transparent);
 }
 .pane-select {
-  padding: 3px 8px; border: 1px solid var(--pane-edge); border-radius: 8px;
-  background: color-mix(in srgb, var(--pane-shade) 25%, transparent); color: var(--pane-text); font-size: 12px; color-scheme: var(--pane-scheme);
+  padding: 3px 26px 3px 8px; border: 1px solid var(--pane-edge); border-radius: 8px;
+  background-color: color-mix(in srgb, var(--pane-shade) 25%, transparent); color: var(--pane-text); font-size: 12px; color-scheme: var(--pane-scheme);
 }
 .pane-link { font-size: 12px; color: var(--pane-accent); }
 /* Where the live terminal waits between panes: laid out at a pane's size, so WebGL can draw, but out of sight. */

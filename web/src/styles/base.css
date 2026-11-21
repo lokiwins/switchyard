@@ -22,4 +22,18 @@
   h3 { font-size: var(--text-2xs); font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; }
   code { font-family: var(--font-mono); font-size: var(--text-xs); }
   [hidden] { display: none !important; }
+
+  /*
+   * A select's arrow: a small ▾ in the text's colour, 10px in from the right
+   * edge. The browser's own sits on the edge whatever the padding. Each
+   * select's rule leaves it room with its right padding, and sets only its
+   * background colour, as the shorthand would drop the arrow.
+   */
+  select {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: right 15px center, right 10px center;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+  }
 }
