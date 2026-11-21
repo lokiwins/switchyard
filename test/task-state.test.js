@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  dueOnLabel, groupTasks, linkedWhere, matchesHubTask, startOf, taskState, ticketLabel,
+  STATE_LABELS, dueOnLabel, groupTasks, linkedWhere, matchesHubTask, startOf, taskState, ticketLabel,
 } from '../public/task-state.js';
 
 // Tuesday 10 Nov 2026, mid-morning local time.
@@ -42,6 +42,15 @@ test('an open PR with nothing running is in review; a merged one is done', () =>
 
 test('a worktree with nothing running and no PR is paused', () => {
   assert.equal(taskState(task({ work: [work()] })), 'paused');
+});
+
+test('a lead\'s worker whose session has ended reads Ended, not Paused; while its session is still open it is paused', () => {
+  const worker = (overrides) => task({ parentId: 'sy-lead01', ...overrides });
+  assert.equal(taskState(worker({ work: [work()] })), 'ended');
+  assert.equal(taskState(worker({ work: [work({ live: [session({ status: 'idle', parked: true })] })] })), 'paused');
+  assert.equal(taskState(worker({ work: [work({ pr: { number: 4, state: 'OPEN' } })] })), 'in-review');
+  assert.equal(taskState(worker()), 'not-started');
+  assert.deepEqual(STATE_LABELS.ended, { label: 'Ended', tone: '' });
 });
 
 test('done or dropped by hand wins over everything', () => {

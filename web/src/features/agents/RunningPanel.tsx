@@ -4,11 +4,12 @@ import { SearchBox } from '../../components/SearchBox';
 import { Segmented } from '../../components/Segmented';
 import { useNow } from '../../lib/time';
 import { settlePending } from '../../lib/shared';
-import type { AgentsData, Approval, LiveSession } from '../../lib/types';
+import type { AgentsData, Approval, EndedSession, LiveSession } from '../../lib/types';
 import { usePendingStore } from '../../stores/pending';
 import { toast } from '../../stores/toast';
 import { ShowSessionsButton } from './controls/session';
-import { FILTER_KEYS, FILTERS, liveGroups, liveMatches, locateSession, nestWorkers, pendingShown } from './filters';
+import { EndedRow } from './EndedRow';
+import { endedWorkers, FILTER_KEYS, FILTERS, locateSession, nestWorkers, pendingShown, runningShown } from './filters';
 import { LiveRow } from './LiveRow';
 import { PendingRow } from './PendingRow';
 import { useAgentsUi } from './store';
@@ -36,22 +37,35 @@ function useSettlePending(data: AgentsData, now: number) {
 // A lead's workers, set in under its row with a rule down the side, as a task's subtasks are on the Tasks page.
 const WORKERS_LIST = 'col-span-full mt-2 mb-0 ml-6 pl-3 list-none border-l-2 border-gray-200';
 
-/** The running sessions, each lead's workers listed under it (see nestWorkers). */
-function SessionList({ sessions, data, className = 'list' }: { sessions: LiveSession[]; data: AgentsData; className?: string }) {
+const NO_ENDED: EndedSession[] = [];
+
+/**
+ * The running sessions, each lead's workers listed under it (see nestWorkers): the running ones, then the
+ * ones that have ended (see endedWorkers), which Recently ended leaves out.
+ */
+function SessionList({ sessions, ended, data, className = 'list' }: {
+  sessions: LiveSession[]; ended: Map<string, EndedSession[]>; data: AgentsData; className?: string;
+}) {
   const approvals = approvalsBySession(data.approvals ?? []);
-  const row = (session: LiveSession, workers?: LiveSession[]) => {
+  const row = (session: LiveSession, workers?: LiveSession[], endedWorkers: EndedSession[] = NO_ENDED) => {
     const where = locateSession(data.repos, session);
+    const any = (workers?.length ?? 0) + endedWorkers.length > 0;
     return (
       <LiveRow key={session.sessionId} session={session} repoName={where?.repo.name ?? null} worktree={where?.worktree ?? null}
         approvals={approvals.get(session.sessionId) ?? NO_APPROVALS}
-        workers={workers && workers.length > 0 && (
+        workers={any && (
           <ul className={WORKERS_LIST} aria-label={`Workers of ${session.hubTask?.title ?? 'this session'}`}>
-            {workers.map((worker) => row(worker))}
+            {workers?.map((worker) => row(worker))}
+            {endedWorkers.map((worker) => <EndedRow key={worker.sessionId} session={worker} caps={data.capabilities} />)}
           </ul>
         )} />
     );
   };
-  return <ul className={className}>{nestWorkers(sessions).map(({ session, workers }) => row(session, workers))}</ul>;
+  return (
+    <ul className={className}>
+      {nestWorkers(sessions).map(({ session, workers }) => row(session, workers, (session.hubTask && ended.get(session.hubTask.id)) || NO_ENDED))}
+    </ul>
+  );
 }
 
 /** Shown when a session needs you but its prompts can't be answered here yet. */
@@ -80,11 +94,9 @@ export function RunningPanel({ data, query }: { data: AgentsData; query: string 
   const now = useNow();
   useSettlePending(data, now);
   const { live } = FILTERS[filter];
-  const sessions = live ? data.liveSessions.filter((s) => live(s) && liveMatches(data, s, query)) : [];
+  const { sessions, active, parked, parkedShown, shown } = runningShown(data, filter, query, showParked);
+  const ended = endedWorkers(shown, data.endedSessions);
   const starting = pendingShown(pendingTasks, filter, query);
-  const { active, parked } = liveGroups(sessions);
-  // The Parked filter always shows them all, so there's nothing to toggle there.
-  const parkedShown = showParked || filter === 'parked' || active.length === 0;
   const empty = query || filter !== 'all' ? 'No running sessions match.' : 'No agent sessions are running.';
   return (
     <Panel id="running-title" title="Running" hidden={!live} head={(
@@ -102,13 +114,13 @@ export function RunningPanel({ data, query }: { data: AgentsData; query: string 
           <ul className="list pending-list">{starting.map((task) => <PendingRow key={task.id} task={task} now={now} />)}</ul>
         )}
         {sessions.length === 0 && starting.length === 0 && <div className="empty">{empty}</div>}
-        {active.length > 0 && <SessionList sessions={active} data={data} />}
+        {active.length > 0 && <SessionList sessions={active} ended={ended} data={data} />}
         {parked.length > 0 && active.length > 0 && filter !== 'parked' && (
           <button type="button" className="list-toggle" onClick={toggleParked}>
             {showParked ? 'Hide parked sessions' : `Show ${parked.length} parked session${parked.length > 1 ? 's' : ''} (idle over a day, no open tab)`}
           </button>
         )}
-        {parked.length > 0 && parkedShown && <SessionList sessions={parked} data={data} />}
+        {parked.length > 0 && parkedShown && <SessionList sessions={parked} ended={ended} data={data} />}
       </div>
     </Panel>
   );

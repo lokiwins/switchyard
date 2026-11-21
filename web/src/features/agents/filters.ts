@@ -122,6 +122,41 @@ export function nestWorkers(sessions: LiveSession[]): LiveEntry[] {
   return entries;
 }
 
+/**
+ * The ended workers to list under their lead in Running, by the lead's task id: for each subtask of a listed
+ * session's task, its latest ended session, unless the worker is running again. Newest first.
+ */
+export function endedWorkers(listed: LiveSession[], ended: EndedSession[]): Map<string, EndedSession[]> {
+  const listedTasks = new Set(listed.flatMap((s) => (s.hubTask ? [s.hubTask.id] : [])));
+  const latest = new Map<string, EndedSession>();
+  for (const s of ended) {
+    const task = s.hubTask;
+    if (!task?.parentId || !listedTasks.has(task.parentId) || listedTasks.has(task.id)) continue;
+    const seen = latest.get(task.id);
+    if (!seen || s.endedAt > seen.endedAt) latest.set(task.id, s);
+  }
+  const byLead = new Map<string, EndedSession[]>();
+  for (const s of [...latest.values()].sort((a, b) => b.endedAt - a.endedAt)) {
+    const lead = s.hubTask!.parentId!;
+    byLead.set(lead, [...(byLead.get(lead) ?? []), s]);
+  }
+  return byLead;
+}
+
+export interface RunningShown { sessions: LiveSession[]; active: LiveSession[]; parked: LiveSession[]; parkedShown: boolean; shown: LiveSession[] }
+
+/**
+ * The running sessions the Running panel lists for a filter and search: active ones, and parked ones
+ * (shown when asked for, with the Parked filter, or when nothing else runs). `shown` is what's on the page.
+ */
+export function runningShown(data: AgentsData, filter: FilterKey, query: string, showParked: boolean): RunningShown {
+  const { live } = FILTERS[filter];
+  const sessions = live ? data.liveSessions.filter((s) => live(s) && liveMatches(data, s, query)) : [];
+  const { active, parked } = liveGroups(sessions);
+  const parkedShown = showParked || filter === 'parked' || active.length === 0;
+  return { sessions, active, parked, parkedShown, shown: parkedShown ? sessions : active };
+}
+
 const COLLAPSED_LIMIT = 5;
 
 /** Interrupted sessions that need attention always show; with `collapse`, the rest show five at a time unless expanded. */
