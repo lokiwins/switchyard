@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createClaudeProvider, readPlan, readScreenPrompt, readStatus, resumeCommand, summarizeTranscript, transcriptDirName } from '../src/agents/claude.js';
-import { classifyEnding } from '../src/agents/claude-transcript.js';
+import { classifyEnding, summarizeFile } from '../src/agents/claude-transcript.js';
 
 const line = (entry) => JSON.stringify(entry);
 
@@ -249,4 +249,25 @@ test('summarizeTranscript says how full the context was on the last call, leavin
   ]);
   assert.equal(summary.contextTokens, 20400);
   assert.equal(summarizeTranscript([line({ type: 'user', message: { content: 'ask' } })]).contextTokens, null);
+});
+
+test('how a session ended is read past a compaction\'s re-attached files, beyond the tail window', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'sy-ending-'));
+  // A compaction ends with the summary and the files it attaches again: hundreds of KB, no conversation.
+  const compaction = [
+    line({ type: 'system', subtype: 'compact_boundary' }),
+    line({ type: 'user', isCompactSummary: true, message: { content: 'This session is being continued from a previous conversation.' } }),
+    ...Array.from({ length: 5 }, () => line({ type: 'attachment', attachment: { content: 'x'.repeat(70_000) } })),
+    line({ type: 'last-prompt' }),
+  ];
+  const write = async (name, turn) => {
+    const file = join(dir, `${name}.jsonl`);
+    await writeFile(file, [line({ type: 'user', origin: { kind: 'human' }, message: { content: 'build it' } }), ...turn.map(line), ...compaction].join('\n'));
+    return file;
+  };
+  const finished = await write('finished', [{ type: 'assistant', message: { content: [{ type: 'text', text: 'Built and tested.' }] } }]);
+  const midTool = await write('mid-tool', [{ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: {} }] } }]);
+
+  assert.equal((await summarizeFile(finished)).endState, 'finished');
+  assert.equal((await summarizeFile(midTool)).endState, 'interrupted');
 });
