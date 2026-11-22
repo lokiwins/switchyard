@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getJson } from '../../lib/api';
-import { useSettingField } from './SettingsForm';
+import { settingCheckboxClass, SettingGroup, settingHintClass, useSettingField } from './SettingsForm';
+import { cx } from '../../lib/cx';
 
 /* Which repos Add from ▾ → GitHub lists your issues from: the repos your issues are in, and the ones in your folders. */
 
@@ -16,7 +17,7 @@ function repoNote(repo: RepoChoice): string {
   return [issues, repo.local ? 'in your folders' : null].filter(Boolean).join(' · ') || 'chosen before';
 }
 
-const Hint = ({ text }: { text: string }) => <span className="setting-hint">{text}</span>;
+const Hint = ({ text, className }: { text: string; className?: string }) => <span className={cx(settingHintClass, className)}>{text}</span>;
 
 /** The checklist; `saved` is the field as saved, so ticking back to it reads as no change. */
 export function RepoChecklist({ saved }: { saved: string }) {
@@ -42,20 +43,19 @@ export function RepoChecklist({ saved }: { saved: string }) {
         {!connected && <Hint text="gh isn't signed in, so only the repos in your folders are listed (run gh auth login)." />}
         {error && <Hint text={`GitHub: ${error}`} />}
         {repos.length === 0 ? <Hint text="No GitHub repos found yet." /> : repos.map((repo) => (
-          <label key={repo.name} className="repo-choice">
-            <input type="checkbox" value={repo.name} checked={chosen.includes(repo.name.toLowerCase())} onChange={(event) => tick(repos, repo.name, event.target.checked)} />
-            <span className="repo-name">{repo.name}</span>
-            <Hint text={repoNote(repo)} />
+          <label key={repo.name} className="flex flex-wrap items-baseline gap-x-2 gap-y-0 py-0.5 cursor-pointer text-sm">
+            <input type="checkbox" className={settingCheckboxClass} value={repo.name} checked={chosen.includes(repo.name.toLowerCase())} onChange={(event) => tick(repos, repo.name, event.target.checked)} />
+            <span className="text-base font-bold tracking-[-0.01em] text-gray-900 [overflow-wrap:anywhere]">{repo.name}</span>
+            <Hint text={repoNote(repo)} className="ml-auto" />
           </label>
         ))}
       </>
     );
   })();
   return (
-    <fieldset className="setting">
-      <legend className="setting-label">Repos in the GitHub issues list</legend>
-      <div className="repo-checklist" id="issue-repos">{body}</div>
-      <span className="setting-hint">Which repos Add from ▾ → GitHub on the Tasks page lists your issues from. None ticked lists them all.</span>
-    </fieldset>
+    <SettingGroup legend="Repos in the GitHub issues list">
+      <div className="grid gap-0.5 max-w-[520px] max-h-[260px] overflow-y-auto py-1 px-2 rounded-sm shadow-[inset_0_0_0_1px_var(--gray-200)]" id="issue-repos">{body}</div>
+      <span className={settingHintClass}>Which repos Add from ▾ → GitHub on the Tasks page lists your issues from. None ticked lists them all.</span>
+    </SettingGroup>
   );
 }
