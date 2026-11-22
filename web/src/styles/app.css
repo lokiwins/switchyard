@@ -87,10 +87,3 @@
   --color-neutral-soft: var(--neutral-soft);
 }
 
-/*
- * Overrides of legacy.css, unlayered: a rule in a layer always loses to an
- * unlayered one, whatever its specificity.
- */
-/* Menus are placed by Radix (a wrapper it positions), so the panel sits in it rather than fixed to the window. */
-[data-radix-popper-content-wrapper] > .menu-panel { position: static; }
-.menu-trigger[data-state="open"] { background: var(--accent-fill); color: var(--on-accent); }

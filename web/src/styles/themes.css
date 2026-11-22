@@ -534,10 +534,11 @@
     var(--bg);
   background-repeat: no-repeat;
 }
-/* The palette's stripe along the bottom of the top bar. */
-:root[data-theme="heatwave"] .topbar::after {
-  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; pointer-events: none;
-  background: linear-gradient(90deg, #3B146B, #7B208F, #C9349B, #F36A78, #F87572, #FF9B55, #FFB458);
+/* The palette's stripe along the bottom of the top bar, a bigger shouting name and bigger tile numbers (see TopBar.tsx, Tiles.tsx). */
+:root[data-theme="heatwave"] {
+  --topbar-stripe: linear-gradient(90deg, #3B146B, #7B208F, #C9349B, #F36A78, #F87572, #FF9B55, #FFB458);
+  --brand-size: 20px;
+  --brand-tracking: 0.02em;
+  --brand-case: uppercase;
+  --tile-value-size: 28px;
 }
-:root[data-theme="heatwave"] .brand h1 { font-size: 20px; letter-spacing: 0.02em; text-transform: uppercase; }
-:root[data-theme="heatwave"] .tile .value { font-size: 28px; }

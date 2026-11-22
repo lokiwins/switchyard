@@ -10,14 +10,11 @@ import type { Capabilities, LiveSession } from '../../lib/types';
 import { TaskFromWork } from '../panes/TaskFromWork';
 import { CleanupMenu } from './CleanupMenu';
 import type { RepoGroup, WorktreeRow } from './types';
+import { Pill } from '../../components/Pill';
 
 /* A worktree's row: its branch, local changes, PR, agents, last activity, and ways in. */
 
 const MAX_INLINE_SESSIONS = 2;
-
-function Pill({ text, tone = '', title }: { text: string; tone?: string; title?: string }) {
-  return <span className={`pill ${tone}`} title={title}>{text}</span>;
-}
 
 function BranchCell({ w }: { w: WorktreeRow }) {
   const secondary = [shortPath(w.path), w.lastCommit?.subject].filter(Boolean).join('  ·  ');
@@ -28,7 +25,7 @@ function BranchCell({ w }: { w: WorktreeRow }) {
           <span className="branch-name" title={w.branch ?? undefined}>{w.branch ?? (w.detached ? `detached @ ${w.head?.slice(0, 7)}` : '—')}</span>
           {w.isMain && <span className="tag">main</span>}
           {w.hubTask && <a href={`/tasks#${encodeURIComponent(w.hubTask.id)}`} className="tag task-tag" title={`Task: ${w.hubTask.title}`}>Task</a>}
-          {w.locked && <Pill text="locked" tone="amber" />}
+          {w.locked && <Pill tone="amber">locked</Pill>}
         </div>
         <span className="secondary" title={`${w.path}${w.lastCommit?.subject ? `\n${w.lastCommit.subject}` : ''}`}>{secondary}</span>
       </div>
@@ -37,18 +34,18 @@ function BranchCell({ w }: { w: WorktreeRow }) {
 }
 
 function LocalCell({ w }: { w: WorktreeRow }) {
-  if (w.prunable) return <td><Pill text="missing on disk" tone="red" /></td>;
+  if (w.prunable) return <td><Pill tone="red">missing on disk</Pill></td>;
   const s = w.status;
   if (!s) return <td>—</td>;
-  if (s.error) return <td><Pill text="git error" tone="red" title={s.error} /></td>;
+  if (s.error) return <td><Pill tone="red" title={s.error}>git error</Pill></td>;
   const dirty = s.changed || s.untracked || s.conflicted;
   const notPushed = Boolean(w.branch) && !s.upstream;
   return (
     <td>
       <div className="cell-lines">
         <div className="line">
-          {s.conflicted > 0 && <Pill text={`${s.conflicted} conflicted`} tone="red" />}
-          {s.changed > 0 && <Pill text={`${s.changed} changed`} tone="amber" />}
+          {s.conflicted > 0 && <Pill tone="red">{`${s.conflicted} conflicted`}</Pill>}
+          {s.changed > 0 && <Pill tone="amber">{`${s.changed} changed`}</Pill>}
           {s.untracked > 0 && <span className="tag">{`${s.untracked} untracked`}</span>}
           {!dirty && <span className="small muted">clean</span>}
         </div>
@@ -92,11 +89,11 @@ function PrCell({ w }: { w: WorktreeRow }) {
       <div className="cell-lines">
         <div className="line">
           <a href={pr.url} target="_blank" rel="noopener" className="mono">{`#${pr.number}`}</a>
-          {!isOpen && <Pill text={closed[0]} tone={closed[1]} />}
-          {isOpen && pr.isDraft && <Pill text="Draft" />}
-          {isOpen && check && <Pill text={check[0]} tone={check[1]} title={checksTitle ?? check[2]} />}
-          {isOpen && review && <Pill text={review[0]} tone={review[1]} />}
-          {isOpen && pr.mergeStateStatus === 'DIRTY' && <Pill text="Conflict" tone="red" title="Merge conflict with the base branch" />}
+          {!isOpen && <Pill tone={closed[1]}>{closed[0]}</Pill>}
+          {isOpen && pr.isDraft && <Pill>Draft</Pill>}
+          {isOpen && check && <Pill tone={check[1]} title={checksTitle ?? check[2]}>{check[0]}</Pill>}
+          {isOpen && review && <Pill tone={review[1]}>{review[0]}</Pill>}
+          {isOpen && pr.mergeStateStatus === 'DIRTY' && <Pill tone="red" title="Merge conflict with the base branch">Conflict</Pill>}
         </div>
         <span className="secondary" title={pr.title}>{pr.title}</span>
       </div>
@@ -145,7 +142,7 @@ function AgentCell({ w, caps }: { w: WorktreeRow; caps: Capabilities }) {
       <div className="cell-lines">
         <div className="line">
           {w.flags.includes('agent-interrupted')
-            ? <span className="pill amber" title={ending?.hint}><LiveTime since={last.updatedAt} prefix="Interrupted " /></span>
+            ? <Pill tone="amber" title={ending?.hint}><LiveTime since={last.updatedAt} prefix="Interrupted " /></Pill>
             : <span className="small muted" title={ending?.hint}><LiveTime since={last.updatedAt} prefix="Last session " /></span>}
           <ResumeButton session={last} caps={caps} />
         </div>

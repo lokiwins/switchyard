@@ -12,7 +12,7 @@
  * .menu-trigger button in the ones built from web/ (a scene runs against both, before and after).
  * From the start, since hasText alone is a case-insensitive substring: "Clean up" would also match "1 to clean up".
  */
-const menuButton = (scope, label) => scope.locator('details.menu > summary, button.menu-trigger', { hasText: new RegExp(`^${label}`) });
+const menuButton = (scope, label) => scope.locator('button[aria-haspopup="dialog"]', { hasText: new RegExp(`^${label}`) });
 
 const settle = (page) => page.waitForLoadState('networkidle');
 
@@ -124,7 +124,7 @@ export const SCENES = [
       await page.locator('select[name="repo"]').selectOption({ label: 'storefront' });
       await page.getByPlaceholder('What should Claude do?').fill('Show order history on the account page');
       await page.getByRole('button', { name: 'Start', exact: true }).click();
-      await page.locator('li.list-row.is-pending .pill', { hasText: 'Starting…' }).waitFor();
+      await page.locator('li.list-row.is-pending', { hasText: 'Starting…' }).waitFor();
     },
   },
   {
@@ -175,7 +175,7 @@ export const SCENES = [
     prepare: async (page) => {
       await page.getByRole('link', { name: '#42', exact: true }).first().waitFor();
       await menuButton(page, 'Clean up').first().click();
-      await page.locator('.menu-panel').filter({ visible: true }).first().waitFor();
+      await page.locator('[data-radix-popper-content-wrapper] > *').filter({ visible: true }).first().waitFor();
     },
   },
   {

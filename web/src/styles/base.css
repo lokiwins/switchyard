@@ -23,6 +23,16 @@
   code { font-family: var(--font-mono); font-size: var(--text-xs); }
   [hidden] { display: none !important; }
 
+  /* Every page is one column, as wide as the window up to a limit: an auto column would grow to fit a wide table or row, scrolling the page sideways. */
+  main {
+    max-width: 1360px; margin: 0 auto;
+    padding: --spacing(4) --spacing(5) --spacing(8);
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: --spacing(4);
+  }
+  @media (max-width: 640px) {
+    main { padding-left: --spacing(4); padding-right: --spacing(4); }
+  }
+
   /*
    * A select's arrow: a small ▾ in the text's colour, 10px in from the right
    * edge. The browser's own sits on the edge whatever the padding. Each

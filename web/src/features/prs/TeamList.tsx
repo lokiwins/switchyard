@@ -1,14 +1,16 @@
 import { LiveTime } from '../../components/LiveTime';
 import type { TeamPr } from './types';
+import { panelClass, panelHeadClass } from '../../components/Panel';
+import { cx } from '../../lib/cx';
 
 /** Review requests to your teams, folded away until opened; the native <details> keeps itself open through updates. */
 export function TeamList({ prs }: { prs: TeamPr[] }) {
   return (
-    <section className="panel" aria-labelledby="team-title">
+    <section className={panelClass} aria-labelledby="team-title">
       <details id="team-details">
-        <summary className="panel-head team-summary">
+        <summary className={cx(panelHeadClass, 'team-summary')}>
           <h2 id="team-title">Requested from your teams</h2>
-          <span id="team-count" className="muted">{`${prs.length} open`}</span>
+          <span id="team-count" className="text-xs text-gray-500">{`${prs.length} open`}</span>
         </summary>
         <ul id="team" className="list">
           {prs.length === 0 ? <li className="muted">Nothing waiting on your teams.</li> : prs.map((pr) => (

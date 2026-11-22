@@ -4,7 +4,7 @@ import { announceChange } from '../lib/changes';
 import type { Capabilities, Transcript } from '../lib/types';
 import { toast } from '../stores/toast';
 import { LiveTime } from './LiveTime';
-import { Menu } from './Menu';
+import { Menu, MenuItem, MenuLabel, menuMetaClass, MenuTitle } from './Menu';
 
 /* "Open ▾" for a worktree: a new terminal tab with a plain shell, a new Claude session, or one of the folder's recent sessions resumed. */
 
@@ -29,7 +29,7 @@ function Choice({ path, body, title, onDone, children }: { path: string; body: R
       toast((error as Error).message);
     }
   };
-  return <button type="button" className="menu-item" title={title} onClick={open}>{children}</button>;
+  return <MenuItem title={title} onClick={open}>{children}</MenuItem>;
 }
 
 export function OpenMenu({ path, sessions, caps }: { path: string; sessions: RecentSession[]; caps: Capabilities | undefined }) {
@@ -40,12 +40,12 @@ export function OpenMenu({ path, sessions, caps }: { path: string; sessions: Rec
     <Menu label="Open ▾" title={`Open a new ${caps.terminal} tab here`} open={open} onOpenChange={setOpen}>
       <Choice path={path} body={{ launch: 'shell' }} title={`cd into this folder in a new ${caps.terminal} tab`} onDone={done}>Shell</Choice>
       <Choice path={path} body={{ launch: 'claude' }} title="Start claude in this folder" onDone={done}>New Claude session</Choice>
-      {sessions.length > 0 && <div className="menu-label">Resume</div>}
+      {sessions.length > 0 && <MenuLabel>Resume</MenuLabel>}
       {sessions.map((session) => (
         <Choice key={session.sessionId} path={path} body={{ sessionId: session.sessionId }} onDone={done}
           title={caps.tmux ? `Resume in ${resumeWhere(caps)}` : session.transcript?.lastPrompt ?? undefined}>
-          <span className="menu-title">{sessionLabel(session)}</span>
-          <LiveTime since={session.updatedAt} className="menu-meta" />
+          <MenuTitle>{sessionLabel(session)}</MenuTitle>
+          <LiveTime since={session.updatedAt} className={menuMetaClass} />
         </Choice>
       ))}
     </Menu>

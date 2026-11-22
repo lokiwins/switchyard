@@ -101,7 +101,7 @@ export function RunningPanel({ data, query }: { data: AgentsData; query: string 
   return (
     <Panel id="running-title" title="Running" hidden={!live} head={(
       <>
-        <span id="show-sessions" className="panel-action"><ShowSessionsButton caps={data.capabilities} /></span>
+        <span id="show-sessions" className="mr-auto"><ShowSessionsButton caps={data.capabilities} /></span>
         <div className="filters">
           <SearchBox placeholder="Filter name, repo, branch, text…" label="Filter sessions" value={query} onChange={setQuery} />
           <ViewFilter />

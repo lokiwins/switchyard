@@ -13,6 +13,7 @@ import { refreshPrs } from './api';
 import { stageOf } from './filters';
 import type { CheckRef, Checks, Pr } from './types';
 import { Button } from '../../components/Button';
+import { Pill } from '../../components/Pill';
 
 /* A PR's card: where it stands, its branch and size, its checks, reviews and local checkout, and Copilot. */
 
@@ -147,7 +148,7 @@ export function PrCard({ pr, showAuthor, canAskCopilot, caps }: { pr: Pr; showAu
     <li>
       <article className="pr">
         <div className="pr-line">
-          <span className={`pill ${stage.tone}`}>{stage.label}</span>
+          <Pill tone={stage.tone}>{stage.label}</Pill>
           <a className="pr-title" href={pr.url} target="_blank" rel="noopener" title={pr.title}>{pr.title}</a>
           <span className="pr-ref">{`${pr.repo.split('/').pop()}#${pr.number}`}</span>
         </div>

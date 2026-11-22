@@ -3,6 +3,7 @@ import { LiveTime } from '../../components/LiveTime';
 import { cx } from '../../lib/cx';
 import { isDue, useNow } from '../../lib/time';
 import type { Detail, LiveSession, TrackerTask } from '../../lib/types';
+import { Pill } from '../../components/Pill';
 
 /*
  * One line in a session list, shared by live, starting and ended sessions so
@@ -12,10 +13,10 @@ import type { Detail, LiveSession, TrackerTask } from '../../lib/types';
 
 export function StatusBadge({ tone = '', dot, label, hint }: { tone?: string; dot?: string | null; label: string; hint?: string }) {
   return (
-    <span className={cx('pill', tone)} title={hint}>
+    <Pill tone={tone} title={hint}>
       {dot && <span className={cx('dot', dot)} aria-hidden="true" />}
       {label}
-    </span>
+    </Pill>
   );
 }
 

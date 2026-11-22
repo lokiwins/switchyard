@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu } from '../../components/Menu';
+import { Menu, MenuItem, MenuTitle } from '../../components/Menu';
 import { hasFailedCheck } from './logic';
 import type { ShownTask } from './types';
 
@@ -16,7 +16,7 @@ export interface TaskMenuActions {
 }
 
 function Item({ label, title, onChoose }: { label: string; title: string; onChoose: () => void }) {
-  return <button type="button" className="menu-item" title={title} onClick={onChoose}><span className="menu-title">{label}</span></button>;
+  return <MenuItem title={title} onClick={onChoose}><MenuTitle>{label}</MenuTitle></MenuItem>;
 }
 
 export function TaskMenu({ task, actions }: { task: ShownTask; actions: TaskMenuActions }) {

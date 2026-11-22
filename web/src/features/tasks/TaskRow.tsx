@@ -6,6 +6,7 @@ import { StartMenu } from './StartMenu';
 import { TaskMenu } from './TaskMenu';
 import type { ShownTask } from './types';
 import { WorkLine } from './WorkLine';
+import { Pill } from '../../components/Pill';
 
 /* A task's row: where it stands, its title and tickets, one line on it, when it's due, what you can do, its work, and its subtasks. */
 
@@ -19,7 +20,7 @@ export interface RowContext {
 function StateBadge({ state }: { state: string }) {
   const { label, tone } = STATE_LABELS[state] ?? { label: state, tone: '' };
   const dot = state === 'working' ? 'busy' : state === 'needs-you' ? 'idle' : null;
-  return <span className={`pill ${tone}`}>{dot && <span className={`dot ${dot}`} aria-hidden="true" />}{label}</span>;
+  return <Pill tone={tone}>{dot && <span className={`dot ${dot}`} aria-hidden="true" />}{label}</Pill>;
 }
 
 /** The row's one line: how a start is going, or the first line of the notes. */

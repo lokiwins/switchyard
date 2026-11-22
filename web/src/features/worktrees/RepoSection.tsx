@@ -2,6 +2,7 @@ import type { Capabilities } from '../../lib/types';
 import { useWorktreesUi } from './store';
 import type { RepoGroup, WorktreeRow } from './types';
 import { WorktreeRowView } from './WorktreeRowView';
+import { Pill } from '../../components/Pill';
 
 /* A repo and its worktrees in the view: folded or open as you left it. */
 
@@ -19,7 +20,7 @@ function RepoCounts({ repo, rows }: { repo: RepoGroup; rows: WorktreeRow[] }) {
       <span className="muted">{`${rows.length} of ${repo.worktrees.length} worktrees`}</span>
       {live > 0 && <span className="muted sep">{`${live} agent${live > 1 ? 's' : ''}`}</span>}
       {cleanup > 0 && <span className="muted sep">{`${cleanup} to clean up`}</span>}
-      {attention > 0 && <span className="pill red">{`${attention} need${attention > 1 ? '' : 's'} attention`}</span>}
+      {attention > 0 && <Pill tone="red">{`${attention} need${attention > 1 ? '' : 's'} attention`}</Pill>}
     </span>
   );
 }

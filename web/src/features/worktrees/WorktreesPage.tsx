@@ -7,7 +7,7 @@ import { RefreshButton } from '../../components/RefreshButton';
 import { SearchBox } from '../../components/SearchBox';
 import { Segmented } from '../../components/Segmented';
 import { Tiles } from '../../components/Tiles';
-import { TopBar } from '../../components/TopBar';
+import { TopBar, TopBarStatus } from '../../components/TopBar';
 import { shortPath } from '../../lib/paths';
 import { useNow } from '../../lib/time';
 import { refreshBoard, STATE_KEY, useBoard } from './api';
@@ -16,6 +16,7 @@ import { useWorktreesUi } from './store';
 import type { OrphanPr, StateData } from './types';
 import { groupRepos, SEGMENTED_VIEWS, summarize, VIEWS } from './views';
 import { Button } from '../../components/Button';
+import { Pill } from '../../components/Pill';
 
 /* The Worktrees page: every checkout under the roots, its branch, PR and sessions; and your PRs with no checkout here. */
 
@@ -60,7 +61,7 @@ function OrphanPrs({ prs }: { prs: OrphanPr[] }) {
         {prs.map((pr) => (
           <li key={pr.url} className="row">
             <a href={pr.url} target="_blank" rel="noopener" className="mono">{`${pr.repository.nameWithOwner}#${pr.number}`}</a>
-            {pr.isDraft && <span className="pill ">Draft</span>}
+            {pr.isDraft && <Pill>Draft</Pill>}
             <span>{pr.title}</span>
             <LiveTime since={Date.parse(pr.updatedAt)} prefix="updated " className="small muted" />
           </li>
@@ -83,8 +84,8 @@ export function WorktreesPage() {
   const query = useDeferredValue(useWorktreesUi((s) => s.query));
   return (
     <>
-      <TopBar current="/worktrees" brand={<span id="roots" className="muted">{data ? `Scanning ${data.roots.map(shortPath).join(', ')}` : ''}</span>}>
-        <span id="updated" className="muted" aria-live="polite">{data ? <LiveTime since={data.generatedAt} prefix="Updated " /> : 'Loading…'}</span>
+      <TopBar current="/worktrees" brand={{ id: 'roots', text: data ? `Scanning ${data.roots.map(shortPath).join(', ')}` : '' }}>
+        <TopBarStatus>{data ? <LiveTime since={data.generatedAt} prefix="Updated " /> : 'Loading…'}</TopBarStatus>
         <RefreshButton busy={fetching} onRefresh={refreshBoard} />
       </TopBar>
       <main>

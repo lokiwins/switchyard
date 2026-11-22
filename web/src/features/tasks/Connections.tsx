@@ -5,6 +5,7 @@ import { cx } from '../../lib/cx';
 import { changeTools, useTaskTools } from './api';
 import type { TaskTool } from './types';
 import { Button } from '../../components/Button';
+import { Pill } from '../../components/Pill';
 
 /*
  * Connections ▾ in the header: which trackers are connected, and a card for
@@ -96,7 +97,7 @@ const ToolCard = ({ tool }: { tool: TaskTool }) => (
   <article className={cx('tool-card', tool.connected && 'is-connected', !tool.available && 'is-later')}>
     <header className="tool-head">
       <h3>{tool.name}</h3>
-      {!tool.available && <span className="pill">Coming soon</span>}
+      {!tool.available && <Pill>Coming soon</Pill>}
     </header>
     {tool.available && <ToolBody tool={tool} />}
   </article>
