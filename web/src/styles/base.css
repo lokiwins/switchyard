@@ -33,6 +33,19 @@
     main { padding-left: --spacing(4); padding-right: --spacing(4); }
   }
 
+  /* Tables: small-caps headings on a sunken band, a hairline between rows, the row under the pointer lit. Fixed columns, unless the window is narrow. */
+  table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); table-layout: fixed; }
+  th {
+    text-align: left; font-weight: 600; color: var(--gray-500);
+    font-size: 11px; line-height: var(--leading-xs); text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 6px 10px; background: var(--surface-sunken); white-space: nowrap;
+  }
+  td { padding: 7px 10px; vertical-align: top; border-top: 1px solid var(--divider); }
+  tbody tr:hover { background: var(--hover); }
+  @media (max-width: 900px) {
+    table { table-layout: auto; }
+  }
+
   /*
    * A select's arrow: a small ▾ in the text's colour, 10px in from the right
    * edge. The browser's own sits on the edge whatever the padding. Each

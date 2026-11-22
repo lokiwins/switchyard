@@ -1,5 +1,5 @@
 import { Fragment, useState, type FormEvent } from 'react';
-import { Menu, menuItemClass } from '../../../components/Menu';
+import { Menu, menuItemClass, MenuHint } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { announceChange } from '../../../lib/changes';
 import { tmuxPlace } from '../../../lib/paths';
@@ -156,7 +156,7 @@ export function AnswerMenu({ session, approvals }: { session: LiveSession; appro
       open={open} onOpenChange={setOpen}>
       {prompt?.question && <p className="answer-question">{prompt.question}</p>}
       <AnswerControls session={session} style={MENU_STYLE} onDone={() => setOpen(false)} />
-      <p className="reply-hint">{`Pressed in ${answerTarget(session.host)}, if its screen still shows this question.`}</p>
+      <MenuHint>{`Pressed in ${answerTarget(session.host)}, if its screen still shows this question.`}</MenuHint>
     </Menu>
   );
 }

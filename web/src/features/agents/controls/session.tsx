@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActionButton } from '../../../components/ActionButton';
-import { Menu } from '../../../components/Menu';
+import { Menu, MenuHint } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { tmuxPlace } from '../../../lib/paths';
 import { canShowTerminalSessions } from '../../../lib/shared';
@@ -45,11 +45,11 @@ export function EndMenu({ session }: { session: LiveSession }) {
   return (
     <Menu label="End ▾" look={{ variant: 'secondary', size: 'sm' }} panelClass="end-panel" focusInput={false} open={open} onOpenChange={setOpen}
       title={tmux ? 'End this Claude session and close its tmux window' : `End this Claude session; its ${place} stays open`}>
-      <p className="reply-hint">
+      <MenuHint>
         {tmux
           ? `Ends Claude and closes ${place}. You can resume the session from Recently ended.`
           : `Ends Claude, as closing its ${place} would, with anything it's running; the ${place} stays open at your shell. You can resume the session from Recently ended.`}
-      </p>
+      </MenuHint>
       <ActionButton label="End session" title={tmux ? 'End Claude and close its tmux window' : 'End Claude'} look={{ variant: 'danger', size: 'sm' }}
         onDone={() => setOpen(false)}
         perform={async () => {

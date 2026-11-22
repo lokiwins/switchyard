@@ -38,7 +38,8 @@ export function ThemeMenu() {
       title="Theme, light or dark, and terminal colours for this browser"
       look={{ variant: 'secondary', size: 'glyph' }}
       // A short window scrolls the panel rather than the page.
-      panelClass="[--panel-min:300px] [--panel-max:340px] max-h-[calc(100vh-72px)] overflow-y-auto overscroll-contain"
+      width={[300, 340]}
+      panelClass="max-h-[calc(100vh-72px)] overflow-y-auto overscroll-contain"
       focusInput={false}
     >
       <div className="flex flex-col">

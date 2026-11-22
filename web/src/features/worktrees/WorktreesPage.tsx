@@ -18,6 +18,7 @@ import { groupRepos, SEGMENTED_VIEWS, summarize, VIEWS } from './views';
 import { Button } from '../../components/Button';
 import { Pill } from '../../components/Pill';
 import { Empty } from '../../components/Empty';
+import { filtersClass } from '../../components/classes';
 
 /* The Worktrees page: every checkout under the roots, its branch, PR and sessions; and your PRs with no checkout here. */
 
@@ -32,7 +33,7 @@ function Repos({ data, query }: { data: StateData; query: string }) {
   const groups = groupRepos(data.repos, { view, query, now });
   return (
     <Panel id="worktrees-title" title="Worktrees" head={(
-      <div className="filters">
+      <div className={filtersClass}>
         <SearchBox placeholder="Filter branch, path, PR…" label="Filter worktrees" value={query} onChange={setQuery} />
         <Segmented choices={CHOICES} value={view} onChange={setView} label="Show"
           extra={SEGMENTED_VIEWS.includes(view) ? null : { label: VIEWS[view].label, onClear: () => setView('all') }} />
@@ -58,13 +59,13 @@ function Repos({ data, query }: { data: StateData; query: string }) {
 function OrphanPrs({ prs }: { prs: OrphanPr[] }) {
   return (
     <Panel id="orphans-title" panelId="orphans-panel" title="My open PRs without a local worktree" hidden={prs.length === 0}>
-      <ul id="orphans" className="plain-list">
+      <ul id="orphans" className="list-none m-0 p-0 grid gap-0.5">
         {prs.map((pr) => (
-          <li key={pr.url} className="row">
-            <a href={pr.url} target="_blank" rel="noopener" className="mono">{`${pr.repository.nameWithOwner}#${pr.number}`}</a>
+          <li key={pr.url} className="flex flex-wrap items-center gap-1.5 py-1.5 px-2 rounded-sm hover:bg-hover">
+            <a href={pr.url} target="_blank" rel="noopener" className="font-mono text-xs">{`${pr.repository.nameWithOwner}#${pr.number}`}</a>
             {pr.isDraft && <Pill>Draft</Pill>}
             <span>{pr.title}</span>
-            <LiveTime since={Date.parse(pr.updatedAt)} prefix="updated " className="small muted" />
+            <LiveTime since={Date.parse(pr.updatedAt)} prefix="updated " className="text-xs leading-xs text-gray-500" />
           </li>
         ))}
       </ul>
