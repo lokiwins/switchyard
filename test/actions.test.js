@@ -16,7 +16,7 @@ function setup({
   host = iterm, tty = '/dev/ttys004', tabFound = true, alive = true, session = {}, state = {}, clients = [], paneTty = '/dev/ttys004',
   useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'], screen = '',
   integrated = [], paneShown = false, sessionUp = true, otherPanes = [],
-  proc = { pgid: 42, startedAt: Date.parse(PROC_START) }, exitsOn = ['SIGHUP'], limit = { check: async () => {} },
+  proc = { pgid: 42, startedAt: Date.parse(PROC_START) }, exitsOn = ['SIGHUP'], limit = { check: async () => {} }, defaultSettings,
 } = {}) {
   const calls = [];
   let running = alive;
@@ -79,6 +79,7 @@ function setup({
     folderExists: (path) => folders.includes(path),
     textFieldDelayMs: 0,
     limit,
+    ...(defaultSettings ? { defaultSettings } : {}),
     textFieldWaitMs: 20,
   });
   return { actions, calls };
@@ -565,4 +566,11 @@ test('over the running-agents limit, Resume and Open › a new session are refus
   await rejectsWith(actions.openWorktree({ path: '/w/feat', launch: 'claude' }), 409);
   await actions.openWorktree({ path: '/w/feat' });
   assert.deepEqual(calls, [['open', 'cd /w/feat']]);
+});
+
+test('Open\'s new Claude session gets switchyard\'s session settings file; another agent gets nothing added', async () => {
+  const { actions, calls } = setup({ defaultSettings: async () => '/c/session.settings.json' });
+  await actions.openWorktree({ path: '/w/feat', launch: 'claude' });
+  await actions.openWorktree({ path: '/w/feat', launch: 'other' });
+  assert.deepEqual(calls, [['open', "cd /w/feat && claude --settings '/c/session.settings.json'"], ['open', 'cd /w/feat && other-agent']]);
 });

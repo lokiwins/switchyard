@@ -22,6 +22,9 @@ Four pages share a header nav. Each nav link carries a badge counting what needs
 - **Recently ended:** sessions from the last 7 days that are no longer running, labelled by how their last turn ended:
   - *Interrupted*: the terminal closed mid-turn (an unanswered prompt, a tool call with no result, or a tool result never continued from)
   - *Stopped* (Esc), *Exited* (`/exit`), or *Finished*
+  - *Failed*: the last turn stopped on an API error (a rate limit, an overloaded API…), named in its hint
+
+  A session switchyard starts (a task, a lead, a worker, a reviewer, or Open ▾ › Claude) is told so by Claude Code itself: its settings file carries hooks that tell switchyard when a turn starts, finishes or fails, and when the session ends, so a turn that never finished reads Interrupted however the transcript ends. Your own Claude settings aren't changed. Other sessions, and ones that ran while switchyard was down, are read from the end of their transcript.
 
   Interruptions from the last 3 days are highlighted and flag their worktree. Sessions that never received a prompt are hidden.
 - **Filters and search:** tiles and a segmented control for All / Working / Waiting / Interrupted / Parked / Ended, plus search across name, repo, branch, folder and prompt. Click a prompt to expand it in place.

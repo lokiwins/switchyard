@@ -26,3 +26,13 @@ test('Claude\'s own default sends no mode, and no allowed tools write no file', 
 test('only a task id gets a file', async () => {
   await assert.rejects(createWorkerLaunch({ dir: freshDir() }).prepare('../x', { permissionMode: 'plan', allowedTools: ['Edit'] }), /task id/);
 });
+
+test('with the session event hooks, a worker always gets a settings file: its allowed tools, if any, and the hooks', async () => {
+  const dir = freshDir();
+  const withHooks = (settings) => ({ ...settings, hooks: { Stop: ['switchyard'] } });
+  const plain = await createWorkerLaunch({ dir, withHooks }).prepare('sy-wrk001', { permissionMode: 'claude', allowedTools: [] });
+  assert.deepEqual(plain, { settings: join(dir, 'workers', 'sy-wrk001.settings.json') });
+  assert.deepEqual(JSON.parse(readFileSync(plain.settings, 'utf8')), { hooks: { Stop: ['switchyard'] } });
+  const tools = await createWorkerLaunch({ dir, withHooks }).prepare('sy-wrk002', { permissionMode: 'claude', allowedTools: ['Edit'] });
+  assert.deepEqual(JSON.parse(readFileSync(tools.settings, 'utf8')), { permissions: { allow: ['Edit'] }, hooks: { Stop: ['switchyard'] } });
+});

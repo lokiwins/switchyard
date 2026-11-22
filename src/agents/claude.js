@@ -3,6 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { mapLimit } from '../exec.js';
+import { endStateFrom } from '../session-events.js';
 import { shellQuote, shellQuoteAlways } from '../shell.js';
 import { summarizeFile, transcriptDirName } from './claude-transcript.js';
 import { createHostDetector } from './host.js';
@@ -88,6 +89,8 @@ export async function readPlan(plansDir, file) {
  */
 export function createClaudeProvider({
   claudeDir, listTmuxPanes, readScreen = null, settings = () => DEFAULT_RUN, home = homedir(),
+  // How each session's last turn went, as its hooks told switchyard (see session-events.js): read over the transcript's guess.
+  sessionEvents = { get: () => null },
 }) {
   /** The program (with ~/ expanded) and options, as typed before anything else. Settings only allow plain words here. */
   function run() {
@@ -132,13 +135,19 @@ export function createClaudeProvider({
     try {
       const size = knownSize ?? (await stat(file)).size;
       const cached = summaries.get(file);
-      if (cached?.size === size) return cached.summary;
-      const summary = await summarizeFile(file);
-      summaries.set(file, { size, summary });
-      return summary;
+      const summary = cached?.size === size ? cached.summary : await summarizeFile(file);
+      if (cached?.size !== size) summaries.set(file, { size, summary });
+      return withEvents(basename(file, '.jsonl'), summary);
     } catch {
       return null;
     }
+  }
+
+  /** A summary with how its session ended taken from its recorded events, when it has some (events change; summaries are cached). */
+  function withEvents(sessionId, summary) {
+    const record = summary ? sessionEvents.get(sessionId) : null;
+    if (!record) return summary;
+    return { ...summary, endState: endStateFrom(record, summary.endState), endError: record.turn === 'failed' ? record.error : null };
   }
 
   async function readRegistryEntry(file) {
@@ -246,6 +255,7 @@ export function createClaudeProvider({
         cwd: transcript.cwd,
         endedAt: transcript.lastActivityAt ?? t.mtime,
         endState: transcript.endState,
+        endError: transcript.endError ?? null,
         resumeCommand: resumeHere(transcript.cwd, t.sessionId),
         transcript,
       };

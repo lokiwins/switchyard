@@ -6,7 +6,7 @@ import { testAgents } from './support/agents.js';
 const MAIN = '/w/my-repo';
 const state = { repos: [{ name: 'my-repo', mainPath: MAIN, worktrees: [] }] };
 
-function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths = [], windows = [], failWorktree = null, failFetch = false, limit = { check: async () => {} } } = {}) {
+function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths = [], windows = [], failWorktree = null, failFetch = false, limit = { check: async () => {} }, defaultSettings } = {}) {
   const calls = [];
   const git = async (args) => {
     calls.push(['git', ...args]);
@@ -41,6 +41,7 @@ function setup({ failTmux = null, refs = {}, originHead = 'origin/main', paths =
     git,
     exists: (path) => paths.includes(path),
     limit,
+    ...(defaultSettings ? { defaultSettings } : {}),
   });
   return { tasks, calls };
 }
@@ -258,4 +259,17 @@ test('over the running-agents limit, a task isn\'t started: no worktree, no wind
   const { tasks, calls } = setup({ limit: full });
   await rejectsWith(tasks.startTask({ repo: MAIN, prompt: 'Fix it', branch: 'fix-it' }), 409);
   assert.equal(calls.some((c) => c[0] === 'new-window' || (c[0] === 'git' && c[3] === 'worktree')), false, JSON.stringify(calls));
+});
+
+test('a task started with no settings of its own gets switchyard\'s session settings file; a lead or worker keeps its own', async () => {
+  const defaultSettings = async () => '/c/session.settings.json';
+  const plain = setup({ defaultSettings });
+  await plain.tasks.startTask({ repo: MAIN, prompt: 'Fix it', branch: 'fix-it' });
+  assert.match(plain.calls.find((c) => c[0] === 'type')[2], / 'Fix it' --settings '\/c\/session.settings.json'$/);
+  const lead = setup({ defaultSettings });
+  await lead.tasks.startTask({ repo: MAIN, prompt: 'Lead it', branch: 'lead-it' }, { settings: '/c/lead.settings.json' });
+  assert.doesNotMatch(lead.calls.find((c) => c[0] === 'type')[2], /session\.settings/);
+  const other = setup({ defaultSettings });
+  await other.tasks.startTask({ repo: MAIN, prompt: 'Fix it', branch: 'fix-it', provider: 'other' });
+  assert.doesNotMatch(other.calls.find((c) => c[0] === 'type')[2], /--settings/, 'an agent that takes no options gets none');
 });

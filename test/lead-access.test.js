@@ -77,3 +77,8 @@ test('a damaged secret file is not replaced (that would sign every running lead 
   await assert.rejects(createLeadAccess({ dir, port: 4477 }).tokenFor(LEAD), /mcp-secret/);
   assert.equal(readFileSync(join(dir, 'mcp-secret'), 'utf8'), 'not a secret\n');
 });
+
+test('a lead\'s settings carry switchyard\'s session event hooks too', async () => {
+  const files = await createLeadAccess({ dir: freshDir(), port: 4477, withHooks: (settings) => ({ ...settings, hooks: { Stop: ['switchyard'] } }) }).writeConfig(LEAD);
+  assert.deepEqual(JSON.parse(readFileSync(files.settings, 'utf8')), { ...LEAD_SETTINGS, hooks: { Stop: ['switchyard'] } });
+});
