@@ -1,6 +1,6 @@
 import { appearanceApi, useAppearance, type AppearanceKey } from '../lib/appearance';
 import { MODES, TERMINAL_CHOICES, THEMES, type Choice } from '../lib/themes';
-import { Menu } from './Menu';
+import { Menu, MenuItem, MenuLabel, MenuTitle } from './Menu';
 
 /* ◐ in the top bar: this browser's theme, light or dark, and terminal colours, or the Settings defaults. */
 
@@ -10,14 +10,21 @@ const GROUPS: { key: AppearanceKey; label: string; list: readonly Choice[] }[] =
   { key: 'terminal', label: 'Terminal', list: TERMINAL_CHOICES },
 ];
 
+// Terminal schemes sit two to a row, under the heading and the Settings default, which take a row each.
+const GROUP_LAYOUT: Record<AppearanceKey, string> = {
+  theme: 'flex flex-col',
+  mode: 'flex flex-col',
+  terminal: 'grid grid-cols-2 [&>:nth-child(-n+2)]:col-span-full',
+};
+
 const labelOf = (list: readonly Choice[], id: string | undefined) => list.find((c) => c.id === id)?.label ?? id ?? '';
 
 function ChoiceItem({ chosen, label, onChoose }: { chosen: boolean; label: string; onChoose: () => void }) {
   return (
-    <button type="button" className="menu-item theme-choice" role="menuitemradio" aria-checked={chosen} onClick={onChoose}>
-      <span className="theme-tick" aria-hidden="true">{chosen ? '✓' : ''}</span>
-      <span className="menu-title">{label}</span>
-    </button>
+    <MenuItem role="menuitemradio" aria-checked={chosen} onClick={onChoose}>
+      <span className="flex-none w-[1em] text-accent" aria-hidden="true">{chosen ? '✓' : ''}</span>
+      <MenuTitle>{label}</MenuTitle>
+    </MenuItem>
   );
 }
 
@@ -27,16 +34,17 @@ export function ThemeMenu() {
   if (!now || !api) return null;
   return (
     <Menu
-      label={<><span aria-hidden="true">◐</span><span className="visually-hidden">Theme</span></>}
+      label={<><span aria-hidden="true">◐</span><span className="sr-only">Theme</span></>}
       title="Theme, light or dark, and terminal colours for this browser"
       look={{ variant: 'secondary', size: 'glyph' }}
-      panelClass="theme-panel"
+      // A short window scrolls the panel rather than the page.
+      panelClass="[--panel-min:300px] [--panel-max:340px] max-h-[calc(100vh-72px)] overflow-y-auto overscroll-contain"
       focusInput={false}
     >
-      <div className="theme-choices">
-        {GROUPS.map(({ key, label, list }) => (
-          <div key={key} className={`theme-group is-${key}`} role="group" aria-label={label}>
-            <div className="menu-label">{label}</div>
+      <div className="flex flex-col">
+        {GROUPS.map(({ key, label, list }, index) => (
+          <div key={key} className={GROUP_LAYOUT[key]} role="group" aria-label={label}>
+            <MenuLabel divided={index > 0}>{label}</MenuLabel>
             <ChoiceItem
               chosen={!now.own[key]}
               label={`Settings default (${labelOf(list, now.defaults[key])})`}

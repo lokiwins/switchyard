@@ -5,7 +5,7 @@ import { LiveTime } from '../../components/LiveTime';
 import { Panel } from '../../components/Panel';
 import { RefreshButton } from '../../components/RefreshButton';
 import { SearchBox } from '../../components/SearchBox';
-import { TopBar } from '../../components/TopBar';
+import { TopBar, TopBarStatus } from '../../components/TopBar';
 import { useNow } from '../../lib/time';
 import { toast } from '../../stores/toast';
 import { taskActions, createTask } from './actions';
@@ -70,14 +70,14 @@ export function TasksPage() {
     <>
       <TopBar current="/tasks">
         <span id="connections"><ConnectionsMenu /></span>
-        <span id="updated" className="muted" aria-live="polite">{data ? <LiveTime since={data.checkedAt} prefix="Updated " /> : 'Loading…'}</span>
+        <TopBarStatus>{data ? <LiveTime since={data.checkedAt} prefix="Updated " /> : 'Loading…'}</TopBarStatus>
         <RefreshButton busy={fetching} onRefresh={refreshTasks} />
       </TopBar>
       <main>
         <Errors errors={errors.map((message) => ({ source: '', message }))} bare />
         <Panel id="tasks-title" title="Tasks" className="hub" head={(
           <div className="filters">
-            <span id="task-count" className="muted">{data?.tasks.length ? `${open} open` : ''}</span>
+            <span id="task-count" className="text-xs text-gray-500">{data?.tasks.length ? `${open} open` : ''}</span>
             <SearchBox placeholder="Filter title, id, notes, link, branch…" label="Filter tasks" value={query} onChange={setQuery} />
           </div>
         )}>

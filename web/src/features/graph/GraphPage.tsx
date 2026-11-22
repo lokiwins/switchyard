@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { TopBar } from '../../components/TopBar';
+import { TopBar, TopBarStatus } from '../../components/TopBar';
 import { shortPath } from '../../lib/paths';
 import { timeAgo } from '../../lib/time';
 import { useSessionGraph } from './api';
@@ -8,6 +8,10 @@ import { GraphCanvas, type GraphCanvasHandle } from './GraphCanvas';
 import { KINDS, kindCounts, type SessionGraph } from './model';
 import { useGraphUi } from './store';
 import { Button } from '../../components/Button';
+import { searchInputClass } from '../../components/SearchBox';
+import { Errors, messages } from '../../components/Errors';
+import { panelClass, panelHeadClass } from '../../components/Panel';
+import { cx } from '../../lib/cx';
 
 /*
  * A session's context graph: your prompts in order, and the files, tools,
@@ -36,7 +40,7 @@ function Legend({ graph }: { graph: SessionGraph | undefined }) {
   const counts = graph ? kindCounts(graph) : {};
   return (
     <fieldset className="graph-legend" id="legend">
-      <legend className="visually-hidden">Show</legend>
+      <legend className="sr-only">Show</legend>
       {Object.entries(KINDS).filter(([kind]) => counts[kind] && kind !== 'session').map(([kind, { name }]) => (
         <label key={kind} className="graph-kind">
           <input type="checkbox" checked={!hidden.includes(kind)} onChange={(event) => setShown(kind, event.target.checked)} />
@@ -64,7 +68,7 @@ function FindBox({ graph }: { graph: SessionGraph | undefined }) {
   };
   return (
     <>
-      <input type="search" id="find" list="node-names" placeholder="Find a node…" aria-label="Find a node" autoComplete="off" spellCheck={false}
+      <input type="search" id="find" className={searchInputClass} list="node-names" placeholder="Find a node…" aria-label="Find a node" autoComplete="off" spellCheck={false}
         value={text} onChange={(event) => setText(event.target.value)} onBlur={find} onKeyDown={(event) => { if (event.key === 'Enter') find(); }} />
       <datalist id="node-names">{labels.map((label) => <option key={label} value={label} />)}</datalist>
     </>
@@ -91,12 +95,12 @@ export function GraphPage() {
   return (
     <>
       <TopBar current="/graph">
-        <span id="updated" className="muted" aria-live="polite">{status({ graph, live, visible, updatedAt, error })}</span>
+        <TopBarStatus>{status({ graph, live, visible, updatedAt, error })}</TopBarStatus>
       </TopBar>
       <main className="graph-main">
-        <div id="errors" className="errors" hidden={!error}>{error && <div className="error">{error}</div>}</div>
-        <section className="panel graph-panel" aria-labelledby="graph-title">
-          <div className="panel-head">
+        <Errors errors={messages(error ? [error] : [])} bare />
+        <section className={cx(panelClass, 'graph-panel')} aria-labelledby="graph-title">
+          <div className={cx(panelHeadClass, 'graph-head')}>
             <div className="stack">
               <h2 id="graph-title">{title}</h2>
               <span className="muted small" id="graph-where">{graph?.cwd ? shortPath(graph.cwd) : ''}</span>

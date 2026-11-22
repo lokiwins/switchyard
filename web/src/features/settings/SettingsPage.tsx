@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
 import { NAV_KEY } from '../../components/nav-api';
 import { Panel } from '../../components/Panel';
-import { TopBar } from '../../components/TopBar';
+import { TopBar, TopBarStatus } from '../../components/TopBar';
 import { getJson, post } from '../../lib/api';
 import { appearanceApi } from '../../lib/appearance';
 import { shortPath } from '../../lib/paths';
@@ -14,6 +14,7 @@ import { editsFromFields, fieldsFromValues, hasChanges, type Fields, type Settin
 import { RepoChecklist } from './RepoChecklist';
 import { SelectSetting, SettingsFormProvider, TextSetting, ToggleSetting } from './SettingsForm';
 import { Button } from '../../components/Button';
+import { Errors, messages } from '../../components/Errors';
 
 /* The Settings page: what's saved in config.json, edited and saved here; they apply at once. */
 
@@ -199,9 +200,7 @@ function SettingsEditor({ view }: { view: SettingsView }) {
   const state = save.isPending ? 'Saving…' : save.isError ? 'Not saved' : changed ? 'Not saved yet' : '';
   return (
     <>
-      <div id="errors" className="errors" hidden={errors.length === 0}>
-        {errors.map((m, i) => <div key={i} className="error">{m}</div>)}
-      </div>
+      <Errors errors={messages(errors)} bare />
       <form id="settings" className="settings" noValidate onSubmit={submit}>
         <SettingsFormProvider value={{
           fields,
@@ -233,10 +232,10 @@ export function SettingsPage() {
   return (
     <>
       <TopBar current="/settings">
-        <span id="updated" className="muted" aria-live="polite">{settings.data || settings.error ? '' : 'Loading…'}</span>
+        <TopBarStatus>{settings.data || settings.error ? '' : 'Loading…'}</TopBarStatus>
       </TopBar>
       <main>
-        {settings.error && <div id="errors" className="errors">{<div className="error">{settings.error.message}</div>}</div>}
+        {settings.error && <Errors errors={messages([settings.error.message])} bare />}
         {settings.data && <SettingsEditor view={settings.data} />}
       </main>
     </>

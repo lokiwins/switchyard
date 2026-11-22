@@ -2,7 +2,7 @@ import { useIsFetching } from '@tanstack/react-query';
 import { useDeferredValue } from 'react';
 import { Errors, pageErrors } from '../../components/Errors';
 import { RefreshButton } from '../../components/RefreshButton';
-import { TopBar } from '../../components/TopBar';
+import { TopBar, TopBarStatus } from '../../components/TopBar';
 import { timeAgo, useNow } from '../../lib/time';
 import { AGENTS_KEY, refreshAgents, useAgents, useAgentStream } from './api';
 import { EndedPanel } from './EndedPanel';
@@ -10,12 +10,13 @@ import { NewTaskMenu } from './NewTaskMenu';
 import { RunningPanel } from './RunningPanel';
 import { useAgentsUi } from './store';
 import { AgentTiles } from './AgentTiles';
+import { panelClass } from '../../components/Panel';
 
 /* The Agents page: running sessions (and tasks starting), then recently ended ones. */
 
 function Updated({ at }: { at: number | undefined }) {
   const now = useNow();
-  return <span id="updated" className="muted" aria-live="polite">{at ? `Updated ${timeAgo(at, now)}` : 'Loading…'}</span>;
+  return <TopBarStatus>{at ? `Updated ${timeAgo(at, now)}` : 'Loading…'}</TopBarStatus>;
 }
 
 export function AgentsPage() {
@@ -41,7 +42,7 @@ export function AgentsPage() {
             <EndedPanel data={data} query={query} />
           </>
         ) : (
-          <section className="panel"><div className="empty">Looking for agent sessions…</div></section>
+          <section className={panelClass}><div className="empty">Looking for agent sessions…</div></section>
         )}
       </main>
     </>

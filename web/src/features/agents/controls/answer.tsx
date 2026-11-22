@@ -1,5 +1,5 @@
 import { Fragment, useState, type FormEvent } from 'react';
-import { Menu } from '../../../components/Menu';
+import { Menu, menuItemClass } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { announceChange } from '../../../lib/changes';
 import { tmuxPlace } from '../../../lib/paths';
@@ -143,7 +143,7 @@ export function AnswerControls({ session, style, onDone }: { session: LiveSessio
   );
 }
 
-const MENU_STYLE: AnswerStyle = { button: 'menu-item', form: 'reply-form', input: '', send: buttonClass({ size: 'sm' }) };
+const MENU_STYLE: AnswerStyle = { button: menuItemClass, form: 'reply-form', input: '', send: buttonClass({ size: 'sm' }) };
 
 /** "Answer ▾": the options of the dialog on a session's screen, each pressed there. */
 export function AnswerMenu({ session, approvals }: { session: LiveSession; approvals: Approval[] }) {

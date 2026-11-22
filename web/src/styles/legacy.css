@@ -11,86 +11,13 @@
  * - Fixed spacing scale and tinted grays; numbers use tabular figures.
  */
 
-.brand h1 { font-family: var(--font-display); font-weight: var(--font-weight-display); }
 .mono { font-family: var(--font-mono); font-size: var(--text-xs); }
 .muted { color: var(--gray-500); }
 .small { font-size: var(--text-xs); line-height: var(--leading-xs); }
 .stack { display: grid; gap: 2px; justify-items: start; min-width: 0; }
 .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
-/* ---------- top bar ---------- */
-.topbar {
-  position: sticky; top: 0; z-index: 5;
-  display: flex; justify-content: space-between; align-items: center; gap: --spacing(3);
-  padding: --spacing(2) --spacing(5);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: saturate(1.4) blur(10px);
-  box-shadow: 0 1px 0 var(--hairline);
-}
-.brand { display: flex; align-items: center; gap: --spacing(4); min-width: 0; }
-.brand .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); }
-.nav { display: flex; gap: 2px; }
-.nav a {
-  padding: 4px 10px; border-radius: var(--radius-sm);
-  color: var(--gray-500); font-size: var(--text-sm); font-weight: 600;
-}
-.nav a:hover { color: var(--gray-900); background: var(--hover); text-decoration: none; }
-.nav a[aria-current="page"] { color: var(--gray-900); background: var(--neutral-soft); }
-.nav a { display: inline-flex; align-items: center; gap: 6px; }
-.nav-badge {
-  min-width: 18px; padding: 0 5px; border-radius: 9px;
-  font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
-  background: var(--neutral-soft); color: var(--gray-700); box-shadow: inset 0 0 0 1px var(--hairline);
-}
-.nav-badge.amber { background: var(--amber-soft); color: var(--amber); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 30%, transparent); }
-.nav-badge.red { background: var(--red-soft); color: var(--red); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 30%, transparent); }
-.nav-badge.purple { background: var(--purple-soft); color: var(--purple); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--purple) 30%, transparent); }
-.topbar-actions { display: flex; align-items: center; gap: --spacing(3); flex-shrink: 0; font-size: var(--text-xs); }
 
-main {
-  max-width: 1360px; margin: 0 auto;
-  padding: --spacing(4) --spacing(5) --spacing(8);
-  /* One column as wide as the window: an auto column would grow to fit a wide table or row, scrolling the page sideways. */
-  display: grid; grid-template-columns: minmax(0, 1fr); gap: --spacing(4);
-}
-
-/* Open ▾ dropdown: a native <details>, so it works without JS state for keyboard users. */
-.menu { position: relative; display: inline-block; }
-.menu > summary { list-style: none; cursor: pointer; }
-.menu > summary::-webkit-details-marker { display: none; }
-.menu[open] > summary { background: var(--accent-fill); color: var(--on-accent); }
-.menu-panel {
-  position: fixed; z-index: 20;
-  display: flex; flex-direction: column;
-  /* Never wider than the window, less the 8px margin placePanel keeps each side. */
-  min-width: min(var(--panel-min, 220px), calc(100vw - 16px));
-  max-width: min(var(--panel-max, 340px), calc(100vw - 16px));
-  padding: --spacing(1);
-  border-radius: var(--radius-sm); background: var(--surface-raised);
-  box-shadow: inset 0 1px 0 var(--highlight), inset 0 0 0 1px var(--hairline), var(--shadow-md);
-}
-.menu-item {
-  display: flex; align-items: baseline; gap: --spacing(2);
-  padding: 5px --spacing(2); border: 0; border-radius: 4px;
-  font: inherit; font-size: var(--text-xs); line-height: var(--leading-xs);
-  text-align: left; color: var(--gray-700); background: transparent; cursor: pointer;
-}
-.menu-item:hover, .menu-item:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
-.menu-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.menu-meta { flex: none; font-size: 11px; color: var(--gray-500); }
-.menu-label {
-  margin-top: --spacing(1); padding: 6px --spacing(2) 2px;
-  border-top: 1px solid var(--divider);
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-500);
-}
-/* The theme menu in the top bar: ticked choices, theme then light or dark. */
-/* Terminal schemes sit two to a row; a short window scrolls the panel. */
-.theme-panel { --panel-min: 300px; --panel-max: 340px; max-height: calc(100vh - 72px); overflow-y: auto; overscroll-behavior: contain; }
-.theme-choices, .theme-group { display: flex; flex-direction: column; }
-.theme-group.is-terminal { display: grid; grid-template-columns: 1fr 1fr; }
-.theme-group.is-terminal > .menu-label, .theme-group.is-terminal > .theme-choice:nth-child(2) { grid-column: 1 / -1; }
-.theme-group:first-child .menu-label { margin-top: 0; border-top: 0; }
-.theme-tick { flex: none; width: 1em; color: var(--accent); }
 /* Reply ▾: a one-line message box in the dropdown panel. */
 .reply-panel { --panel-min: 340px; --panel-max: 420px; padding: --spacing(2); gap: 6px; }
 /* End ▾: what ending does, then the button that does it. */
@@ -124,7 +51,6 @@ main {
 .task-actions { display: flex; gap: --spacing(2); align-items: flex-end; justify-content: space-between; }
 /* Answer ▾: the options of the dialog on a tmux session's screen. */
 .answer-panel { min-width: 300px; max-width: 420px; padding: --spacing(2); gap: 4px; }
-.answer-panel .menu-item { white-space: normal; }
 .answer-question { margin: 0 0 2px; padding: 0 --spacing(2); font-size: var(--text-xs); font-weight: 600; color: var(--gray-900); }
 .reply-hint { margin: 0; font-size: 11px; line-height: var(--leading-xs); color: var(--gray-500); }
 .hint {
@@ -152,103 +78,13 @@ main {
 .live-dot.on { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
 .stale { color: var(--amber); }
 
-.errors {
-  padding: --spacing(2) --spacing(3); border-radius: var(--radius-sm);
-  background: var(--red-soft); color: var(--red);
-  box-shadow: inset 3px 0 0 var(--red);
-  font-size: var(--text-sm);
-}
 
-/* ---------- summary tiles ---------- */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: --spacing(2); }
-.tile {
-  position: relative; overflow: hidden;
-  display: flex; align-items: baseline; gap: --spacing(2);
-  text-align: left; font: inherit; color: inherit;
-  padding: 10px --spacing(3) 10px --spacing(4);
-  background: var(--surface); border: 0; border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-  cursor: pointer;
-  transition: box-shadow 150ms ease;
-}
-.tile::before {
-  content: ""; position: absolute; inset: 8px auto 8px 0; width: 3px; border-radius: 0 2px 2px 0;
-  background: var(--tone, transparent);
-}
-.tile:hover { box-shadow: inset 0 0 0 1px var(--gray-200), var(--shadow-md); }
-.tile[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
-.tile .value {
-  font-family: var(--font-display); font-size: var(--text-2xl); font-weight: var(--font-weight-display); line-height: 28px;
-  font-variant-numeric: tabular-nums; color: var(--gray-400);
-}
-.tile .label { color: var(--gray-500); font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 500; }
-.tile.tone-green { --tone: var(--green); }
-.tile.tone-amber { --tone: var(--amber); }
-.tile.tone-red { --tone: var(--red); }
-.tile.tone-purple { --tone: var(--purple); }
-.tile.has-value .value { color: var(--tone, var(--gray-900)); }
-
-/* ---------- panels ---------- */
-.panel {
-  background: var(--surface); border-radius: var(--radius-md);
-  box-shadow: inset 0 0 0 1px var(--hairline), var(--shadow-sm);
-  padding: --spacing(3) --spacing(4) --spacing(4);
-}
-.panel-head {
-  display: flex; justify-content: space-between; align-items: center; gap: --spacing(3);
-  flex-wrap: wrap; min-height: 32px; margin-bottom: --spacing(2);
-}
-.panel-head .muted { font-size: var(--text-xs); }
-/* A control next to the panel's title, with the filters still to the right. */
-.panel-head .panel-action { margin-right: auto; }
-/* Recently ended: the count stays beside Delete all ended, on the right. */
-#ended-count { margin-left: auto; }
 .subhead { display: flex; align-items: center; gap: --spacing(2); margin: --spacing(4) 0 --spacing(1); }
 .subhead .muted { font-size: var(--text-xs); }
 
 .filters { display: flex; gap: --spacing(2); align-items: center; flex-wrap: wrap; }
-.filters input {
-  font: inherit; font-size: var(--text-sm);
-  padding: 4px 10px; width: 240px; max-width: 100%;
-  border: 0; border-radius: var(--radius-sm);
-  background: var(--surface-sunken); color: var(--gray-900);
-  box-shadow: inset 0 0 0 1px var(--divider);
-}
-.filters input::placeholder { color: var(--gray-400); }
-.segmented .filter-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  font: inherit; font-size: var(--text-xs); font-weight: 600;
-  padding: 3px 6px 3px 10px; border: 0; border-radius: 4px; cursor: pointer;
-  background: var(--accent); color: var(--on-accent);
-}
-.segmented .filter-chip span { opacity: 0.8; }
-.segmented .filter-chip:hover span { opacity: 1; }
 .empty p { margin: 0 0 --spacing(2); }
-.segmented {
-  display: inline-flex; gap: 2px; padding: 2px;
-  background: var(--surface-sunken); border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px var(--divider);
-}
-.segmented button {
-  font: inherit; font-size: var(--text-xs); font-weight: 500;
-  padding: 3px 10px; border: 0; border-radius: 4px;
-  background: transparent; color: var(--gray-500); cursor: pointer;
-}
-.segmented button:hover { color: var(--gray-900); }
-.segmented button[aria-checked="true"] { background: var(--surface); color: var(--gray-900); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--hairline); }
-
 /* ---------- badges & status dots ---------- */
-.pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 0 6px; border-radius: var(--radius-sm);
-  font-size: 11px; font-weight: 600; line-height: 18px; white-space: nowrap;
-  background: var(--neutral-soft); color: var(--gray-700);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-}
-.pill.green { background: var(--green-soft); color: var(--green); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 22%, transparent); }
-.pill.amber { background: var(--amber-soft); color: var(--amber); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 25%, transparent); }
-.pill.red { background: var(--red-soft); color: var(--red); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 22%, transparent); }
-.pill.purple { background: var(--purple-soft); color: var(--purple); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--purple) 22%, transparent); }
 .tag { font-size: var(--text-xs); font-weight: 500; color: var(--gray-500); white-space: nowrap; }
 /* The task a worktree's branch is, beside the branch: a link, so it keeps the link colour. */
 .tag.task-tag { color: var(--accent); }
@@ -260,7 +96,6 @@ main {
 @keyframes pulse { 50% { opacity: 0.4; } }
 @media (prefers-reduced-motion: reduce) {
   .dot.busy { animation: none; }
-  .tile { transition: none; }
 }
 
 .num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; }
@@ -277,7 +112,6 @@ main {
   margin: 0 calc(-1 * --spacing(2));
 }
 .list-row:hover { background: var(--hover); }
-.list-row > .pill { justify-self: start; }
 .row-who { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .row-title { font-size: var(--text-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-where { font-size: var(--text-xs); color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -409,17 +243,6 @@ td .actions { flex-wrap: nowrap; }
 .plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .plain-list li { padding: 6px --spacing(2); border-radius: var(--radius-sm); }
 .plain-list li:hover { background: var(--hover); }
-
-.toast {
-  position: fixed; bottom: --spacing(5); left: 50%; transform: translateX(-50%);
-  padding: --spacing(2) --spacing(4); border-radius: var(--radius-sm);
-  background: var(--gray-900); color: var(--surface); font-size: var(--text-sm); font-weight: 500;
-  box-shadow: var(--shadow-md);
-}
-.toast-action {
-  margin-left: --spacing(3); padding: 0; border: 0; background: transparent;
-  font: inherit; font-weight: 600; color: inherit; text-decoration: underline; cursor: pointer;
-}
 
 /* ---------- tasks page ---------- */
 .tool-card {
@@ -561,7 +384,6 @@ details.hub-group[open] > summary::before { content: "▾"; }
 
 /* Settings: one panel per area, each setting a label over its field, with what it does below. */
 .settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: --spacing(4); max-width: 760px; }
-.settings .panel { margin: 0; }
 .setting { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: --spacing(1); min-width: 0; margin-bottom: --spacing(4); }
 .setting:last-child { margin-bottom: 0; }
 .setting-label { font-size: var(--text-sm); font-weight: 600; color: var(--gray-900); }
@@ -592,24 +414,10 @@ fieldset.setting > legend { padding: 0; margin-bottom: --spacing(1); }
 .settings-actions { display: flex; gap: --spacing(2); align-items: center; }
 
 @media (max-width: 640px) {
-  .topbar, main { padding-left: --spacing(4); padding-right: --spacing(4); }
-  .panel { padding: --spacing(3); }
-  .brand .muted { display: none; }
-  .filters input { width: 100%; }
-  /* Two rows: the name with the buttons, then the pages across the full width. */
-  .topbar { flex-wrap: wrap; row-gap: --spacing(1); }
-  .brand { display: contents; }
-  .topbar h1 { order: 1; }
-  .topbar-actions { order: 2; margin-left: auto; }
-  .topbar-actions #updated { display: none; }
-  /* Five pages don't fit across a phone: they wrap to a second line rather than widen the page. */
-  .nav { order: 3; flex-basis: 100%; min-width: 0; flex-wrap: wrap; row-gap: 2px; }
-  .nav a { padding: 4px 6px; white-space: nowrap; }
   .pr { grid-template-columns: minmax(0, 1fr); }
   /* A checked-out PR's folder can be long: it gets an ellipsis (the full path is its tooltip), not the page's width. */
   .pr-signals > .sig { max-width: 100%; min-width: 0; }
   .pr-signals .path-inline { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .segmented { display: flex; flex-wrap: wrap; }
   /* A pane fills a phone's screen already; there's nothing to drag. */
   .pane-resize { display: none; }
   /* A session row stacks: status and title, then what it's doing, then its buttons. */
@@ -630,9 +438,7 @@ fieldset.setting > legend { padding: 0; margin-bottom: --spacing(1); }
   .pr-side { grid-row: auto; grid-column: 1; }
   .team-row { grid-template-columns: 1fr; }
 }
-/* The smallest phones (320px): the four page links only fit a little tighter. */
 @media (max-width: 360px) {
-  .nav a { padding: 4px; gap: 4px; font-size: var(--text-xs); }
   /* A PR's repo#number goes under its title, so the title has room. */
   .pr-line { flex-wrap: wrap; row-gap: 0; }
   .pr-line > .pr-ref { flex-basis: 100%; }
@@ -881,10 +687,6 @@ html:has(.glass-pane[open]) { overflow: hidden; }
 }
 /* Cytoscape's own container rule, here because the CSP blocks the <style> it would add (see graph.html). */
 .__________cytoscape_container { position: relative; }
-.visually-hidden {
-  position: absolute; width: 1px; height: 1px; overflow: hidden;
-  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
-}
 .graph-main { max-width: none; }
 .graph-legend {
   display: flex; flex-wrap: wrap; gap: --spacing(1) --spacing(3);
@@ -944,7 +746,7 @@ html:has(.glass-pane[open]) { overflow: hidden; }
   .graph-detail { max-height: none; }
 }
 #graph-where { overflow-wrap: anywhere; }
-.graph-panel .panel-head > .stack { flex: 1 1 280px; }
+.graph-panel .graph-head > .stack { flex: 1 1 280px; }
 .graph-panel .filters { flex-wrap: nowrap; }
 .graph-panel #find { width: 220px; min-width: 0; flex: 1 1 auto; }
 @media (max-width: 760px) {

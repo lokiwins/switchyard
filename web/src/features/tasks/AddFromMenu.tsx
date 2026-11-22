@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
-import { Menu } from '../../components/Menu';
+import { Menu, menuItemClass, menuMetaClass, MenuTitle } from '../../components/Menu';
 import { readPref, writePref } from '../../lib/prefs';
 import { statusStyle } from '../../lib/status-style';
 import { fetchTickets, useTaskTools } from './api';
 import { matchesTicket, taskFromTicket, unlinkedTickets } from './logic';
 import type { HubTask, TaskFields, TaskTool, Ticket } from './types';
+import { Pill } from '../../components/Pill';
 
 /*
  * Add from ▾: a tab per tracker, each listing the open tickets assigned to
@@ -27,7 +28,7 @@ function ConnectHint({ tool }: { tool: TaskTool }) {
 const Note = ({ children }: { children: ReactNode }) => <p className="picker-note">{children}</p>;
 
 const TicketStatus = ({ status }: { status: Ticket['status'] }) => (
-  <span className="pill ticket-status" title={`Status: ${status.name}`} style={statusStyle(status.color)}>{status.name}</span>
+  <Pill className="ticket-status" title={`Status: ${status.name}`} style={statusStyle(status.color)}>{status.name}</Pill>
 );
 
 function TicketList({ tool, tasks, query, onCreate }: { tool: TaskTool; tasks: HubTask[]; query: string; onCreate: Create }) {
@@ -52,15 +53,15 @@ function TicketList({ tool, tasks, query, onCreate }: { tool: TaskTool; tasks: H
     <button
       key={ticket.id}
       type="button"
-      className="menu-item picker-item"
+      className={`${menuItemClass} picker-item`}
       role="menuitem"
       title={`Add a task for ${ticket.name}`}
       disabled={adding.has(ticket.id)}
       onClick={() => void add(ticket)}
     >
       <TicketStatus status={ticket.status} />
-      <span className="menu-title">{ticket.name}</span>
-      <span className="menu-meta">{[ticket.customId ?? ticket.id, ticket.where].filter(Boolean).join(' · ')}</span>
+      <MenuTitle>{ticket.name}</MenuTitle>
+      <span className={menuMetaClass}>{[ticket.customId ?? ticket.id, ticket.where].filter(Boolean).join(' · ')}</span>
     </button>
   ));
 }

@@ -4,6 +4,7 @@ import { DeleteAllButton } from './controls/delete';
 import { EndedRow } from './EndedRow';
 import { endedMatches, endedShown, endedWorkers, FILTERS, runningShown } from './filters';
 import { useAgentsUi } from './store';
+import { Pill } from '../../components/Pill';
 
 export function EndedPanel({ data, query }: { data: AgentsData; query: string }) {
   const filter = useAgentsUi((s) => s.filter);
@@ -21,9 +22,9 @@ export function EndedPanel({ data, query }: { data: AgentsData; query: string })
   return (
     <Panel id="ended-title" panelId="ended-panel" title="Recently ended" hidden={!ended} head={(
       <>
-        <span id="ended-count" className="muted">
+        <span id="ended-count" className="ml-auto text-xs text-gray-500">
           {`${sessions.length} in the last ${data.endedHistoryDays} days`}
-          {interrupted > 0 && <>{' · '}<span className="pill amber">{`${interrupted} interrupted`}</span></>}
+          {interrupted > 0 && <>{' · '}<Pill tone="amber">{`${interrupted} interrupted`}</Pill></>}
         </span>
         <span id="ended-actions">
           {sessions.length > 0 && <DeleteAllButton sessions={sessions} label={everything ? 'Delete all ended' : `Delete these ${sessions.length}`} />}

@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Menu } from '../../../components/Menu';
+import { Menu, MenuItem, MenuTitle } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { announceChange } from '../../../lib/changes';
 import type { EndedSession } from '../../../lib/types';
@@ -50,10 +50,10 @@ const trashTranscript = (sessionId: string) => withUndo({
 function DeleteChoice({ title, hint, perform, onDone }: { title: string; hint: string; perform: () => Promise<void>; onDone: () => void }) {
   const action = useMutation({ mutationFn: perform, onSuccess: onDone, onError: (error) => toast(error.message) });
   return (
-    <button type="button" className="menu-item delete-choice" disabled={action.isPending} onClick={() => action.mutate()}>
-      <span className="menu-title">{title}</span>
+    <MenuItem className="delete-choice" disabled={action.isPending} onClick={() => action.mutate()}>
+      <MenuTitle>{title}</MenuTitle>
       <span className="delete-hint">{hint}</span>
-    </button>
+    </MenuItem>
   );
 }
 

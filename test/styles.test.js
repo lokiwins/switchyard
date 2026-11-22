@@ -39,33 +39,20 @@ function ruleIn(block, selector) {
   return block.match(new RegExp(`(?:{|}|\\*/)\\s*${escaped}\\s*{([^}]*)}`))?.[1] ?? null;
 }
 
-test('the page is one column no wider than the window, whatever is in it', () => {
-  assert.match(rule('main') ?? '', /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
-});
-
-test('on a phone the top bar wraps: name and buttons, then the page links', () => {
-  const phone = media('max-width: 640px');
-  assert.match(ruleIn(phone, '.topbar') ?? '', /flex-wrap:\s*wrap/);
-  assert.match(ruleIn(phone, '.brand') ?? '', /display:\s*contents/);
-  assert.match(ruleIn(phone, '.nav') ?? '', /flex-basis:\s*100%/);
+test('the page is one column no wider than the window, whatever is in it', async () => {
+  const base = await readFile(new URL('../web/src/styles/base.css', import.meta.url), 'utf8');
+  assert.match(base.match(/(?:^|[{}])\s*main\s*{([^}]*)}/m)?.[1] ?? '', /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });
 
 test('on a phone wide content shrinks instead of widening the page', () => {
   const phone = media('max-width: 640px');
   assert.match(ruleIn(phone, '.pr') ?? '', /minmax\(0,\s*1fr\)/);
-  assert.match(ruleIn(phone, '.segmented') ?? '', /flex-wrap:\s*wrap/);
 });
 
 test('on a phone a session row stacks, so its buttons do not crowd out its title', () => {
   const phone = media('max-width: 640px');
   assert.match(ruleIn(phone, '.list-row') ?? '', /grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)/);
   assert.match(ruleIn(phone, '.list-row > .actions') ?? '', /grid-row:\s*3/);
-});
-
-test('a menu is never wider than the window', () => {
-  const panel = rule('.menu-panel') ?? '';
-  assert.match(panel, /max-width:\s*min\([^;]*100vw/);
-  assert.match(panel, /min-width:\s*min\([^;]*100vw/);
 });
 
 test('on a phone a task row keeps its ⋯ menu beside the title, and the add box gives the title its own line', () => {

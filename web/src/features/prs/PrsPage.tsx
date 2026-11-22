@@ -6,7 +6,7 @@ import { Panel } from '../../components/Panel';
 import { RefreshButton } from '../../components/RefreshButton';
 import { SearchBox } from '../../components/SearchBox';
 import { Tiles } from '../../components/Tiles';
-import { TopBar } from '../../components/TopBar';
+import { TopBar, TopBarStatus } from '../../components/TopBar';
 import { cx } from '../../lib/cx';
 import { PRS_KEY, refreshPrs, usePrs } from './api';
 import { FILTERS, matchesQuery, prTiles, visiblePrs } from './filters';
@@ -20,11 +20,11 @@ import type { Pr, PrsData } from './types';
 /** "● Live · GitHub checked 12s ago" while the stream is connected. */
 function LiveStatus({ live, syncedAt }: { live: boolean; syncedAt?: number | null }) {
   return (
-    <span id="updated" className="muted" aria-live="polite">
+    <TopBarStatus>
       <span className={cx('live-dot', live && 'on')} title={live ? 'Receiving updates as they happen' : 'Reconnecting…'} />
       {live ? 'Live · ' : 'Reconnecting · '}
       {syncedAt ? <LiveTime since={syncedAt} prefix="GitHub checked " /> : 'Loading…'}
-    </span>
+    </TopBarStatus>
   );
 }
 
@@ -58,7 +58,7 @@ function Lists({ data }: { data: PrsData }) {
             emptyText={data.authored.length ? `No PRs${filtered}.` : 'You have no open pull requests.'} />
         </div>
       </Panel>
-      <Panel id="review-title" title="Review requested from you" head={<span id="review-count" className="muted">{`${data.reviewRequested.length} open`}</span>}>
+      <Panel id="review-title" title="Review requested from you" head={<span id="review-count" className="text-xs text-gray-500">{`${data.reviewRequested.length} open`}</span>}>
         <div id="review">
           <PrList prs={visiblePrs(data.reviewRequested, filter, query)} data={data} showAuthor canAskCopilot={false}
             emptyText={data.reviewRequested.length ? `No review requests${filtered}.` : 'No one is waiting on your review.'} />
