@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import legacy from '../../styles/legacy.css?raw';
+import { cssSource } from '../../styles/source';
 import { PrCard } from './PrCard';
 import type { Pr } from './types';
 
 afterEach(cleanup);
+
+const legacy = cssSource('legacy');
 
 const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/);
 
