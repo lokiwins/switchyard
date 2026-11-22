@@ -100,7 +100,7 @@ export function GraphPage() {
       <main className="graph-main">
         <Errors errors={messages(error ? [error] : [])} bare />
         <section className={cx(panelClass, 'graph-panel')} aria-labelledby="graph-title">
-          <div className={cx(panelHeadClass, 'graph-head')}>
+          <div className={cx(panelHeadClass, 'mb-2 graph-head')}>
             <div className="stack">
               <h2 id="graph-title">{title}</h2>
               <span className="muted small" id="graph-where">{graph?.cwd ? shortPath(graph.cwd) : ''}</span>

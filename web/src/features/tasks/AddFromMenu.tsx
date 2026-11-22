@@ -7,6 +7,7 @@ import { fetchTickets, useTaskTools } from './api';
 import { matchesTicket, taskFromTicket, unlinkedTickets } from './logic';
 import type { HubTask, TaskFields, TaskTool, Ticket } from './types';
 import { Pill } from '../../components/Pill';
+import { Dot } from '../../components/Dot';
 
 /*
  * Add from ▾: a tab per tracker, each listing the open tickets assigned to
@@ -84,7 +85,7 @@ function Picker({ tools, tasks, onCreate }: { tools: TaskTool[]; tasks: HubTask[
       <div className="picker-tabs" role="tablist" aria-label="Tracker">
         {tools.map((t) => (
           <button key={t.id} type="button" role="tab" className="picker-tab" aria-selected={t.id === tool?.id} onClick={() => pick(t.id)}>
-            {t.connected && <span className="dot connected" aria-hidden="true" />}
+            {t.connected && <Dot state="connected" />}
             {t.name}
           </button>
         ))}

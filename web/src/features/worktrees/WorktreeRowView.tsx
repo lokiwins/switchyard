@@ -11,6 +11,7 @@ import { TaskFromWork } from '../panes/TaskFromWork';
 import { CleanupMenu } from './CleanupMenu';
 import type { RepoGroup, WorktreeRow } from './types';
 import { Pill } from '../../components/Pill';
+import { Dot } from '../../components/Dot';
 
 /* A worktree's row: its branch, local changes, PR, agents, last activity, and ways in. */
 
@@ -112,7 +113,7 @@ function InlineSession({ s }: { s: LiveSession }) {
   return (
     <div className="cell-lines">
       <div className="line">
-        <span className={`dot ${sessionDot(s)}`} aria-hidden="true" />
+        <Dot state={sessionDot(s)} />
         <span className="small no-shrink">{sessionLabel(s)}</span>
         <span className="small strong" title={s.cwd}>{sessionTitle(s)}</span>
       </div>

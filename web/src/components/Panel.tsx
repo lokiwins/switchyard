@@ -4,8 +4,8 @@ import { cx } from '../lib/cx';
 /** A panel's box, for one that isn't a <Panel> (a folding one, the graph's). */
 export const panelClass = 'bg-surface rounded-md shadow-[inset_0_0_0_1px_var(--hairline),var(--shadow-sm)] px-4 pt-3 pb-4 max-phone:p-3';
 
-/** A panel's heading row: the title, then whatever goes beside it, wrapping where it doesn't fit. */
-export const panelHeadClass = 'flex flex-wrap justify-between items-center gap-3 min-h-8 mb-2';
+/** A panel's heading row: the title, then whatever goes beside it, wrapping where it doesn't fit. The space under it is the caller's (mb-2 in a <Panel>). */
+export const panelHeadClass = 'flex flex-wrap justify-between items-center gap-3 min-h-8';
 
 /** One of a page's panels: a heading, what goes beside it, then its body. `id` names its heading, for the panel's label. */
 export function Panel({ id, title, head, hidden, panelId, className, children }: {
@@ -20,7 +20,7 @@ export function Panel({ id, title, head, hidden, panelId, className, children }:
 }) {
   return (
     <section className={cx(panelClass, className)} id={panelId} aria-labelledby={id} hidden={hidden}>
-      <div className={panelHeadClass}>
+      <div className={cx(panelHeadClass, 'mb-2')}>
         <h2 id={id}>{title}</h2>
         {head}
       </div>

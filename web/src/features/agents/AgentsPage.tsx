@@ -11,6 +11,7 @@ import { RunningPanel } from './RunningPanel';
 import { useAgentsUi } from './store';
 import { AgentTiles } from './AgentTiles';
 import { panelClass } from '../../components/Panel';
+import { Empty } from '../../components/Empty';
 
 /* The Agents page: running sessions (and tasks starting), then recently ended ones. */
 
@@ -42,7 +43,7 @@ export function AgentsPage() {
             <EndedPanel data={data} query={query} />
           </>
         ) : (
-          <section className={panelClass}><div className="empty">Looking for agent sessions…</div></section>
+          <section className={panelClass}><Empty>Looking for agent sessions…</Empty></section>
         )}
       </main>
     </>

@@ -15,7 +15,7 @@ export function CopyButton({ label, text, title }: { label: string; text: string
   };
   return (
     <Button type="button" variant="icon" title={`Copy: ${title ?? text}`} aria-label={`Copy ${label} command`} onClick={copy}>
-      <span className="copy-icon" aria-hidden="true">⧉</span>
+      <span className="mr-[3px] opacity-70" aria-hidden="true">⧉</span>
       {label}
     </Button>
   );
