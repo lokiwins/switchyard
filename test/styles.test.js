@@ -44,11 +44,6 @@ test('the page is one column no wider than the window, whatever is in it', async
   assert.match(base.match(/(?:^|[{}])\s*main\s*{([^}]*)}/m)?.[1] ?? '', /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });
 
-test('on a phone wide content shrinks instead of widening the page', () => {
-  const phone = media('max-width: 640px');
-  assert.match(ruleIn(phone, '.pr') ?? '', /minmax\(0,\s*1fr\)/);
-});
-
 test('on a phone a session row stacks, so its buttons do not crowd out its title', () => {
   const phone = media('max-width: 640px');
   assert.match(ruleIn(phone, '.list-row') ?? '', /grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)/);

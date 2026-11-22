@@ -13,6 +13,7 @@ import { endedWorkers, FILTER_KEYS, FILTERS, locateSession, nestWorkers, pending
 import { LiveRow } from './LiveRow';
 import { PendingRow } from './PendingRow';
 import { useAgentsUi } from './store';
+import { Empty } from '../../components/Empty';
 
 const NO_APPROVALS: Approval[] = [];
 
@@ -113,7 +114,7 @@ export function RunningPanel({ data, query }: { data: AgentsData; query: string 
         {starting.length > 0 && (
           <ul className="list pending-list">{starting.map((task) => <PendingRow key={task.id} task={task} now={now} />)}</ul>
         )}
-        {sessions.length === 0 && starting.length === 0 && <div className="empty">{empty}</div>}
+        {sessions.length === 0 && starting.length === 0 && <Empty>{empty}</Empty>}
         {active.length > 0 && <SessionList sessions={active} ended={ended} data={data} />}
         {parked.length > 0 && active.length > 0 && filter !== 'parked' && (
           <button type="button" className="list-toggle" onClick={toggleParked}>

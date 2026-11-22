@@ -17,6 +17,7 @@ import { useTasksUi } from './store';
 import { TaskGroups } from './TaskGroups';
 import type { HubData } from './types';
 import { WorktreeChoices } from './WorktreeChoices';
+import { Empty } from '../../components/Empty';
 
 /* The Tasks page: your own tasks, what needs you first, then by when they're due, each with the work on it. */
 
@@ -41,7 +42,7 @@ function TaskList({ data, query }: { data: HubData; query: string }) {
   const now = useNow();
   const shown = data.tasks.filter((task) => matchesHubTask(task, query));
   if (shown.length === 0) {
-    return <div className="empty">{data.tasks.length ? `No tasks match “${query}”.` : EMPTY_TEXT}</div>;
+    return <Empty>{data.tasks.length ? `No tasks match “${query}”.` : EMPTY_TEXT}</Empty>;
   }
   const tasks = shown.map((task) => ({
     ...task,
@@ -83,7 +84,7 @@ export function TasksPage() {
         )}>
           <div id="new-task"><NewTaskForm tasks={data?.tasks ?? []} onCreate={(fields) => createTask(fields)} /></div>
           <WorktreeChoices choices={data?.worktreeChoices ?? []} />
-          <div id="tasks">{data ? <TaskList data={data} query={query} /> : <div className="empty">Loading your tasks…</div>}</div>
+          <div id="tasks">{data ? <TaskList data={data} query={query} /> : <Empty>Loading your tasks…</Empty>}</div>
         </Panel>
       </main>
     </>

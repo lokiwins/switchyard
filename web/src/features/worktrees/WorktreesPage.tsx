@@ -17,6 +17,7 @@ import type { OrphanPr, StateData } from './types';
 import { groupRepos, SEGMENTED_VIEWS, summarize, VIEWS } from './views';
 import { Button } from '../../components/Button';
 import { Pill } from '../../components/Pill';
+import { Empty } from '../../components/Empty';
 
 /* The Worktrees page: every checkout under the roots, its branch, PR and sessions; and your PRs with no checkout here. */
 
@@ -39,7 +40,7 @@ function Repos({ data, query }: { data: StateData; query: string }) {
     )}>
       <div id="repos">
         {groups.length === 0 ? (
-          <div className="empty">
+          <Empty>
             <p>No worktrees match this view.</p>
             {(view !== 'all' || query) && (
               <Button type="button" variant="secondary" size="sm" onClick={() => {
@@ -47,7 +48,7 @@ function Repos({ data, query }: { data: StateData; query: string }) {
                 setView('all');
               }}>Show all worktrees</Button>
             )}
-          </div>
+          </Empty>
         ) : groups.map(({ repo, rows }) => <RepoSection key={repo.mainPath} repo={repo} rows={rows} caps={data.capabilities} />)}
       </div>
     </Panel>
@@ -97,7 +98,7 @@ export function WorktreesPage() {
             <OrphanPrs prs={data.prsWithoutWorktree} />
           </>
         ) : (
-          <Panel id="worktrees-title" title="Worktrees"><div id="repos"><div className="empty">Scanning worktrees, PRs and agent sessions…</div></div></Panel>
+          <Panel id="worktrees-title" title="Worktrees"><div id="repos"><Empty>Scanning worktrees, PRs and agent sessions…</Empty></div></Panel>
         )}
       </main>
     </>

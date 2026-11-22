@@ -55,6 +55,10 @@
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+
+  /* A working agent's dot (see Dot.tsx). */
+  --animate-dot-pulse: dot-pulse 1.4s ease-in-out infinite;
+  @keyframes dot-pulse { 50% { opacity: 0.4; } }
 }
 
 /* The colour utilities, each reading its token from themes.css as the theme and mode change. */

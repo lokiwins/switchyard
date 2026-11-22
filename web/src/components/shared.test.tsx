@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import legacy from '../styles/legacy.css?raw';
+import { cssSource } from '../styles/source';
 import { NAV_KEY } from './nav-api';
 import { Menu, MenuItem, MenuLabel } from './Menu';
 import { Panel } from './Panel';
@@ -18,6 +18,8 @@ import { TopBar, TopBarStatus } from './TopBar';
  */
 
 afterEach(cleanup);
+
+const legacy = cssSource('legacy');
 
 function withNav(children: ReactNode, nav: Record<string, unknown> = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });

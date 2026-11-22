@@ -6,6 +6,7 @@ import { changeTools, useTaskTools } from './api';
 import type { TaskTool } from './types';
 import { Button } from '../../components/Button';
 import { Pill } from '../../components/Pill';
+import { Dot } from '../../components/Dot';
 
 /*
  * Connections ▾ in the header: which trackers are connected, and a card for
@@ -14,7 +15,7 @@ import { Pill } from '../../components/Pill';
 
 const HELP_URL = 'https://app.clickup.com/settings/apps';
 
-const ConnectedDot = () => <span className="dot connected" aria-hidden="true" />;
+const ConnectedDot = () => <Dot state="connected" />;
 
 /** The token form on the ClickUp card, before it's connected. */
 function ConnectForm() {
@@ -109,7 +110,7 @@ export function ConnectionsMenu() {
   const connected = tools.filter((tool) => tool.connected);
   return (
     <Menu
-      label={<><span className={cx('dot', connected.length > 0 && 'connected')} aria-hidden="true" /> Connections ▾</>}
+      label={<><Dot state={connected.length > 0 ? 'connected' : null} /> Connections ▾</>}
       title={connected.length ? `Connected: ${connected.map((tool) => tool.name).join(', ')}` : 'No tracker connected'}
       look={{ variant: 'secondary' }}
       triggerClass="inline-flex items-center gap-1.5"

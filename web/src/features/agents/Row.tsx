@@ -4,6 +4,7 @@ import { cx } from '../../lib/cx';
 import { isDue, useNow } from '../../lib/time';
 import type { Detail, LiveSession, TrackerTask } from '../../lib/types';
 import { Pill } from '../../components/Pill';
+import { Dot } from '../../components/Dot';
 
 /*
  * One line in a session list, shared by live, starting and ended sessions so
@@ -14,7 +15,7 @@ import { Pill } from '../../components/Pill';
 export function StatusBadge({ tone = '', dot, label, hint }: { tone?: string; dot?: string | null; label: string; hint?: string }) {
   return (
     <Pill tone={tone} title={hint}>
-      {dot && <span className={cx('dot', dot)} aria-hidden="true" />}
+      {dot && <Dot state={dot} />}
       {label}
     </Pill>
   );

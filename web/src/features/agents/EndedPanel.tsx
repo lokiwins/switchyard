@@ -5,6 +5,7 @@ import { EndedRow } from './EndedRow';
 import { endedMatches, endedShown, endedWorkers, FILTERS, runningShown } from './filters';
 import { useAgentsUi } from './store';
 import { Pill } from '../../components/Pill';
+import { Empty } from '../../components/Empty';
 
 export function EndedPanel({ data, query }: { data: AgentsData; query: string }) {
   const filter = useAgentsUi((s) => s.filter);
@@ -32,7 +33,7 @@ export function EndedPanel({ data, query }: { data: AgentsData; query: string })
       </>
     )}>
       <div id="ended">
-        {sessions.length === 0 ? <div className="empty">No ended sessions match.</div> : (
+        {sessions.length === 0 ? <Empty>No ended sessions match.</Empty> : (
           <ul className="list">{shown.map((s) => <EndedRow key={s.sessionId} session={s} caps={data.capabilities} />)}</ul>
         )}
         {more > 0 && (

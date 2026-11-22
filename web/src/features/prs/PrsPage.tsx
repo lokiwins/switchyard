@@ -14,6 +14,8 @@ import { PrCard } from './PrCard';
 import { usePrsUi } from './store';
 import { TeamList } from './TeamList';
 import type { Pr, PrsData } from './types';
+import { Empty } from '../../components/Empty';
+import { filtersClass, stackedListClass } from '../../components/classes';
 
 /* The pull requests page: yours, the ones waiting on your review, and your teams'. */
 
@@ -21,7 +23,7 @@ import type { Pr, PrsData } from './types';
 function LiveStatus({ live, syncedAt }: { live: boolean; syncedAt?: number | null }) {
   return (
     <TopBarStatus>
-      <span className={cx('live-dot', live && 'on')} title={live ? 'Receiving updates as they happen' : 'Reconnecting…'} />
+      <span className={cx('inline-block size-1.5 mr-1.5 rounded-full align-middle', live ? 'bg-green shadow-[0_0_0_3px_color-mix(in_srgb,var(--green)_22%,transparent)]' : 'bg-gray-400')} title={live ? 'Receiving updates as they happen' : 'Reconnecting…'} />
       {live ? 'Live · ' : 'Reconnecting · '}
       {syncedAt ? <LiveTime since={syncedAt} prefix="GitHub checked " /> : 'Loading…'}
     </TopBarStatus>
@@ -31,9 +33,9 @@ function LiveStatus({ live, syncedAt }: { live: boolean; syncedAt?: number | nul
 function PrList({ prs, emptyText, showAuthor, canAskCopilot, data }: {
   prs: Pr[]; emptyText: string; showAuthor: boolean; canAskCopilot: boolean; data: PrsData;
 }) {
-  if (prs.length === 0) return <div className="empty">{emptyText}</div>;
+  if (prs.length === 0) return <Empty>{emptyText}</Empty>;
   return (
-    <ul className="list pr-list">
+    <ul className={stackedListClass}>
       {prs.map((pr) => (
         <PrCard key={`${pr.repo}#${pr.number}`} pr={pr} showAuthor={showAuthor} canAskCopilot={canAskCopilot} caps={data.capabilities} />
       ))}
@@ -49,7 +51,7 @@ function Lists({ data }: { data: PrsData }) {
   return (
     <>
       <Panel id="authored-title" title="My pull requests" head={(
-        <div className="filters">
+        <div className={filtersClass}>
           <SearchBox placeholder="Filter title, repo, branch, author…" label="Filter pull requests" value={query} onChange={setQuery} />
         </div>
       )}>
@@ -92,7 +94,7 @@ export function PrsPage() {
             <Lists data={data} />
           </>
         ) : (
-          <Panel id="authored-title" title="My pull requests"><div id="authored"><div className="empty">Loading pull requests from GitHub…</div></div></Panel>
+          <Panel id="authored-title" title="My pull requests"><div id="authored"><Empty>Loading pull requests from GitHub…</Empty></div></Panel>
         )}
       </main>
     </>
