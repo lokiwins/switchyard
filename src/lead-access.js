@@ -40,9 +40,10 @@ const sign = (secret, id) => createHmac('sha256', secret).update(id).digest('hex
 const asJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
 
 /**
- * @param {{ dir: string, port: number }} deps `dir` is switchyard's own folder (see json-store.js).
+ * @param {{ dir: string, port: number, withHooks?: (settings: object) => object }} deps `dir` is switchyard's own
+ *   folder (see json-store.js); `withHooks` adds the session event hooks (see session-events.js).
  */
-export function createLeadAccess({ dir, port }) {
+export function createLeadAccess({ dir, port, withHooks = (settings) => settings }) {
   let secretLoad = null;
 
   /** The signing secret: read from its file, or made and saved the first time (when there's no file). */
@@ -99,7 +100,7 @@ export function createLeadAccess({ dir, port }) {
       const mcpConfig = join(leads, `${id}.mcp.json`);
       const settings = join(leads, `${id}.settings.json`);
       await writePrivate(leads, mcpConfig, asJson(mcpConfigFor({ port, token: await tokenFor(id) })));
-      await writePrivate(leads, settings, asJson(LEAD_SETTINGS));
+      await writePrivate(leads, settings, asJson(withHooks(LEAD_SETTINGS)));
       return { mcpConfig, settings };
     },
   };

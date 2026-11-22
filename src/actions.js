@@ -108,6 +108,8 @@ export function createActionService({
   textFieldWaitMs = TEXT_FIELD_WAIT_MS,
   // Settings › Agents › Most agents running at once (see agent-limit.js): checked before resuming or starting one.
   limit = { check: async () => {} },
+  // The settings file a new session starts with: switchyard's session event hooks (see session-events.js).
+  defaultSettings = async () => null,
 }) {
   const drivers = new Map();
   const driverFor = (app) => {
@@ -484,12 +486,14 @@ export function createActionService({
   }
 
   /** The command for a new tab in a worktree: a shell, or a new session of the agent `launch` names. */
-  function worktreeCommand(path, body) {
+  async function worktreeCommand(path, body) {
     const cd = `cd ${shellQuote(path)}`;
     const launch = body.launch ?? 'shell';
     if (launch === 'shell') return cd;
     if (typeof launch !== 'string') throw new ActionError(400, 'Expected launch to be "shell" or an agent id');
-    return `${cd} && ${agents.get(launch).launchCommand()}`;
+    const agent = agents.get(launch);
+    const settings = agent.takesLaunchOptions ? await defaultSettings() : null;
+    return `${cd} && ${agent.launchCommand(undefined, settings ? { settings } : undefined)}`;
   }
 
   /** Open a new tab in a worktree's folder, optionally starting or resuming an agent session there. */
@@ -502,7 +506,7 @@ export function createActionService({
       await limit.check();
       return { opened: true, ...await resume({ ...session, cwd: path }) };
     }
-    const command = worktreeCommand(path, body);
+    const command = await worktreeCommand(path, body);
     // A plain shell isn't an agent; a new session is.
     if ((body.launch ?? 'shell') !== 'shell') await limit.check();
     await terminal.open(command);

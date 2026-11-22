@@ -15,6 +15,7 @@ import { createActionService } from './actions.js';
 import { createAgentFeed, watchFolder } from './agent-feed.js';
 import { createApprovalBroker } from './approvals.js';
 import { HOOK_PATH, isHookInstalled, readClaudeSettings } from './claude-hook.js';
+import { EVENTS_PATH, createSessionEvents, createSessionSettings } from './session-events.js';
 import { CSP, newStyleNonce, withStyleNonce } from './csp.js';
 import { ActionError } from './errors.js';
 import { buildLocalIndex, createPrService } from './prs.js';
@@ -201,7 +202,7 @@ const POST_ROUTES = {
  * on a POST and Claude Code never does, so a request with one is refused.
  */
 async function handleHook(req, res, { approvals }) {
-  if (req.headers.origin !== undefined || !/^application\/json\b/.test(req.headers['content-type'] ?? '')) {
+  if (!fromClaudeCode(req)) {
     return sendJson(res, 403, { success: false, error: 'Hook requests come from Claude Code only' });
   }
   // Listen before reading the body, so a hook that disconnects early is never left pending.
@@ -226,8 +227,28 @@ async function handleHook(req, res, { approvals }) {
   }
 }
 
+/** A hook only Claude Code sends: JSON, and no Origin, which a browser always sends on a POST. */
+const fromClaudeCode = (req) => req.headers.origin === undefined && /^application\/json\b/.test(req.headers['content-type'] ?? '');
+
+/**
+ * The session event hooks (see session-events.js) of the sessions switchyard starts: a turn started,
+ * finished or failed, or the session ended. Answered at once with an empty 200, which changes nothing in Claude.
+ */
+async function handleSessionEvent(req, res, { sessionEvents }) {
+  if (!fromClaudeCode(req)) return sendJson(res, 403, { success: false, error: 'Hook requests come from Claude Code only' });
+  try {
+    await sessionEvents.record(await readJsonBody(req, MAX_HOOK_BODY_BYTES));
+    res.writeHead(200, SECURITY_HEADERS);
+    return res.end();
+  } catch (error) {
+    if (error instanceof ActionError) return sendJson(res, error.status, { success: false, error: error.message });
+    throw error;
+  }
+}
+
 async function handlePost(req, res, url, services) {
   if (url.pathname === HOOK_PATH) return handleHook(req, res, services);
+  if (url.pathname === EVENTS_PATH) return handleSessionEvent(req, res, services);
   const route = POST_ROUTES[url.pathname];
   if (!route) return sendJson(res, 404, { success: false, error: 'Not found' });
   if (!isSameOriginJson(req, services.port)) return sendJson(res, 403, { success: false, error: 'Cross-origin request refused' });
@@ -619,11 +640,21 @@ async function main() {
       agentFeed.changed();
     },
   });
+  // How each session switchyard starts ended its last turn, as its hooks report it (see session-events.js).
+  const sessionEvents = createSessionEvents({
+    dir: defaultStoreDir(),
+    onChange: () => {
+      stateService.sessionsRemoved();
+      agentFeed.changed();
+    },
+  });
+  sessionEvents.load().catch((error) => process.stderr.write(`[switchyard] reading session events: ${error.message}\n`));
+  const sessionSettings = createSessionSettings({ dir: defaultStoreDir(), port: config.port });
   // The agent CLIs switchyard runs and watches; Claude Code for now, more can be added alongside it.
   // Settings › Agent providers choose the default, turn providers off, and say how each runs; read each time, so saves apply at once.
   const agents = createAgentProviders([
     createClaudeProvider({
-      claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux), settings: () => config.settings.providers.claude,
+      claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux), settings: () => config.settings.providers.claude, sessionEvents,
     }),
   ], { settings: () => config.settings.providers });
   // Made here, not inside the state service, so checks can hear its commits too (see check-triggers.js).
@@ -654,11 +685,11 @@ async function main() {
     },
   });
   const actions = createActionService({
-    stateService: sessionsView, agents, terminal, tmux, useTmux: tmuxInstalled, limit: agentLimit,
+    stateService: sessionsView, agents, terminal, tmux, useTmux: tmuxInstalled, limit: agentLimit, defaultSettings: sessionSettings.file,
   });
   const taskStarts = createTaskStarts({ tmux, onChange: () => agentFeed.changed() });
   const tasks = createTaskService({
-    stateService: sessionsView, tmux, agents, starts: taskStarts, limit: agentLimit,
+    stateService: sessionsView, tmux, agents, starts: taskStarts, limit: agentLimit, defaultSettings: sessionSettings.file,
   });
   const liveTerminals = createLiveTerminals({ actions, tmux });
   // The full state: Clean up needs PR data, which the sessions view leaves out.
@@ -675,8 +706,8 @@ async function main() {
   const freshRepos = () => stateService.getSessions({ force: true }).then((s) => s.repos);
   // Start as lead: Claude gets switchyard's MCP server, with a token for its own task's workers.
   // Settings › Workers are read as each lead or worker starts, so a saved change applies to the next one.
-  const leadAccess = createLeadAccess({ dir: defaultStoreDir(), port: config.port });
-  const workerLaunch = createWorkerLaunch({ dir: defaultStoreDir() });
+  const leadAccess = createLeadAccess({ dir: defaultStoreDir(), port: config.port, withHooks: sessionSettings.withHooks });
+  const workerLaunch = createWorkerLaunch({ dir: defaultStoreDir(), withHooks: sessionSettings.withHooks });
   const hubStarter = createHubStarter({
     taskHub,
     newTask: tasks,
@@ -697,6 +728,7 @@ async function main() {
     dir: defaultStoreDir(),
     starts: taskStarts,
     limit: agentLimit,
+    withHooks: sessionSettings.withHooks,
   });
   const leadTools = createLeadTools({
     taskHub, hubStarter, getRepos: freshRepos, actions, checkResults: (options) => checks.results(options), reviewStatus: reviews.status,
@@ -728,7 +760,7 @@ async function main() {
   });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, mcpEndpoint, reviews, port: config.port,
+    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, mcpEndpoint, reviews, sessionEvents, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const doneTaskSweep = createDoneTaskSweep({

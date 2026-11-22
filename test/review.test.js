@@ -46,7 +46,7 @@ test('the reviewer may read and look at git history, never edit', () => {
 });
 
 // A task with a worktree, a subtask of a parent with one in the same repo, and the services faked.
-function setup({ live = [], summaries = {}, tasks, full = false } = {}) {
+function setup({ live = [], summaries = {}, tasks, full = false, withHooks } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'switchyard-review-'));
   let all = tasks ?? [
     { id: 'sy-lead01', title: 'Build receipts', notes: '', links: [], closedAs: null },
@@ -85,6 +85,7 @@ function setup({ live = [], summaries = {}, tasks, full = false } = {}) {
     now: () => 1000,
     starts: { track: (start) => tracked.push(start) },
     limit: { check: async () => { if (full) throw Object.assign(new Error('3 agents are running'), { status: 409 }); } },
+    ...(withHooks ? { withHooks } : {}),
   });
   return { reviews, typed, dir, tracked, getTasks: () => all };
 }
@@ -186,4 +187,11 @@ test('over the running-agents limit, a review isn\'t started', async () => {
   await assert.rejects(reviews.start({ id: 'sy-wrk001', path: '/code/shop-tests' }), (error) => error.status === 409);
   assert.deepEqual(typed, []);
   assert.equal(getTasks().find((t) => t.id === 'sy-wrk001').reviews, undefined);
+});
+
+test('a reviewer\'s settings carry switchyard\'s session event hooks too', async () => {
+  const { reviews, typed } = setup({ withHooks: (settings) => ({ ...settings, hooks: { Stop: ['switchyard'] } }) });
+  await reviews.start({ id: 'sy-wrk001', path: '/code/shop-tests' });
+  const command = JSON.parse(typed.find((t) => t[0] === 'type')[2]);
+  assert.deepEqual(JSON.parse(readFileSync(command.settings, 'utf8')), { ...REVIEWER_SETTINGS, hooks: { Stop: ['switchyard'] } });
 });

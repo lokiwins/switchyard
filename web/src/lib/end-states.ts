@@ -7,7 +7,12 @@ export const END_STATES: Record<string, EndState> = {
   stopped: { label: 'Stopped', tone: '', hint: 'You pressed Esc to interrupt the agent' },
   exited: { label: 'Exited', tone: '', hint: 'You ran /exit' },
   finished: { label: 'Finished', tone: '', hint: 'The agent completed its last turn' },
+  failed: { label: 'Failed', tone: 'amber', hint: 'The last turn stopped on an API error' },
   unknown: { label: 'Ended', tone: '', hint: 'Could not tell how the last turn ended' },
 };
 
-export const endStateOf = ({ endState }: { endState?: string | null }): EndState => END_STATES[endState ?? ''] ?? END_STATES.unknown!;
+/** How a session ended; a failed one's hint names the API error its hook reported, such as "rate limit". */
+export function endStateOf({ endState, endError }: { endState?: string | null; endError?: string | null }): EndState {
+  const state = END_STATES[endState ?? ''] ?? END_STATES.unknown!;
+  return endState === 'failed' && endError ? { ...state, hint: `${state.hint}: ${endError.replaceAll('_', ' ')}` } : state;
+}

@@ -68,6 +68,8 @@ export function worktreePathFor(repo, branch) {
  */
 export function createTaskService({
   stateService, tmux, agents, starts = { track: () => {} }, git = runGit, exists = existsSync, limit = { check: async () => {} },
+  // The settings file a session with none of its own starts with: switchyard's session event hooks (see session-events.js).
+  defaultSettings = async () => null,
 }) {
   const gitIn = (dir, args, options) => git(['-C', dir, ...args], options);
 
@@ -158,8 +160,10 @@ export function createTaskService({
       repo: mainPath, branch: chosen, prompt, provider: providerId, base,
     } = parseNewTask(body);
     const provider = providerId === null ? agents.default : agents.get(providerId);
-    const options = launchOptions(launch);
-    if (Object.keys(options).length > 0 && !provider.takesLaunchOptions) throw new ActionError(400, `${provider.label} can't be started as a lead or a worker`);
+    const given = launchOptions(launch);
+    if (Object.keys(given).length > 0 && !provider.takesLaunchOptions) throw new ActionError(400, `${provider.label} can't be started as a lead or a worker`);
+    const settings = provider.takesLaunchOptions && !given.settings ? await defaultSettings() : null;
+    const options = settings ? { ...given, settings } : given;
     // Settings › Agents › Most agents running at once (see agent-limit.js), before any worktree is made.
     await limit.check();
     const state = await stateService.getState();

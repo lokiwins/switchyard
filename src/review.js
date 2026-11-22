@@ -110,7 +110,7 @@ export function withReviews(tasks, statuses) {
  */
 export function createReviews({
   taskHub, tmux, provider, getRepos, checkResults, readSession, defaultBranch = gitDefaultBranch, dir, newSessionId = randomUUID, now = Date.now,
-  starts = { track: () => {} }, limit = { check: async () => {} },
+  starts = { track: () => {} }, limit = { check: async () => {} }, withHooks = (settings) => settings,
 }) {
   const settingsFile = join(dir, 'reviewer.settings.json');
 
@@ -159,7 +159,7 @@ export function createReviews({
       await limit.check();
       const checks = (await checkResults({ repos }))[worktree.path] ?? [];
       const base = await baseFor(task, tasks, repo, repos, defaultBranch);
-      await writePrivateFile(dir, settingsFile, `${JSON.stringify(REVIEWER_SETTINGS, null, 2)}\n`);
+      await writePrivateFile(dir, settingsFile, `${JSON.stringify(withHooks(REVIEWER_SETTINGS), null, 2)}\n`);
       const sessionId = newSessionId();
       const command = agent.launchCommand(reviewPrompt({ task, branch: worktree.branch, base, checks }), {
         name: `Review · ${oneLine(task.title)}`, sessionId, permissionMode: 'manual', settings: settingsFile,

@@ -15,9 +15,10 @@ const WORKERS_DIR = 'workers';
 const CLAUDE_DEFAULT = 'claude';
 
 /**
- * @param {{ dir: string }} deps switchyard's own folder (see json-store.js).
+ * @param {{ dir: string, withHooks?: (settings: object) => object }} deps `dir` is switchyard's own folder (see
+ *   json-store.js); `withHooks` adds the session event hooks (see session-events.js), so every worker gets a file.
  */
-export function createWorkerLaunch({ dir }) {
+export function createWorkerLaunch({ dir, withHooks = null }) {
   return {
     /**
      * What worker `id` starts with, from `workers` (the Workers settings): { permissionMode?, settings? },
@@ -27,10 +28,12 @@ export function createWorkerLaunch({ dir }) {
       if (!TASK_ID.pattern.test(id)) throw new Error('A worker\'s settings are for a task id');
       const launch = {};
       if (permissionMode !== CLAUDE_DEFAULT) launch.permissionMode = permissionMode;
-      if (allowedTools.length > 0) {
+      const own = allowedTools.length > 0 ? { permissions: { allow: allowedTools } } : null;
+      const settings = withHooks ? withHooks(own ?? {}) : own;
+      if (settings) {
         const folder = join(dir, WORKERS_DIR);
         launch.settings = join(folder, `${id}.settings.json`);
-        await writePrivateFile(folder, launch.settings, `${JSON.stringify({ permissions: { allow: allowedTools } }, null, 2)}\n`);
+        await writePrivateFile(folder, launch.settings, `${JSON.stringify(settings, null, 2)}\n`);
       }
       return launch;
     },

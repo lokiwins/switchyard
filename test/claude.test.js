@@ -251,6 +251,30 @@ test('summarizeTranscript says how full the context was on the last call, leavin
   assert.equal(summarizeTranscript([line({ type: 'user', message: { content: 'ask' } })]).contextTokens, null);
 });
 
+test('an ended session\'s end state comes from its recorded events when there are some, else from its transcript', async () => {
+  const claudeDir = await makeClaudeDir();
+  const projectDir = join(claudeDir, 'projects', transcriptDirName('/w/repo'));
+  await mkdir(projectDir);
+  const ids = { cutOff: '11111111-1111-4111-8111-111111111111', failed: '22222222-2222-4222-8222-222222222222', plain: '33333333-3333-4333-8333-333333333333' };
+  // Each transcript reads "finished" on its own: a prompt, then a reply.
+  for (const id of Object.values(ids)) {
+    await writeFile(join(projectDir, `${id}.jsonl`), [
+      { type: 'user', origin: { kind: 'human' }, cwd: '/w/repo', message: { content: 'go' } },
+      { type: 'assistant', cwd: '/w/repo', message: { content: [{ type: 'text', text: 'done' }] } },
+    ].map(line).join('\n'));
+  }
+  const records = { [ids.cutOff]: { turn: 'running', at: 1 }, [ids.failed]: { turn: 'failed', error: 'rate_limit', at: 1 } };
+  const provider = createClaudeProvider({ claudeDir, sessionEvents: { get: (id) => records[id] ?? null } });
+
+  const sessions = await provider.endedSessions({ since: 0, liveSessionIds: new Set() });
+  const byId = Object.fromEntries(sessions.map((s) => [s.sessionId, s]));
+  assert.equal(byId[ids.cutOff].endState, 'interrupted');
+  assert.equal(byId[ids.failed].endState, 'failed');
+  assert.equal(byId[ids.failed].endError, 'rate_limit');
+  assert.equal(byId[ids.plain].endState, 'finished');
+  assert.equal(byId[ids.plain].endError, null);
+});
+
 test('how a session ended is read past a compaction\'s re-attached files, beyond the tail window', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'sy-ending-'));
   // A compaction ends with the summary and the files it attaches again: hundreds of KB, no conversation.

@@ -139,7 +139,7 @@ function AgentCell({ w, caps }: { w: WorktreeRow; caps: Capabilities }) {
   }
   const last = w.agents.last;
   if (!last) return <td><span className="small muted">—</span></td>;
-  const ending = last.transcript ? endStateOf({ endState: last.transcript.endState }) : null;
+  const ending = last.transcript ? endStateOf(last.transcript) : null;
   return (
     <td>
       <div className="cell-lines">

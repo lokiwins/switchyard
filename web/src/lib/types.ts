@@ -21,6 +21,7 @@ export interface Transcript {
   activity?: string | null;
   gitBranch?: string | null;
   endState?: string | null;
+  endError?: string | null;
   contextTokens?: number;
   lastActivityAt?: number;
 }
@@ -73,6 +74,8 @@ export interface EndedSession {
   cwd: string;
   endedAt: number;
   endState?: string;
+  // The API error a failed last turn stopped on (endState "failed"), as its hook reported it.
+  endError?: string | null;
   needsAttention?: boolean;
   repoName?: string | null;
   branch?: string | null;
