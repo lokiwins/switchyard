@@ -69,21 +69,26 @@ test('the glass frame gets every pane token; Classic dark keeps today\'s exact l
 });
 
 test('the glass panes draw only from the pane tokens, so a terminal theme recolours all of them', async () => {
-  const { readFileSync } = await import('node:fs');
-  const css = readFileSync(new URL('../web/src/styles/legacy.css', import.meta.url), 'utf8');
-  const start = css.indexOf(' * Glass pane:');
-  const end = css.indexOf('/* Clean up: removing a worktree');
-  assert.ok(start > 0 && end > start, 'the glass pane section is where the test expects it');
-  // The defaults block holds the literal colours; checked below against Classic dark.
-  const section = css.slice(start, end).replace(/:root \{\s*\/\* The glass pane[^}]*\}/, '');
-  const literals = section.split('\n')
-    .filter((line) => !line.includes('var(--pane-backdrop'))
-    .filter((line) => /#[0-9a-f]{3,8}\b|rgb\(|rgba\(|(?<![\w-])(white|black)(?![\w-])/i.test(line.replace(/\/\*.*?\*\//g, '')));
-  assert.deepEqual(literals, []);
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const web = new URL('../web/src/', import.meta.url);
+  const read = (path) => readFileSync(new URL(path, web), 'utf8');
+  // Everything drawn on the glass: the pane, its edge and controls, the panes themselves, the terminal's screen and Markdown.
+  const files = ['components/Dialog.tsx', 'components/ResizeHandle.tsx', 'components/pane-classes.ts', 'components/Markdown.tsx',
+    'features/terminal/TerminalPane.tsx', 'features/terminal/connection.ts',
+    ...readdirSync(new URL('features/panes/', web)).filter((f) => f.endsWith('.tsx')).map((f) => `features/panes/${f}`)];
+  const uncommented = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((line) => line.replace(/\/\/.*$/, ''));
+  // A literal colour, or one of the page's own colours rather than the pane's.
+  const literal = /#[0-9a-f]{3,8}\b|rgba?\(|(?<![\w-])(white|black)(?![\w-])/i;
+  const pageColour = /(?<![\w-])(text|bg|border|outline|shadow|ring|fill)-(gray|surface|accent|green|amber|red|purple|divider|hairline|hover|highlight|neutral|on-)|var\(--(?!pane-|status\b)[\w-]+\)/;
+  const offenders = files.flatMap((file) => uncommented(read(file))
+    .filter((line) => literal.test(line) || pageColour.test(line))
+    .map((line) => `${file}: ${line.trim()}`));
+  assert.deepEqual(offenders, []);
   // The page behind an open pane is dimmed the same in every terminal theme, so none of them sets it.
   assert.ok(Object.values(TERMINAL_PALETTES).every((p) => !('--pane-backdrop' in paneVars(p))));
   // Today's look before any script runs: Classic dark's pane tokens are the defaults on :root.
-  const defaults = css.match(/:root \{\s*\/\* The glass pane[^}]*\}/)?.[0] ?? '';
+  const defaults = read('styles/themes.css').match(/:root \{\s*--pane-bg[^}]*\}/)?.[0] ?? '';
+  assert.ok(defaults, 'themes.css has the pane defaults');
   for (const [name, value] of Object.entries(paneVars(TERMINAL_PALETTES['classic-dark']))) {
     assert.ok(defaults.includes(`${name}: ${value};`), `${name} defaults to ${value}`);
   }

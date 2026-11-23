@@ -72,7 +72,7 @@ export const SCENES = [
       await inTheme('classic', 'dark')(page);
       await page.evaluate(() => window.switchyardAppearance.choose({ terminal: 'dracula' }));
       await page.getByRole('button', { name: 'Review', exact: true }).first().click();
-      await page.locator('dialog.glass-pane[open] .diff').waitFor();
+      await page.locator('dialog[open]').getByText(/^@@ /).first().waitFor();
     },
   },
   {
@@ -83,7 +83,7 @@ export const SCENES = [
       await inTheme('classic', 'light')(page);
       await page.evaluate(() => window.switchyardAppearance.choose({ terminal: 'catppuccin-latte' }));
       await page.getByRole('button', { name: 'Review', exact: true }).first().click();
-      await page.locator('dialog.glass-pane[open] .diff').waitFor();
+      await page.locator('dialog[open]').getByText(/^@@ /).first().waitFor();
     },
   },
   {
@@ -134,7 +134,7 @@ export const SCENES = [
     prepare: async (page) => {
       await agentsLoaded(page);
       await page.getByRole('button', { name: 'Review', exact: true }).first().click();
-      await page.locator('dialog.review-pane[open]').waitFor();
+      await page.locator('dialog[open]').waitFor();
       await settle(page);
     },
   },
@@ -155,7 +155,7 @@ export const SCENES = [
     prepare: async (page) => {
       await agentsLoaded(page);
       await rowOf(page, 'Make the invoice total test deterministic').getByRole('button', { name: 'Plan', exact: true }).click();
-      await page.locator('dialog.plan-pane[open]').waitFor();
+      await page.locator('dialog[open]').waitFor();
     },
   },
   {
@@ -230,7 +230,8 @@ export const SCENES = [
     prepare: async (page) => {
       await page.getByText('Email a receipt after each charge').waitFor();
       await page.getByRole('button', { name: 'Download invoices as PDF', exact: true }).click();
-      await page.locator('dialog.task-pane[open] .pane-ticket .markdown').waitFor();
+      // The linked ticket, as ClickUp has it: its title comes with its description.
+      await page.locator('dialog[open] article').getByRole('heading', { level: 3 }).waitFor();
       await settle(page);
     },
   },
@@ -251,7 +252,7 @@ export const SCENES = [
     prepare: async (page) => {
       await agentsLoaded(page);
       await rowOf(page, 'Fix the login redirect on the settings page').getByRole('button', { name: 'Make task', exact: true }).click();
-      await page.locator('dialog.task-pane[open] textarea[name=notes]').waitFor();
+      await page.locator('dialog[open] textarea[name=notes]').waitFor();
       await settle(page);
     },
   },
