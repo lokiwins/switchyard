@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { defaultWidth, EDGE, keyWidth, MIN_WIDTH, pointerWidth, savedWidth } from '../../../public/pane-width.js';
+import { defaultWidth, EDGE, keyWidth, MIN_WIDTH, pointerWidth, savedWidth } from './pane-width';
 import { readPref, writePref } from '../lib/prefs';
 
 /*

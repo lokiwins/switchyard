@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PendingTask } from '../lib/shared';
+import type { PendingTask } from '../lib/pending-tasks';
 
 /* Tasks started from New task whose session hasn't shown up yet; the Agents page shows them as rows meanwhile. */
 

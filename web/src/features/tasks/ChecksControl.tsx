@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { LiveTime } from '../../components/LiveTime';
-import { anyRunning, checkLabel, ranBy } from './logic';
+import { anyRunning, checkLabel, ranBy } from './check-status';
 import type { CheckResult } from './types';
 import { Button } from '../../components/Button';
 import { resultBodyClass, resultClass, resultMetaClass, resultSummaryClass } from './badge';

@@ -1,5 +1,5 @@
-import { THEME_IDS, MODE_IDS } from '../public/themes.js';
-import { TERMINAL_IDS } from '../public/terminal-themes.js';
+import { THEME_IDS, MODE_IDS } from '../shared/themes.ts';
+import { TERMINAL_IDS } from '../shared/terminal-themes.ts';
 
 /*
  * /theme-boot.js: public/theme-boot.js with the Settings page's default theme

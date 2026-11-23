@@ -1,7 +1,7 @@
-import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
+import cytoscape, { type Core } from 'cytoscape';
 import { useEffect, useEffectEvent, useImperativeHandle, useRef, type Ref } from 'react';
 import { useAppearance } from '../../lib/appearance';
-import { diffElements, layoutSteps, toElements, type SessionGraph } from './model';
+import { diffElements, layoutSteps, toElements, type GraphElement, type SessionGraph } from './model';
 import { graphStyle } from './style';
 
 /*
@@ -52,7 +52,7 @@ function arrange(cy: Core) {
 }
 
 /** Apply the next graph as a diff; true when this was the first. */
-function update(cy: Core, shown: { current: ElementDefinition[] }, graph: SessionGraph): boolean {
+function update(cy: Core, shown: { current: GraphElement[] }, graph: SessionGraph): boolean {
   const first = shown.current.length === 0;
   const diff = diffElements(shown.current, graph);
   cy.batch(() => {
@@ -87,7 +87,7 @@ export function GraphCanvas({ graph, hidden, selected, onSelect, ref }: {
 }) {
   const container = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
-  const shown = useRef<{ current: ElementDefinition[] }>({ current: [] });
+  const shown = useRef<{ current: GraphElement[] }>({ current: [] });
   const appearance = useAppearance();
   const selectedHere = useEffectEvent((id: string | null) => onSelect(id));
 

@@ -17,7 +17,7 @@ const TONES: Record<string, string> = {
 /** The <details>. */
 export const resultClass = 'text-xs min-w-0 open:basis-full';
 
-/** Its <summary>: the badge, in `tone` (from check-status.js or review-status.js). */
+/** Its <summary>: the badge, in `tone` (from check-status.ts or review-status.ts). */
 export const resultSummaryClass = (tone: string) => cx(
   'inline-block cursor-pointer whitespace-nowrap list-none [&::-webkit-details-marker]:hidden py-px px-2 rounded-full border border-current',
   TONES[tone],

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { branchFromTask } from '../public/branch-name.js';
+import { branchFromTask } from '../shared/branch-name.ts';
 import { ActionError } from './errors.js';
 import { run } from './exec.js';
 import { TASK_SESSION, runInWindow } from './task-session.js';

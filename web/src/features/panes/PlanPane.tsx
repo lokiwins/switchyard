@@ -3,7 +3,7 @@ import { Dialog, PaneHeader } from '../../components/Dialog';
 import { paneBodyClass, paneButtonClass, paneFooterClass, paneInputClass, paneNoteClass, panePillClass } from '../../components/pane-classes';
 import { cx } from '../../lib/cx';
 import { Markdown } from '../../components/Markdown';
-import { sessionTitle } from '../../lib/shared';
+import { sessionTitle } from '../../lib/session-text';
 import type { AgentsData } from '../../lib/types';
 import { usePaneStore } from '../../stores/panes';
 import { AGENTS_KEY } from '../agents/api';

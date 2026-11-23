@@ -7,7 +7,7 @@ import { cx } from '../../lib/cx';
 import { queryClient } from '../../lib/query';
 import { statusStyle } from '../../lib/status-style';
 import { toast } from '../../stores/toast';
-import { ticketLabel, trackerOf } from '../tasks/logic';
+import { ticketLabel, trackerOf } from '../tasks/task-state';
 
 /*
  * One linked ticket in the task pane: what its tracker says about it (ClickUp's

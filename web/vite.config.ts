@@ -56,8 +56,9 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    // Where tests read the stylesheets' text from (src/styles/source.ts): a `?raw` CSS import comes over empty in Vitest.
-    env: { STYLES_DIR: `${root}src/styles` },
-    include: ['src/**/*.test.{ts,tsx}'],
+    // Where tests read the pages' source text from (src/styles/source.ts): a `?raw` CSS import comes over empty in Vitest.
+    env: { SRC_DIR: `${root}src` },
+    // The pages' tests, and those of the code the server shares with them (../shared).
+    include: ['src/**/*.test.{ts,tsx}', '../shared/**/*.test.ts'],
   },
 });

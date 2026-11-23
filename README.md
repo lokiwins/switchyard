@@ -10,7 +10,7 @@ npm start          # http://localhost:4477
 npm test
 ```
 
-Requires Node 22+, `git`, and an authenticated `gh` CLI.
+Requires Node 22.18+, `git`, and an authenticated `gh` CLI.
 
 ## What it shows
 
@@ -222,11 +222,12 @@ The hook endpoint (`POST /hooks/permission-request`) is called by Claude Code, n
 
 ## The pages
 
-Every page is built with React from `web/`. `public/` keeps the stylesheets with every theme's colours, the theme boot script and fonts, and logic with no DOM in it that the pages share, tested in node under `test/`. Pieces more than one page uses (the top bar, menus, tiles, panels, the Open ▾ menu, a pushed stream) are in `web/src/components` and `web/src/lib`; each page's own are in `web/src/features/<page>`.
+Every page is built with React from `web/`, in TypeScript. `shared/` holds the TypeScript the server uses too (the themes, terminal colours and branch names), which Node runs as it is; `public/` holds only the theme boot script, which each page loads before anything else. Pieces more than one page uses (the top bar, menus, tiles, panels, the Open ▾ menu, a pushed stream) are in `web/src/components` and `web/src/lib`; each page's own are in `web/src/features/<page>`.
 
 - **Stack:** React 19 with the React compiler, TypeScript, Vite, Tailwind, [TanStack Query](https://tanstack.com/query) for data from the server, and [Zustand](https://zustand.docs.pmnd.rs) for the page's own state (filters, what's open, what you've typed). The server's data never goes into a Zustand store: the query cache is its one copy.
 - **Updates keep what you're doing.** Each answer from the server is shared structurally with the last, so a session that didn't change keeps the same object and its row isn't drawn again; rows are keyed by session, so a menu you have open, or text you're typing in one, stays as it is while the page updates. Menus are placed by [Radix](https://www.radix-ui.com/primitives/docs/components/popover); panes are native `<dialog>`s.
-- **No inline scripts or styles.** The build emits plain files the strict security policy allows; logic with no DOM in it (`public/session-text.js`, `pending-tasks.js` and the like) is shared with the older pages and tested under `test/`.
+- **No inline scripts or styles.** The build emits plain files the strict security policy allows.
+- **Tests:** the server's are under `test/` (`node --test`); the pages' and `shared/`'s sit next to the code they test (Vitest).
 
 ```bash
 npm run build      # web/ → dist/, which the server serves (npm ci runs it too)
@@ -241,7 +242,7 @@ Releases come from the commit messages. PRs are squash-merged with [Conventional
 
 Screenshots come from switchyard itself, run against made-up data: `scripts/screenshots` builds a throwaway home with two repos (`acme/storefront`, `acme/billing-api`), their worktrees, Claude sessions in them and a stand-in `gh` with their PRs, so nothing of yours (and no network) is involved. Each **scene** in `scripts/screenshots/scenes.mjs` opens a page and gets it into a state worth showing, such as New task open or a permission prompt in the Review pane.
 
-- **On a PR** that touches `public/`, `src/` or the screenshot scripts, the Screenshots workflow captures every scene at the PR's merge base and at its head, compares them pixel by pixel, and comments with before and after images of the scenes that look different. If `public/` changed but no scene does, the comment asks for one.
+- **On a PR** that touches the pages (`web/`, `shared/`, `public/`), `src/` or the screenshot scripts, the Screenshots workflow captures every scene at the PR's merge base and at its head, compares them pixel by pixel, and comments with before and after images of the scenes that look different. If the pages changed but no scene does, the comment asks for one.
 - **On a release**, the same comparison runs against the previous release, and the scenes that are new or look different are attached to the release as `screenshot-<scene>.png` and shown in its notes under *Screenshots*.
 
 PR preview images are stored on the `screenshots` branch, which only exists for those comments: delete it whenever you like, and older comments lose their pictures. When a change adds or reworks something on screen, add or update a scene. To capture locally (from a worktree without a `config.json`, which would show your own data):

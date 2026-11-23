@@ -1,6 +1,6 @@
 /*
  * Each kind's colour, from its token in themes.css (--graph-prompt, …; the
- * Cytoscape graph reads the same tokens, see graph-model.js). Written out in
+ * Cytoscape graph reads the same tokens, see model.ts). Written out in
  * full so Tailwind finds every class; anything else is the grey of "other".
  */
 

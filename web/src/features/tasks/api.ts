@@ -3,7 +3,8 @@ import { NAV_KEY } from '../../components/nav-api';
 import { getJson, post } from '../../lib/api';
 import { queryClient } from '../../lib/query';
 import { toast } from '../../stores/toast';
-import { anyRunning, cleanupSummary } from './logic';
+import { anyRunning } from './check-status';
+import { cleanupSummary, type Cleanup } from './worktree-choices';
 import { useTasksUi } from './store';
 import type { HubData, TaskTool, Ticket } from './types';
 
@@ -49,7 +50,7 @@ export const refreshTasks = (): Promise<unknown> => Promise.all([
 export const fetchTickets = (tool: string) =>
   getJson<{ connected: boolean; tasks: Ticket[]; error?: string | null }>(`/api/task-tools/tickets?tool=${encodeURIComponent(tool)}`);
 
-interface ChangeResult { cleanup?: { errors?: string[] } | null; errors?: string[] }
+interface ChangeResult { cleanup?: Cleanup | null; errors?: string[] }
 
 /**
  * Change a task, say how it went, then show the tasks as they are now. `done`

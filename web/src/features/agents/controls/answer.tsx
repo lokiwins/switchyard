@@ -3,7 +3,7 @@ import { Menu, menuItemClass, MenuHint } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { announceChange } from '../../../lib/changes';
 import { tmuxPlace } from '../../../lib/paths';
-import { canPressKeys } from '../../../lib/shared';
+import { canPressKeys } from '../../../lib/session-text';
 import type { Approval, Host, LiveSession, PromptOption, ScreenPrompt } from '../../../lib/types';
 import { openPane } from '../../../stores/panes';
 import { useDraft } from '../../../stores/drafts';

@@ -1,4 +1,4 @@
-import { pendingText, type PendingTask } from '../../lib/shared';
+import { pendingText, type PendingTask } from '../../lib/pending-tasks';
 import { TrustButtons } from './controls/session';
 import { SessionRow, StatusBadge, WhereLabel } from './Row';
 

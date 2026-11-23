@@ -11,7 +11,7 @@ import { toast } from '../../stores/toast';
 import { taskActions, createTask } from './actions';
 import { refreshTasks, TASKS_KEY, useHubTasks, useTaskTools } from './api';
 import { ConnectionsMenu } from './Connections';
-import { groupTasks, matchesHubTask } from './logic';
+import { groupTasks, matchesHubTask } from './task-state';
 import { NewTaskForm } from './NewTaskForm';
 import { useTasksUi } from './store';
 import { TaskGroups } from './TaskGroups';

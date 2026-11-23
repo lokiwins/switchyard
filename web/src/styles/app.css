@@ -101,7 +101,7 @@
   --color-purple-soft: var(--purple-soft);
   --color-neutral-soft: var(--neutral-soft);
 
-  /* The glass panes', which follow the terminal colours (themes.css, terminal-themes.js). */
+  /* The glass panes', which follow the terminal colours (themes.css, shared/terminal-themes.ts). */
   --color-pane-text: var(--pane-text);
   --color-pane-dim: var(--pane-dim);
   --color-pane-accent: var(--pane-accent);

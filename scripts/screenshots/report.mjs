@@ -70,7 +70,7 @@ export function prComment(entries, { imageUrl, uiChanged, baseRef }) {
     parts.push(`What looks different from \`${baseRef}\`, on the made-up data in \`scripts/screenshots\`. These go into the release notes.`, '');
     shown.forEach((entry) => parts.push(prSection(entry, imageUrl), ''));
   } else if (uiChanged) {
-    parts.push('This PR changes files under `public/` but no screenshot looks different. If it adds or changes something on screen, add or update a scene in `scripts/screenshots/scenes.mjs` so it shows here and in the release notes.', '');
+    parts.push('This PR changes the pages (`web/`, `shared/` or `public/`) but no screenshot looks different. If it adds or changes something on screen, add or update a scene in `scripts/screenshots/scenes.mjs` so it shows here and in the release notes.', '');
   } else {
     parts.push(`Nothing looks different from \`${baseRef}\`.`, '');
   }

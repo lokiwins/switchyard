@@ -121,7 +121,7 @@ function NodeDetail({ graph, node }: { graph: SessionGraph; node: GraphNode }) {
           <ul className="list-none m-0 p-0 grid gap-1 w-full">
             {links.map((link) => (
               <li key={link.id} className="flex items-baseline gap-1.5 min-w-0">
-                <Swatch kind={link.kind} className="self-center" />
+                <Swatch kind={link.kind ?? 'other'} className="self-center" />
                 <button type="button" className={LINK} title="Show this node" onClick={() => select(link.id)}>{link.label}</button>
                 <span className={cx(SMALL, MUTED)}>{` ${link.text}`}</span>
               </li>

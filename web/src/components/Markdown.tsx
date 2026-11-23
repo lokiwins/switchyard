@@ -1,31 +1,13 @@
 import { createElement, type ReactNode } from 'react';
-import { parseMarkdown as parse } from '../../../public/markdown.js';
+import { parseMarkdown, type Align, type Block, type Inline, type Item } from '../lib/markdown';
 import { cx } from '../lib/cx';
 
 /*
  * Markdown from the model (a plan, a file Claude wants to write), drawn as
  * elements: never as HTML, so nothing in it runs. Links open only for
  * http(s) and mailto; images show their alt text, as the page loads nothing
- * from outside. Parsing is shared with the other pages (public/markdown.js).
+ * from outside. The parsing is in lib/markdown.ts.
  */
-
-type Inline =
-  | { type: 'text' | 'code'; text: string }
-  | { type: 'strong' | 'em' | 'del'; children: Inline[] }
-  | { type: 'image'; alt: string }
-  | { type: 'link'; href: string; children: Inline[] };
-type Align = 'left' | 'right' | 'center' | null;
-interface Item { checked: boolean | null; blocks: Block[] }
-type Block =
-  | { type: 'heading'; level: number; inline: Inline[] }
-  | { type: 'paragraph'; inline: Inline[] }
-  | { type: 'code'; lang: string | null; text: string }
-  | { type: 'quote'; blocks: Block[] }
-  | { type: 'rule' }
-  | { type: 'list'; ordered: boolean; start: number | null; items: Item[] }
-  | { type: 'table'; header: Inline[][]; align: Align[]; rows: Inline[][][] };
-
-const parseMarkdown = parse as (text: string) => Block[];
 
 /*
  * Its look, on the glass (the --pane-* colours). Each element is drawn here,

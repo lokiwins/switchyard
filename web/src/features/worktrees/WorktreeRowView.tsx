@@ -5,7 +5,7 @@ import { OpenMenu } from '../../components/OpenMenu';
 import { ResumeButton } from '../../components/ResumeButton';
 import { endStateOf } from '../../lib/end-states';
 import { shellQuote, shortPath } from '../../lib/paths';
-import { sessionDetail, sessionDot, sessionLabel, sessionTitle, type SessionLike } from '../../lib/shared';
+import { sessionDetail, sessionDot, sessionLabel, sessionTitle, type SessionLike } from '../../lib/session-text';
 import type { Capabilities, LiveSession } from '../../lib/types';
 import { TaskFromWork } from '../panes/TaskFromWork';
 import { CleanupMenu } from './CleanupMenu';

@@ -4,7 +4,7 @@ import { Menu, menuItemCenteredClass, menuMetaClass, MenuTitle } from '../../com
 import { readPref, writePref } from '../../lib/prefs';
 import { statusStyle } from '../../lib/status-style';
 import { fetchTickets, useTaskTools } from './api';
-import { matchesTicket, taskFromTicket, unlinkedTickets } from './logic';
+import { matchesTicket, taskFromTicket, unlinkedTickets } from './ticket-import';
 import type { HubTask, TaskFields, TaskTool, Ticket } from './types';
 import { Pill } from '../../components/Pill';
 import { Dot } from '../../components/Dot';

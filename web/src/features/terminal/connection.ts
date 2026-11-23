@@ -1,7 +1,7 @@
 import type { FitAddon } from '@xterm/addon-fit';
 import type { WebglAddon } from '@xterm/addon-webgl';
 import type { IDisposable, ITerminalOptions, Terminal } from '@xterm/xterm';
-import { keyInput } from '../../../../public/terminal-keys.js';
+import { keyInput } from './keys';
 import { post } from '../../lib/api';
 import { currentXtermOptions } from '../../lib/themes';
 import { toast } from '../../stores/toast';
@@ -42,7 +42,7 @@ const TERMINAL_OPTIONS: ITerminalOptions = {
 interface Size { cols: number; rows: number }
 type Timer = ReturnType<typeof setTimeout>;
 
-/** What terminal-keys.js answers for a key: `{ send }` when it handles the key (send is null to swallow it), else null. */
+/** What keys.ts answers for a key: `{ send }` when it handles the key (send is null to swallow it), else null. */
 const keyFor = keyInput as (event: KeyboardEvent) => { send: string | null } | null;
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));

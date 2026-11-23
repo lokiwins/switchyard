@@ -1,6 +1,6 @@
 import { CopyButton } from '../../components/CopyButton';
 import { shellQuote, shortPath, tmuxPlace } from '../../lib/paths';
-import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle } from '../../lib/shared';
+import { answerElsewhere, sessionDetail, sessionDot, sessionLabel, sessionTitle } from '../../lib/session-text';
 import type { ReactNode } from 'react';
 import type { Approval, LiveSession, Worktree } from '../../lib/types';
 import { TerminalButton } from '../terminal/TerminalButton';

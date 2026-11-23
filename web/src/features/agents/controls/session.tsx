@@ -3,7 +3,7 @@ import { ActionButton } from '../../../components/ActionButton';
 import { Menu, MenuHint } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { tmuxPlace } from '../../../lib/paths';
-import { canShowTerminalSessions } from '../../../lib/shared';
+import { canShowTerminalSessions } from '../../../lib/session-text';
 import type { Capabilities, Host, LiveSession } from '../../../lib/types';
 import { buttonClass } from '../../../components/Button';
 import { resumedMessage } from '../../../components/OpenMenu';

@@ -5,7 +5,7 @@ import { paneBodyClass, paneButtonClass, paneFooterClass, paneInputClass, paneNo
 import { cx } from '../../lib/cx';
 import { usePaneStore, type TaskDraft, type TaskPaneFields } from '../../stores/panes';
 import { toast } from '../../stores/toast';
-import { STATE_LABELS } from '../tasks/logic';
+import { STATE_LABELS } from '../tasks/task-state';
 import { TicketCard } from './TicketCard';
 
 /*
