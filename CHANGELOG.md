@@ -3,6 +3,12 @@
 ## [0.4.0](https://github.com/lokiwins/switchyard/compare/v0.3.0...v0.4.0) (2026-11-23)
 
 
+### Notes
+
+* switchyard now needs Node 22.18 or later: the server runs the TypeScript it shares with the pages as it is ([#120](https://github.com/lokiwins/switchyard/issues/120)) ([31b8b10](https://github.com/lokiwins/switchyard/commit/31b8b1042547f32f7146b3a52a8b55e4f9413da4))
+* attempts (Start ×N, Compare and Pick) were taken out again before this release; agent orchestration (leads and workers) covers what they were for ([#83](https://github.com/lokiwins/switchyard/issues/83))
+
+
 ### Features
 
 * a lead can check on, message and end its workers ([#88](https://github.com/lokiwins/switchyard/issues/88)) ([7677ed2](https://github.com/lokiwins/switchyard/commit/7677ed2e3e1ad4e0f5ddea25a51ccb291c6ff571))
@@ -12,7 +18,6 @@
 * change the terminal colours from the open terminal pane ([#67](https://github.com/lokiwins/switchyard/issues/67)) ([0956961](https://github.com/lokiwins/switchyard/commit/095696170741feb9120cfa1a7bd69d330da22452))
 * checks that run by themselves, after a turn or on a commit, without polling ([#82](https://github.com/lokiwins/switchyard/issues/82)) ([c77a902](https://github.com/lokiwins/switchyard/commit/c77a902fc65ab1a2c781130bbf51ae109928d080))
 * closing or deleting a task puts its work away, and done tasks can be deleted automatically ([#75](https://github.com/lokiwins/switchyard/issues/75)) ([3aa1fa7](https://github.com/lokiwins/switchyard/commit/3aa1fa79e4cb74c806595bccf7cfb339f17ce522))
-* compare a task's attempts side by side, and pick one ([#79](https://github.com/lokiwins/switchyard/issues/79)) ([dc52d8b](https://github.com/lokiwins/switchyard/commit/dc52d8bf765f9e0db4be2e989110608d8a763d70))
 * delete ended sessions from the Agents page ([#74](https://github.com/lokiwins/switchyard/issues/74)) ([6b7dea3](https://github.com/lokiwins/switchyard/commit/6b7dea301d26619343018cc61655bba8befdd1e0))
 * End ends Claude sessions outside tmux too, leaving their tab open ([#63](https://github.com/lokiwins/switchyard/issues/63)) ([c7a4f56](https://github.com/lokiwins/switchyard/commit/c7a4f560dfd69d1f8a2e0aebe8387554a8c7812e))
 * make a task from a session or worktree, linked to its work ([#54](https://github.com/lokiwins/switchyard/issues/54)) ([395a719](https://github.com/lokiwins/switchyard/commit/395a7194bc4aa436f7f273e144f5173f949ff967))
@@ -22,7 +27,6 @@
 * Run check: a per-repo check command, run in a task's worktrees ([#80](https://github.com/lokiwins/switchyard/issues/80)) ([2617df0](https://github.com/lokiwins/switchyard/commit/2617df0a64e6727243afb21e05dd780047bd3817))
 * sessions switchyard starts report their turns through hooks ([#108](https://github.com/lokiwins/switchyard/issues/108)) ([4341c28](https://github.com/lokiwins/switchyard/commit/4341c2830d649ff91ea55532ac956067503d3e9a))
 * Settings › Workers, how a lead's workers start and whether the lead asks ([#89](https://github.com/lokiwins/switchyard/issues/89)) ([dcfc4ee](https://github.com/lokiwins/switchyard/commit/dcfc4eee08d44d485cb45e21b31029a559219464))
-* start a task as several attempts side by side ([#78](https://github.com/lokiwins/switchyard/issues/78)) ([b94d254](https://github.com/lokiwins/switchyard/commit/b94d25459c949d1a0b0f192ae3e2b7fc5863e46e))
 * Start as lead, with switchyard's MCP server to start and list workers ([#87](https://github.com/lokiwins/switchyard/issues/87)) ([136c53b](https://github.com/lokiwins/switchyard/commit/136c53b58249b129f49c45d3596c9ba7cb553c8d))
 * stuck and context alerts on running sessions ([#92](https://github.com/lokiwins/switchyard/issues/92)) ([7afd234](https://github.com/lokiwins/switchyard/commit/7afd234556092756328904029100bad643fdc914))
 * subtasks, nested under their task and branched from its branch ([#84](https://github.com/lokiwins/switchyard/issues/84)) ([6236534](https://github.com/lokiwins/switchyard/commit/62365344814e701ac54d1d857c186cf4cbdd1c33))
