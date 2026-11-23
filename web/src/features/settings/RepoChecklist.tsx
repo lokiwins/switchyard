@@ -44,7 +44,7 @@ export function RepoChecklist({ saved }: { saved: string }) {
         {error && <Hint text={`GitHub: ${error}`} />}
         {repos.length === 0 ? <Hint text="No GitHub repos found yet." /> : repos.map((repo) => (
           <label key={repo.name} className="flex flex-wrap items-baseline gap-x-2 gap-y-0 py-0.5 cursor-pointer text-sm">
-            <input type="checkbox" className={settingCheckboxClass} value={repo.name} checked={chosen.includes(repo.name.toLowerCase())} onChange={(event) => tick(repos, repo.name, event.target.checked)} />
+            <input type="checkbox" className={cx(settingCheckboxClass, 'mt-[3px] mr-[3px] mb-[3px] ml-1')} value={repo.name} checked={chosen.includes(repo.name.toLowerCase())} onChange={(event) => tick(repos, repo.name, event.target.checked)} />
             <span className="text-base font-bold tracking-[-0.01em] text-gray-900 [overflow-wrap:anywhere]">{repo.name}</span>
             <Hint text={repoNote(repo)} className="ml-auto" />
           </label>
