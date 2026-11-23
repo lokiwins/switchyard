@@ -542,3 +542,32 @@
   --brand-case: uppercase;
   --tile-value-size: 28px;
 }
+
+/*
+ * The glass panes' colours (see Dialog.tsx): the terminal colours set them
+ * (terminal-themes.js), so a light terminal scheme gives light glass; these
+ * defaults are Classic dark's.
+ */
+:root {
+  --pane-bg: rgb(8 13 24 / 0.68);
+  --pane-tint-a: rgb(56 189 248 / 0.10);
+  --pane-tint-b: rgb(168 85 247 / 0.08);
+  --pane-edge: rgb(125 211 252 / 0.28);
+  --pane-glow: rgb(56 189 248 / 0.18);
+  --pane-text: #e6f1ff;
+  --pane-dim: #8aa4c2;
+  --pane-accent: #7dd3fc;
+  --pane-accent-strong: #38bdf8;
+  --pane-ok: #34d399;
+  --pane-wait: #fbbf24;
+  --pane-bad: #f87171;
+  --pane-add-text: #a7f3d0;
+  --pane-del-text: #fecaca;
+  --pane-shade: #000000;
+  --pane-shine: #ffffff;
+  --pane-lift: #ffffff;
+  /* The page behind an open pane is dimmed the same whatever the terminal theme: it's the page's, not the pane's. */
+  --pane-backdrop: rgb(4 8 16 / 0.18);
+  --pane-drop: rgb(0 0 0 / 0.55);
+  --pane-scheme: dark;
+}

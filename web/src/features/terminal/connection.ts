@@ -231,9 +231,22 @@ function createHeldOutput(writeOut: (bytes: Uint8Array) => void, dropped: (bytes
 interface Built { terminal: Terminal; fit: FitAddon; screen: HTMLDivElement; webgl: boolean }
 interface PaneTerminal extends Built { release: () => void }
 
+/*
+ * The terminal's screen fills the pane under its header. xterm.css and xterm.js
+ * itself paint the viewport black; the glass shows through it instead.
+ */
+const SCREEN_CLASS = [
+  'flex-1 min-h-0 pt-2.5 pr-1.5 pb-2.5 pl-3.5',
+  '[&_.xterm-viewport]:bg-transparent! [&_.xterm-viewport]:overscroll-contain',
+  '[&_.xterm_.slider]:bg-[color-mix(in_srgb,var(--pane-accent)_22%,transparent)]! [&_.xterm_.slider]:rounded-xs',
+].join(' ');
+
+/** Where the shared terminal waits: laid out at a pane's size, so WebGL can draw, but out of sight. */
+const PARKING_CLASS = 'fixed left-[-10000px] top-0 w-[720px] h-[480px] overflow-hidden pointer-events-none opacity-0 *:h-full';
+
 function newScreen(): HTMLDivElement {
   const screen = document.createElement('div');
-  screen.className = 'term-screen';
+  screen.className = SCREEN_CLASS;
   return screen;
 }
 
@@ -264,7 +277,7 @@ function parking(): HTMLElement {
   if (found) return found;
   const lot = document.createElement('div');
   lot.id = 'term-parking';
-  lot.className = 'term-parking';
+  lot.className = PARKING_CLASS;
   lot.setAttribute('aria-hidden', 'true');
   document.body.append(lot);
   return lot;

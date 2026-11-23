@@ -23,6 +23,9 @@
   code { font-family: var(--font-mono); font-size: var(--text-xs); }
   [hidden] { display: none !important; }
 
+  /* While a glass pane is open the page behind it stays put, and scrolling past either end of the pane doesn't carry on to it. */
+  html:has(dialog:modal) { overflow: hidden; }
+
   /* Every page is one column, as wide as the window up to a limit: an auto column would grow to fit a wide table or row, scrolling the page sideways. */
   main {
     max-width: 1360px; margin: 0 auto;

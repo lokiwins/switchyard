@@ -11,13 +11,18 @@ function rule(selector) {
   return match ? match[1] : null;
 }
 
-test('the page behind an open pane does not scroll', () => {
-  assert.match(rule('html:has(.glass-pane[open])') ?? '', /overflow:\s*hidden/);
+/** A source file under web/src, for the utilities it gives an element. */
+const source = (path) => readFile(new URL(`../web/src/${path}`, import.meta.url), 'utf8');
+
+test('the page behind an open pane does not scroll', async () => {
+  const base = await source('styles/base.css');
+  assert.match(base.match(/html:has\(dialog:modal\)\s*{([^}]*)}/)?.[1] ?? '', /overflow:\s*hidden/);
 });
 
-test('scrolling to the end of a pane does not carry on to the page', () => {
-  assert.match(rule('.review-body') ?? '', /overscroll-behavior:\s*contain/);
-  assert.match(rule('.glass-pane .term-screen .xterm .xterm-viewport') ?? '', /overscroll-behavior:\s*contain/);
+test('scrolling to the end of a pane does not carry on to the page', async () => {
+  // A pane's body, and the live terminal's scrolling viewport inside xterm.
+  assert.match((await source('components/pane-classes.ts')).match(/paneBodyClass = '([^']*)'/)?.[1] ?? '', /(^|\s)overscroll-contain(\s|$)/);
+  assert.match(await source('features/terminal/connection.ts'), /\[&_\.xterm-viewport\]:overscroll-contain/);
 });
 
 /** The rules inside `@media (<query>) { … }`, as text. */
@@ -64,13 +69,14 @@ test('a select draws its own arrow, inset from its right edge', async () => {
   assert.match(select, /background-image:[^;]*currentColor/);
   assert.match(select, /background-position:\s*right\s+\d+px\s+center/);
   // A select's own rule sets only its colour, as the background shorthand would drop the arrow, and leaves the arrow room.
-  for (const selector of ['.tool-select', '.pane-select']) {
-    const own = rule(selector) ?? '';
-    assert.ok(own, `no rule for ${selector}`);
-    assert.doesNotMatch(own, /(^|[;\s])background:/, `${selector} uses the background shorthand`);
-  }
-  for (const selector of ['.tool-select', '.pane-select']) {
-    const room = Number((rule(selector) ?? '').match(/padding(?:-right:\s*|:\s*\S+\s+)(\d+)px/)?.[1]);
-    assert.ok(room >= 24, `${selector} leaves ${room}px for the arrow`);
-  }
+  const own = rule('.tool-select') ?? '';
+  assert.ok(own, 'no rule for .tool-select');
+  assert.doesNotMatch(own, /(^|[;\s])background:/, '.tool-select uses the background shorthand');
+  const room = Number(own.match(/padding(?:-right:\s*|:\s*\S+\s+)(\d+)px/)?.[1]);
+  assert.ok(room >= 24, `.tool-select leaves ${room}px for the arrow`);
+  // A pane's select, as utilities: a background colour only, and room on the right.
+  const pane = (await source('components/pane-classes.ts')).match(/paneSelectClass = cx\(([\s\S]*?)\);/)?.[1] ?? '';
+  assert.ok(pane, 'no paneSelectClass');
+  assert.doesNotMatch(pane, /\[background:|bg-\[(linear|radial|url)/, 'paneSelectClass sets the whole background');
+  assert.ok(Number(pane.match(/pr-\[(\d+)px\]/)?.[1]) >= 24, 'paneSelectClass leaves room for the arrow');
 });
