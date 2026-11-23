@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Menu } from '../../components/Menu';
+import { Menu, MenuHint, MenuActions } from '../../components/Menu';
 import { post } from '../../lib/api';
 import { readPref, writePref } from '../../lib/prefs';
 import { BRANCH_INPUT_PATTERN, branchFromTask, pendingTask, startedTask, type StartResult } from '../../lib/shared';
@@ -89,10 +89,10 @@ function NewTaskForm({ repos, onStarted }: { repos: Repo[]; onStarted: () => voi
         <input name="branch" type="text" maxLength={MAX_BRANCH_CHARS} autoComplete="off" placeholder="Named after the task"
           pattern={BRANCH_INPUT_PATTERN} title={'Letters, digits, ".", "_", "-" and "/"'} value={fields.branch} onChange={change('branch')} />
       </TaskField>
-      <div className="task-actions">
-        <p className="reply-hint">{preview(repos.find((r) => r.mainPath === fields.repo), fields)}</p>
+      <MenuActions>
+        <MenuHint>{preview(repos.find((r) => r.mainPath === fields.repo), fields)}</MenuHint>
         <Button type="submit" size="sm" disabled={start.isPending}>Start</Button>
-      </div>
+      </MenuActions>
     </form>
   );
 }
@@ -103,7 +103,7 @@ export function NewTaskMenu({ data }: { data: AgentsData }) {
   if (!data.capabilities.tmux || data.repos.length === 0) return null;
   const repos = [...data.repos].sort((a, b) => a.name.localeCompare(b.name));
   return (
-    <Menu label="New task ▾" title="Start Claude on a new branch in its own worktree" look={{ variant: 'primary' }} panelClass="reply-panel" open={open} onOpenChange={setOpen}>
+    <Menu label="New task ▾" title="Start Claude on a new branch in its own worktree" look={{ variant: 'primary' }} roomy width={[340, 420]} panelClass="gap-1.5" open={open} onOpenChange={setOpen}>
       <NewTaskForm repos={repos} onStarted={() => setOpen(false)} />
     </Menu>
   );

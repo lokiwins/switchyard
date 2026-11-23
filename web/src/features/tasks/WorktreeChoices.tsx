@@ -6,6 +6,7 @@ import { TASKS_KEY } from './api';
 import { whatsLeft } from './logic';
 import type { WorktreeChoice } from './types';
 import { Button } from '../../components/Button';
+import { MenuHint } from '../../components/Menu';
 
 /*
  * After a task is closed or deleted, its work is put away (see
@@ -29,11 +30,11 @@ function Choice({ choice }: { choice: WorktreeChoice }) {
         {choice.branch ? <> on <code>{choice.branch}</code></> : ''}
         {` has ${whatsLeft(choice)}. Keep it, or delete it?`}
       </p>
-      <p className="reply-hint">
+      <MenuHint>
         {choice.changes > 0
           ? 'Delete removes the folder, and its uncommitted changes are gone for good. The branch and its commits stay.'
           : 'Delete removes the folder. The branch and its commits stay.'}
-      </p>
+      </MenuHint>
       <div className="worktree-choice-actions">
         <Button type="button" variant="secondary" size="sm" disabled={choose.isPending} onClick={() => choose.mutate(true)}>Keep worktree</Button>
         <Button type="button" variant="danger" size="sm" disabled={choose.isPending} onClick={() => choose.mutate(false)}>Delete worktree</Button>
