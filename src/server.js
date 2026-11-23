@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
+import { mkdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,7 +53,7 @@ import { canReadScreen, createTerminal } from './terminal.js';
 import { conditionalState } from './state-etag.js';
 import { themeBootScript } from './theme-boot.js';
 import { builtFile } from './built-pages.js';
-import { createTmux } from './tmux.js';
+import { createTmux, ownSocket } from './tmux.js';
 
 // Loopback only: the API exposes local paths and agent prompts.
 const HOST = '127.0.0.1';
@@ -145,7 +146,7 @@ const SCREEN_REDRAW_MS = 300;
 /** The text a session's host shows: its tmux pane, or its iTerm tab; null for a host whose screen can't be read. */
 function screenReader(tmux, terminalFor = (app) => createTerminal({ app })) {
   return (host) => {
-    if (host.kind === 'tmux') return tmux.screenText(host.pane);
+    if (host.kind === 'tmux') return tmux.at(host.socket ?? null).screenText(host.pane);
     if (host.kind === 'terminal' && host.tty && canReadScreen(host.app)) return terminalFor(host.app).screen(host.tty);
     return null;
   };
@@ -627,7 +628,10 @@ function followingTerminal(config) {
 async function main() {
   const config = createLiveConfig(loadConfigOrExit());
   const cache = createSwrCache();
-  const tmux = createTmux();
+  // switchyard's tmux windows run on a server of its own, in its own folder (see ownSocket).
+  const storeDir = defaultStoreDir();
+  mkdirSync(storeDir, { recursive: true, mode: 0o700 });
+  const tmux = createTmux({ socket: ownSocket(storeDir) });
   // The board reuses the PR sync's details for your PRs; the sync is created just below.
   let prService = null;
   // Ended sessions deleted from the Agents page; it reads the sessions view, made just below.
@@ -654,7 +658,7 @@ async function main() {
   // Settings › Agent providers choose the default, turn providers off, and say how each runs; read each time, so saves apply at once.
   const agents = createAgentProviders([
     createClaudeProvider({
-      claudeDir: config.claudeDir, listTmuxPanes: tmux.listPanes, readScreen: screenReader(tmux), settings: () => config.settings.providers.claude, sessionEvents,
+      claudeDir: config.claudeDir, listTmuxPanes: tmux.listAllPanes, readScreen: screenReader(tmux), settings: () => config.settings.providers.claude, sessionEvents,
     }),
   ], { settings: () => config.settings.providers });
   // Made here, not inside the state service, so checks can hear its commits too (see check-triggers.js).

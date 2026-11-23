@@ -66,6 +66,12 @@ test('attachControlClient attaches to the exact session and reports parsed lines
   assert.deepEqual(events, [{ type: 'output', pane: '%2', data: bytes('hey') }]);
 });
 
+test('attachControlClient attaches on the server at `socket` when given one', () => {
+  let spawnedWith = null;
+  attachControlClient({ session: 'switchyard', socket: '/Users/me/.config/switchyard/tmux', onEvent: () => {}, onClose: () => {}, spawnTmux: (args) => { spawnedWith = args; return fakeChild(); } });
+  assert.deepEqual(spawnedWith, ['-S', '/Users/me/.config/switchyard/tmux', '-C', 'attach-session', '-t', '=switchyard']);
+});
+
 test('attachControlClient writes one-line commands, detaches on close, and reports the close once', () => {
   const child = fakeChild();
   let closes = 0;

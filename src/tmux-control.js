@@ -72,12 +72,12 @@ export function createLineSplitter(onLine) {
 export const hexKeys = (bytes) => [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join(' ');
 
 /**
- * A control client attached to `session`. Calls onEvent with each parsed
- * line and onClose once the client has gone. `command` writes one tmux
- * command; `close` detaches.
+ * A control client attached to `session`, on the server at `socket` (tmux's
+ * default one when null). Calls onEvent with each parsed line and onClose
+ * once the client has gone. `command` writes one tmux command; `close` detaches.
  */
-export function attachControlClient({ session, onEvent, onClose, spawnTmux = defaultSpawn }) {
-  const child = spawnTmux(['-C', 'attach-session', '-t', `=${session}`]);
+export function attachControlClient({ session, socket = null, onEvent, onClose, spawnTmux = defaultSpawn }) {
+  const child = spawnTmux([...(socket ? ['-S', socket] : []), '-C', 'attach-session', '-t', `=${session}`]);
   let closed = false;
   const finish = () => {
     if (closed) return;
