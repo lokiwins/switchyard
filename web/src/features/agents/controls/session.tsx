@@ -6,6 +6,7 @@ import { tmuxPlace } from '../../../lib/paths';
 import { canShowTerminalSessions } from '../../../lib/shared';
 import type { Capabilities, Host, LiveSession } from '../../../lib/types';
 import { buttonClass } from '../../../components/Button';
+import { resumedMessage } from '../../../components/OpenMenu';
 
 /* A session's controls: stop it, end it, go to it, resume it, see its graph, make a task from it. */
 
@@ -62,10 +63,25 @@ export function EndMenu({ session }: { session: LiveSession }) {
 
 interface FocusResult { precision: string; window?: string; host?: string }
 
-/** Get to a running session: its exact tab in a terminal, its window in an editor, or its app. */
+/**
+ * "Resume" on a running session switchyard can't reach: no tab, window or
+ * tmux pane it can find (its tmux server lost its socket, say), so there's
+ * nothing to jump to. It ends the session there and resumes it here.
+ */
+function TakeOverButton({ session }: { session: LiveSession }) {
+  // A session running in the background is left to finish its work.
+  if (session.kind && session.kind !== 'interactive') return null;
+  return (
+    <ActionButton label="Resume"
+      title="switchyard can't reach where this session is running, so it ends it there and resumes it here, where you can see and steer it"
+      perform={async () => resumedMessage(await post<{ window?: string; host?: string }>('/api/terminal/resume', { sessionId: session.sessionId }))} />
+  );
+}
+
+/** Get to a running session: its exact tab in a terminal, its window in an editor, or its app; "Resume" when switchyard can't find any. */
 export function JumpButton({ session }: { session: LiveSession }) {
   const host = session.host;
-  if (!host) return null;
+  if (!host) return <TakeOverButton session={session} />;
   const isTerminal = host.kind === 'terminal' || host.kind === 'tmux';
   const title = host.kind === 'tmux' ? `Switch to the tab showing tmux window ${tmuxPlace(host)}, or open it in a new tab`
     : isTerminal ? `Switch to this session's tab in ${host.label}`

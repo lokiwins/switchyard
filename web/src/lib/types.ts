@@ -57,6 +57,8 @@ export interface LiveSession {
   status: 'busy' | 'idle' | string;
   needsYou?: boolean;
   inBackground?: boolean;
+  /** How Claude was started: 'interactive' in a terminal, or in the background. */
+  kind?: string | null;
   parked?: boolean;
   statusUpdatedAt: number;
   host?: Host | null;
