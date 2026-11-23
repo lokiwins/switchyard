@@ -1,6 +1,7 @@
 import { TrustButtons } from '../agents/controls/session';
 import type { Approval, Capabilities } from '../../lib/types';
 import { taskActions } from './actions';
+import { hasFailedCheck } from './check-status';
 import { canStart, rowDue } from './logic';
 import { STATE_LABELS, ticketLabel, trackerOf } from './task-state';
 import { StartMenu } from './StartMenu';
@@ -114,6 +115,8 @@ function RowActions({ task, parent, context }: { task: ShownTask; parent: ShownT
 export function TaskRow({ task, parent = null, context }: { task: ShownTask; parent?: ShownTask | null; context: RowContext }) {
   const due = rowDue(task, context.now);
   const subtasks = task.subtasks ?? [];
+  // An open task's work can close it; not one already on its way out.
+  const markAs = task.closedAs || task.closing ? null : { failedCheck: hasFailedCheck(task), close: (as: 'done' | 'dropped') => void taskActions.close(task, as) };
   return (
     // A subtask's row is a little tighter, under its parent's.
     <li className={cx(ROW, parent ? 'py-2' : 'py-[7px]')}>
@@ -135,7 +138,7 @@ export function TaskRow({ task, parent = null, context }: { task: ShownTask; par
         <div className="grid gap-1 [grid-column:2/-1] max-tablet:[grid-column:1/-1]" aria-label="Work on this task">
           {task.work.map((work) => (
             <WorkLine key={work.path} work={work} caps={context.caps} approvals={context.approvals} onRunCheck={taskActions.runCheck}
-              onReview={task.closedAs ? null : (path) => taskActions.review(task, path)} />
+              onReview={task.closedAs ? null : (path) => taskActions.review(task, path)} markAs={markAs} />
           ))}
         </div>
       )}

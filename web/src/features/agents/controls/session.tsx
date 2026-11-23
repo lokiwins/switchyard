@@ -37,26 +37,42 @@ function hostPlace(host: Host | null | undefined) {
 /**
  * End a session: Claude ends, and it can be resumed. In tmux its window closes
  * too; anywhere else Claude is hung up and its tab stays open at your shell.
- * Two clicks, since what's on screen goes with it.
+ * Two clicks, since what's on screen goes with it: this is what ending does,
+ * and the button that does it, in End ▾ and in a task's Mark as ▾.
  */
-export function EndMenu({ session }: { session: LiveSession }) {
-  const [open, setOpen] = useState(false);
+export function EndSession({ session, onDone }: { session: LiveSession; onDone: () => void }) {
   const tmux = inTmux(session) && session.host;
   const place = tmux ? `tmux window ${tmuxPlace(tmux)}` : hostPlace(session.host);
   return (
-    <Menu label="End ▾" look={{ variant: 'secondary', size: 'sm' }} roomy width={[240, 320]} panelClass="gap-1.5" focusInput={false} open={open} onOpenChange={setOpen}
-      title={tmux ? 'End this Claude session and close its tmux window' : `End this Claude session; its ${place} stays open`}>
+    <>
       <MenuHint>
         {tmux
           ? `Ends Claude and closes ${place}. You can resume the session from Recently ended.`
           : `Ends Claude, as closing its ${place} would, with anything it's running; the ${place} stays open at your shell. You can resume the session from Recently ended.`}
       </MenuHint>
       <ActionButton label="End session" title={tmux ? 'End Claude and close its tmux window' : 'End Claude'} look={{ variant: 'danger', size: 'sm' }}
-        onDone={() => setOpen(false)}
+        onDone={onDone}
         perform={async () => {
           await post('/api/terminal/end', { sessionId: session.sessionId });
           return 'Session ended. Resume it from Recently ended.';
         }} />
+    </>
+  );
+}
+
+/** The End ▾ title: what ending does to where the session runs. */
+export function endTitle(session: LiveSession) {
+  const tmux = inTmux(session) && session.host;
+  return tmux ? 'End this Claude session and close its tmux window' : `End this Claude session; its ${hostPlace(session.host)} stays open`;
+}
+
+/** "End ▾" on a running session. */
+export function EndMenu({ session }: { session: LiveSession }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Menu label="End ▾" look={{ variant: 'secondary', size: 'sm' }} roomy width={[240, 320]} panelClass="gap-1.5" focusInput={false} open={open} onOpenChange={setOpen}
+      title={endTitle(session)}>
+      <EndSession session={session} onDone={() => setOpen(false)} />
     </Menu>
   );
 }

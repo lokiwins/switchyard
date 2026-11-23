@@ -6,7 +6,7 @@ import type { ShownTask } from './types';
 /* ⋯ on a task: Mark done, Drop, Add subtask…, Reopen, Delete…. Delete asks once more inside the menu. */
 
 // What closing or deleting a task does to its work (see src/task-cleanup.js).
-const PUTS_AWAY = 'Its running sessions end and its worktrees are removed; one with uncommitted changes or unmerged commits asks you first.';
+export const PUTS_AWAY = 'Its running sessions end and its worktrees are removed; one with uncommitted changes or unmerged commits asks you first.';
 
 export interface TaskMenuActions {
   close: (as: 'done' | 'dropped') => void;
