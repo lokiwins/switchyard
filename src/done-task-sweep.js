@@ -10,7 +10,7 @@ import { linkHubTasks } from './task-links.js';
 // How often to look; a task goes within this long of its time.
 export const SWEEP_MS = 60 * 60_000;
 
-/** As the Tasks page sees it (task-state.js): a merged PR on its work makes it done. */
+/** As the Tasks page sees it (web/src/features/tasks/task-state.ts): a merged PR on its work makes it done. */
 const isMergedDone = (task) => task.work.some((w) => w.pr?.state === 'MERGED');
 
 export function createDoneTaskSweep({

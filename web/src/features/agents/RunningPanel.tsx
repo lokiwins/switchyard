@@ -3,7 +3,7 @@ import { Panel } from '../../components/Panel';
 import { SearchBox } from '../../components/SearchBox';
 import { Segmented } from '../../components/Segmented';
 import { useNow } from '../../lib/time';
-import { settlePending } from '../../lib/shared';
+import { settlePending } from '../../lib/pending-tasks';
 import type { AgentsData, Approval, EndedSession, LiveSession } from '../../lib/types';
 import { usePendingStore } from '../../stores/pending';
 import { toast } from '../../stores/toast';

@@ -3,7 +3,7 @@ import type { Approval, Capabilities } from '../../lib/types';
 import { SessionControls } from '../agents/controls/SessionControls';
 import { SessionAlerts } from '../agents/Row';
 import { ChecksControl } from './ChecksControl';
-import { sessionToJump } from './logic';
+import { sessionToJump } from './task-views';
 import { ReviewControl } from './ReviewControl';
 import type { Work } from './types';
 import { cx } from '../../lib/cx';

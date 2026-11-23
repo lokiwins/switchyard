@@ -3,7 +3,7 @@ import { post } from '../../lib/api';
 import { queryClient } from '../../lib/query';
 import { toast } from '../../stores/toast';
 import { TASKS_KEY } from './api';
-import { whatsLeft } from './logic';
+import { whatsLeft } from './worktree-choices';
 import type { WorktreeChoice } from './types';
 import { Button } from '../../components/Button';
 import { MenuHint } from '../../components/Menu';

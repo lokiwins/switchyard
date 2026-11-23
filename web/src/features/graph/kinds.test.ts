@@ -1,8 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import * as model from '../../../../public/graph-model.js';
-import { cssSource } from '../../styles/source';
+import { KINDS, TOKEN_KINDS } from './model';
+import { cssSource, sourceFiles, sourceText } from '../../styles/source';
 import { kindFillClass, kindSwatchClass } from './kinds';
 
 /*
@@ -10,9 +8,6 @@ import { kindFillClass, kindSwatchClass } from './kinds';
  * dark; the swatches and the share bar take it through a class per kind, as
  * literal class names Tailwind can find.
  */
-
-const KINDS = model.KINDS as Record<string, { color: string }>;
-const TOKEN_KINDS = model.TOKEN_KINDS as { kind: string; color: string }[];
 
 describe('the kinds\' colours', () => {
   it('give every node kind a swatch in its own colour', () => {
@@ -37,10 +32,8 @@ describe('the kinds\' colours', () => {
 
 describe('legacy.css', () => {
   it('is gone, and nothing imports it', () => {
-    const dir = process.env.STYLES_DIR ?? '';
-    expect(existsSync(join(dir, 'legacy.css'))).toBe(false);
-    for (const file of readdirSync(dir).filter((f) => f.endsWith('.css'))) {
-      expect(readFileSync(join(dir, file), 'utf8'), file).not.toMatch(/legacy/);
-    }
+    const sheets = sourceFiles('styles').filter((f) => f.endsWith('.css'));
+    expect(sheets).not.toContain('legacy.css');
+    for (const file of sheets) expect(sourceText(`styles/${file}`), file).not.toMatch(/legacy/);
   });
 });

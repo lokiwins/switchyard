@@ -1,7 +1,8 @@
 import { TrustButtons } from '../agents/controls/session';
 import type { Approval, Capabilities } from '../../lib/types';
 import { taskActions } from './actions';
-import { canStart, rowDue, STATE_LABELS, ticketLabel, trackerOf } from './logic';
+import { canStart, rowDue } from './logic';
+import { STATE_LABELS, ticketLabel, trackerOf } from './task-state';
 import { StartMenu } from './StartMenu';
 import { TaskMenu } from './TaskMenu';
 import type { ShownTask } from './types';

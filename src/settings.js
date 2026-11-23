@@ -1,5 +1,5 @@
-import { MODE_IDS, THEME_IDS } from '../public/themes.js';
-import { TERMINAL_IDS } from '../public/terminal-themes.js';
+import { MODE_IDS, THEME_IDS } from '../shared/themes.ts';
+import { TERMINAL_IDS } from '../shared/terminal-themes.ts';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;

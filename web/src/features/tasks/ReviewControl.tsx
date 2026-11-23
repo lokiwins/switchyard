@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { LiveTime } from '../../components/LiveTime';
-import { reviewLabel, reviewReasons } from './logic';
+import { reviewLabel, reviewReasons } from './review-status';
 import type { Review } from './types';
 import { Button } from '../../components/Button';
 import { resultBodyClass, resultClass, resultMetaClass, resultSummaryClass } from './badge';

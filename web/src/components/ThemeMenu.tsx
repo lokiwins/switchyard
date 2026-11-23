@@ -1,5 +1,6 @@
 import { appearanceApi, useAppearance, type AppearanceKey } from '../lib/appearance';
-import { MODES, TERMINAL_CHOICES, THEMES, type Choice } from '../lib/themes';
+import { TERMINAL_CHOICES } from '../../../shared/terminal-themes.ts';
+import { MODES, THEMES, type Choice } from '../../../shared/themes.ts';
 import { Menu, MenuItem, MenuLabel, MenuTitle } from './Menu';
 
 /* ◐ in the top bar: this browser's theme, light or dark, and terminal colours, or the Settings defaults. */

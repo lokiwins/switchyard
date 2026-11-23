@@ -6,7 +6,7 @@ import { cx } from '../../lib/cx';
 import { Markdown } from '../../components/Markdown';
 import { getJson } from '../../lib/api';
 import { announceChange } from '../../lib/changes';
-import { sessionTitle } from '../../lib/shared';
+import { sessionTitle } from '../../lib/session-text';
 import type { Approval, LiveSession } from '../../lib/types';
 import { usePaneStore } from '../../stores/panes';
 import { toast } from '../../stores/toast';

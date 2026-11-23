@@ -1,7 +1,7 @@
 /*
  * Every theme's colours. theme-boot.js sets <html data-theme data-scheme>;
  * Classic is the default (:root), and each other theme sets every color token
- * for light, then again for dark. The list of themes is public/themes.js.
+ * for light, then again for dark. The list of themes is shared/themes.ts.
  *
  * Fonts: Manrope, JetBrains Mono, Fraunces and Anton, under the SIL Open Font
  * License (web/src/fonts/OFL-*.txt), Latin subset. A browser only
@@ -545,7 +545,7 @@
 
 /*
  * The glass panes' colours (see Dialog.tsx): the terminal colours set them
- * (terminal-themes.js), so a light terminal scheme gives light glass; these
+ * (shared/terminal-themes.ts), so a light terminal scheme gives light glass; these
  * defaults are Classic dark's.
  */
 :root {

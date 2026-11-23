@@ -1,5 +1,5 @@
 import { shortPath } from '../../lib/paths';
-import { sessionDetail, sessionTitle } from '../../lib/shared';
+import { sessionDetail, sessionTitle } from '../../lib/session-text';
 import type { Capabilities, EndedSession } from '../../lib/types';
 import { DeleteMenu } from './controls/delete';
 import { EditorLink } from '../../components/EditorLink';
