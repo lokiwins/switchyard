@@ -15,6 +15,12 @@ import { shellQuoteAlways } from './shell.js';
  * holding only the task's window (linked, not moved), attached in the tab.
  * Closing the tab ends the view and leaves the task running; the task's
  * window closing empties the view, which ends it and closes the tab.
+ *
+ * A client made with a `socket` runs every command on that server (tmux -S),
+ * switchyard's own, kept out of /tmp where cleanup could delete it. Without
+ * one it's tmux's default server, where your own tmux sessions run. A pane
+ * says which server it's on (`socket`, null for the default), and `at()` is
+ * the client for that server.
  */
 
 const PANE_FORMAT = '#{pane_tty}\t#{session_name}\t#{window_id}\t#{window_name}\t#{pane_id}';
@@ -41,18 +47,33 @@ const CONTROL_CHARACTERS = /[\0-\x1f\x7f-\x9f\u2028\u2029]/;
 
 export class TmuxError extends ActionError {}
 
+// A socket's path can be at most 104 bytes on macOS, its end included.
+const MAX_SOCKET_PATH = 103;
+
+/**
+ * switchyard's own tmux socket, in its own folder (~/.config/switchyard/tmux)
+ * rather than /tmp, where a socket can be deleted or replaced out from
+ * under a running server, stranding every session on it. Null when the path would be
+ * too long for a socket: then it's tmux's default.
+ */
+export function ownSocket(dir) {
+  const path = join(dir, 'tmux');
+  return Buffer.byteLength(path) <= MAX_SOCKET_PATH ? path : null;
+}
+
 export const hasControlCharacters = (text) => CONTROL_CHARACTERS.test(text);
 
 const isView = (session) => session.startsWith(VIEW_PREFIX);
 
 /**
- * Parse `list-panes -a -F PANE_FORMAT` into tty -> { session, window, windowName, pane }.
- * A pane in a view is listed again under the view's name, which is left out: the session it belongs to is its home.
+ * Parse `list-panes -a -F PANE_FORMAT` into tty -> { session, window, windowName, pane, socket }, `socket` being the
+ * server's (null for the default one). A pane in a view is listed again under the view's name, which is left out:
+ * the session it belongs to is its home.
  */
-export function parsePanes(text) {
+export function parsePanes(text, socket = null) {
   return new Map(text.split('\n').flatMap((line) => {
     const [tty, session, window, windowName, pane] = line.split('\t');
-    return tty && session && window && pane && !isView(session) ? [[tty, { session, window, windowName: windowName ?? '', pane }]] : [];
+    return tty && session && window && pane && !isView(session) ? [[tty, { session, window, windowName: windowName ?? '', pane, socket }]] : [];
   }));
 }
 
@@ -79,19 +100,28 @@ function parseNewWindow(text) {
   return { window, pane };
 }
 
-export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {}) {
+export function createTmux({ exec = run, locate = () => findOnPath('tmux'), socket = null } = {}) {
+  // The server every command goes to: this client's socket, or tmux's default.
+  const on = (args) => (socket ? ['-S', socket, ...args] : args);
+  // As typed into a shell, for a terminal tab's command.
+  const socketWords = socket ? ` -S ${shellQuoteAlways(socket)}` : '';
   async function tmux(args, { fromNewTab = false, encoding } = {}) {
     try {
       return fromNewTab
-        ? await exec(locate(), args, { env: { ...process.env, PATH: LOGIN_PATH } })
-        : await exec('tmux', args, encoding ? { encoding } : undefined);
+        ? await exec(locate(), on(args), { env: { ...process.env, PATH: LOGIN_PATH } })
+        : await exec('tmux', on(args), encoding ? { encoding } : undefined);
     } catch (error) {
       if (/ENOENT/.test(error.message)) throw new TmuxError(501, 'tmux is not installed (brew install tmux)');
       throw new TmuxError(502, `tmux: ${error.message}`);
     }
   }
 
-  return {
+  const self = {
+    /** The client for another server: `null` is tmux's default one. */
+    at(other) {
+      return other === socket ? self : createTmux({ exec, locate, socket: other });
+    },
+
     /** Whether tmux is installed. */
     async isInstalled() {
       try {
@@ -105,16 +135,23 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
     /** Every pane on the server by tty; empty when tmux is missing or not running. */
     async listPanes() {
       try {
-        return parsePanes(await exec('tmux', ['list-panes', '-a', '-F', PANE_FORMAT]));
+        return parsePanes(await exec('tmux', on(['list-panes', '-a', '-F', PANE_FORMAT])), socket);
       } catch {
         return new Map();
       }
     },
 
+    /** Every pane on this server, and on the default one, where your own tmux sessions run. */
+    async listAllPanes() {
+      if (!socket) return self.listPanes();
+      const [own, yours] = await Promise.all([self.listPanes(), self.at(null).listPanes()]);
+      return new Map([...own, ...yours]);
+    },
+
     /** Whether `session` has a window called `name`; false when the session doesn't exist. */
     async hasWindow(session, name) {
       try {
-        const names = await exec('tmux', ['list-windows', '-t', `=${session}`, '-F', '#{window_name}']);
+        const names = await exec('tmux', on(['list-windows', '-t', `=${session}`, '-F', '#{window_name}']));
         return names.split('\n').includes(name);
       } catch {
         return false;
@@ -167,7 +204,7 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
     /** The program a pane runs in front (its shell when nothing else is), or null when the pane is gone. */
     async paneCommand(pane) {
       try {
-        return (await exec('tmux', ['display-message', '-p', '-t', pane, '#{pane_current_command}'])).trim();
+        return (await exec('tmux', on(['display-message', '-p', '-t', pane, '#{pane_current_command}']))).trim();
       } catch {
         return null;
       }
@@ -221,7 +258,7 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
      */
     async integrationClients(session) {
       try {
-        const lines = await exec('tmux', ['list-clients', '-t', `=${session}`, '-F', '#{client_tty}\t#{client_control_mode}']);
+        const lines = await exec('tmux', on(['list-clients', '-t', `=${session}`, '-F', '#{client_tty}\t#{client_control_mode}']));
         return lines.split('\n').flatMap((line) => {
           const [tty, controlMode] = line.split('\t');
           return tty && controlMode === '1' ? [tty] : [];
@@ -234,7 +271,7 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
     /** Whether `session` is running. */
     async hasSession(session) {
       try {
-        await exec('tmux', ['has-session', '-t', `=${session}`]);
+        await exec('tmux', on(['has-session', '-t', `=${session}`]));
         return true;
       } catch {
         return false;
@@ -267,7 +304,7 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       const name = `${VIEW_PREFIX}${number}`;
       const target = `=${name}`;
       try {
-        await exec('tmux', ['has-session', '-t', target]);
+        await exec('tmux', on(['has-session', '-t', target]));
       } catch {
         const [first] = (await tmux(['new-session', '-d', '-s', name, '-P', '-F', '#{window_id}'])).trim().split('\n');
         await tmux(['link-window', '-s', window, '-t', `${target}:`, ';', 'kill-window', '-t', first]);
@@ -275,7 +312,7 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       // set-option takes a pane target, which "=name" alone isn't; "=name:" is the session's current window.
       const session = shellQuoteAlways(`${target}:`);
       return [
-        `exec tmux attach-session -t ${shellQuoteAlways(target)}`,
+        `exec tmux${socketWords} attach-session -t ${shellQuoteAlways(target)}`,
         `set-option -t ${session} destroy-unattached on`,
         `set-option -t ${session} set-titles on`,
         `set-option -t ${session} set-titles-string '#W'`,
@@ -293,4 +330,5 @@ export function createTmux({ exec = run, locate = () => findOnPath('tmux') } = {
       await tmux(['kill-pane', '-t', pane]);
     },
   };
+  return self;
 }

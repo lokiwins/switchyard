@@ -17,6 +17,7 @@ function setup({
   useTmux = false, windows = [], folders = ['/w/old', '/w/feat', '/w/my repo'], screen = '',
   integrated = [], paneShown = false, sessionUp = true, otherPanes = [],
   proc = { pgid: 42, startedAt: Date.parse(PROC_START) }, exitsOn = ['SIGHUP'], limit = { check: async () => {} }, defaultSettings,
+  servers = [],
 } = {}) {
   const calls = [];
   let running = alive;
@@ -40,6 +41,8 @@ function setup({
   const screenNow = () => (typeof screen === 'function'
     ? screen(calls.filter((c) => c[0] === 'tmux-key' || c[0] === 'term-key').map((c) => c[2])) : screen);
   const tmux = {
+    // One server here: every socket is this one. `servers` records which socket each command went to.
+    at: (socket) => { servers.push(socket); return tmux; },
     clientsShowing: async (window) => { calls.push(['clients', window]); return clients; },
     integrationClients: async (session) => { calls.push(['integrated', session]); return integrated; },
     hasSession: async (session) => session === 'switchyard' && sessionUp,
@@ -616,4 +619,16 @@ test('Open\'s new Claude session gets switchyard\'s session settings file; anoth
   await actions.openWorktree({ path: '/w/feat', launch: 'claude' });
   await actions.openWorktree({ path: '/w/feat', launch: 'other' });
   assert.deepEqual(calls, [['open', "cd /w/feat && claude --settings '/c/session.settings.json'"], ['open', 'cd /w/feat && other-agent']]);
+});
+
+test('a session in tmux is reached on its own server: switchyard\'s, or the default one for your own tmux', async () => {
+  for (const socket of ['/Users/me/.config/switchyard/tmux', null]) {
+    const servers = [];
+    const { actions } = setup({ host: { ...inTmux, socket }, servers, session: { status: 'busy' } });
+    await actions.replyToSession({ sessionId: ID, text: 'go on' });
+    await actions.interruptSession({ sessionId: ID });
+    assert.deepEqual(await actions.tmuxTarget({ sessionId: ID }), { session: 'switchyard', pane: '%3', socket });
+    await actions.endSession({ sessionId: ID });
+    assert.ok(servers.length > 0 && servers.every((s) => s === socket), `${socket}: ${servers}`);
+  }
 });
