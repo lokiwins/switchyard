@@ -1,8 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import { LiveTime } from '../../components/LiveTime';
-import { anyRunning, checkLabel, ranBy } from './logic';
+import { anyRunning, checkLabel, ranBy } from './check-status';
 import type { CheckResult } from './types';
 import { Button } from '../../components/Button';
+import { resultBodyClass, resultClass, resultMetaClass, resultSummaryClass } from './badge';
 
 /*
  * A worktree's checks (see src/checks.js): each named check's latest result,
@@ -11,6 +12,12 @@ import { Button } from '../../components/Button';
 
 // Lines of output shown when a check's result is opened.
 const OUTPUT_LINES = 40;
+
+// The end of its output, on a faint band, scrolling past a few hundred pixels.
+const OUTPUT = [
+  'justify-self-stretch m-0 max-h-[260px] overflow-auto py-2 px-3 rounded-[8px] text-2xs text-gray-900 whitespace-pre-wrap [overflow-wrap:anywhere]',
+  'bg-[color-mix(in_srgb,var(--gray-500)_12%,transparent)]',
+].join(' ');
 
 function RunButton({ label, title, onRun, disabled = false }: { label: string; title: string; onRun: () => Promise<unknown>; disabled?: boolean }) {
   const run = useMutation({ mutationFn: onRun });
@@ -25,12 +32,12 @@ function ResultBadge({ check, busy, onRun }: { check: CheckResult; busy: boolean
     : check.startedAt ? <LiveTime since={check.startedAt} prefix="started " /> : null;
   const by = ranBy(check);
   return (
-    <details className={`check-status ${tone}`}>
-      <summary title={`Ran: ${check.command}`}>{text}</summary>
-      <div className="check-body">
-        <p className="check-meta"><code>{check.command}</code>{when && <>{' · '}{when}</>}{by && ` · ${by}`}</p>
-        {check.detail && <p className="check-meta">{check.detail}</p>}
-        {output && <pre className="check-output">{output}</pre>}
+    <details className={resultClass}>
+      <summary className={resultSummaryClass(tone)} title={`Ran: ${check.command}`}>{text}</summary>
+      <div className={resultBodyClass}>
+        <p className={resultMetaClass}><code>{check.command}</code>{when && <>{' · '}{when}</>}{by && ` · ${by}`}</p>
+        {check.detail && <p className={resultMetaClass}>{check.detail}</p>}
+        {output && <pre className={OUTPUT}>{output}</pre>}
         {!busy && <RunButton label={`Run ${check.name} again`} title={`Run ${check.command} in this worktree`} onRun={() => onRun(check.name)} />}
       </div>
     </details>
@@ -43,7 +50,8 @@ export function ChecksControl({ checks, names, onRun }: { checks: CheckResult[];
   const busy = anyRunning(checks);
   const byName = new Map(checks.map((c) => [c.name, c]));
   return (
-    <span className="checks">
+    // The badges share the line with the rest of the work; one opened takes a line of its own.
+    <span className="flex flex-wrap items-center gap-2 min-w-0 has-[details[open]]:basis-full">
       {names.map((name) => {
         const check = byName.get(name);
         return check

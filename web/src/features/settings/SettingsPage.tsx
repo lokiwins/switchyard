@@ -5,20 +5,26 @@ import { Panel } from '../../components/Panel';
 import { TopBar, TopBarStatus } from '../../components/TopBar';
 import { getJson, post } from '../../lib/api';
 import { appearanceApi } from '../../lib/appearance';
+import { cx } from '../../lib/cx';
 import { shortPath } from '../../lib/paths';
 import { queryClient } from '../../lib/query';
-import { MODES, TERMINAL_CHOICES, THEMES } from '../../lib/themes';
+import { TERMINAL_CHOICES } from '../../../../shared/terminal-themes.ts';
+import { MODES, THEMES } from '../../../../shared/themes.ts';
 import type { Nav } from '../../lib/types';
 import { toast } from '../../stores/toast';
 import { editsFromFields, fieldsFromValues, hasChanges, type Fields, type SettingsView } from './form';
 import { RepoChecklist } from './RepoChecklist';
-import { SelectSetting, SettingsFormProvider, TextSetting, ToggleSetting } from './SettingsForm';
+import { SelectSetting, settingHintClass, settingRowClass, SettingsFormProvider, TextSetting, ToggleSetting } from './SettingsForm';
 import { Button } from '../../components/Button';
 import { Errors, messages } from '../../components/Errors';
 
 /* The Settings page: what's saved in config.json, edited and saved here; they apply at once. */
 
 const SETTINGS_KEY = ['settings'] as const;
+
+// The facts set when switchyard starts: a name, then its value in the monospace face.
+const FACT_NAME = 'text-gray-500';
+const FACT = 'm-0 [overflow-wrap:anywhere] font-mono';
 
 const choices = (list: readonly { id: string; label: string }[], labelOf = (c: { id: string; label: string }) => c.label) =>
   list.map((c) => ({ value: c.id, label: labelOf(c) }));
@@ -50,7 +56,7 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
         <TextSetting name="roots" label="Folders to look for repos in" rows={3}
           hint="One folder per line. Leave empty to use ~/work, ~/code, ~/src, ~/projects and ~/dev, whichever exist."
           after={(
-            <span className="setting-hint" id="roots-now">
+            <span className={settingHintClass} id="roots-now">
               {view.rootsFromEnv
                 ? `SWITCHYARD_ROOTS is set, so it decides for now: ${view.roots.map(shortPath).join(', ')}`
                 : `Looking in: ${view.roots.map(shortPath).join(', ')}`}
@@ -80,7 +86,7 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
       </Panel>
 
       <Panel id="agents-title" title="Agents">
-        <div className="setting-row">
+        <div className={settingRowClass}>
           <TextSetting name="agents.parkedAfterHours" inputMode="decimal" label="Parked after (hours)"
             hint="An idle session untouched this long counts as parked, not waiting on you." />
           <TextSetting name="agents.maxRunning" inputMode="numeric" label="Most agents running at once"
@@ -96,12 +102,12 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
       </Panel>
 
       <Panel id="providers-title" title="Agent providers">
-        <div className="setting-row">
+        <div className={settingRowClass}>
           <SelectSetting name="providers.default" label="Default provider" options={[{ value: 'claude', label: 'Claude Code' }]}
             hint="The agent New task, Start and Open use when none is chosen." />
         </div>
-        <h3 className="setting-subhead">Claude Code</h3>
-        <div className="setting-row">
+        <h3 className="mt-5 mb-3">Claude Code</h3>
+        <div className={settingRowClass}>
           <ToggleSetting name="providers.claude.enabled" label="Use Claude Code"
             hint="When off, its sessions aren't listed and it isn't offered or started. The default provider must stay on." />
           <TextSetting name="providers.claude.program" label="Program"
@@ -112,8 +118,8 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
       </Panel>
 
       <Panel id="checks-title" title="Checks">
-        <div className="setting-row">
-          <TextSetting name="checks.commands" label="Check commands (YAML)" rows={7} mono
+        <div className={settingRowClass}>
+          <TextSetting name="checks.commands" label="Check commands (YAML)" rows={7}
             hint={(
               <>
                 Each repo&apos;s folder name, then its checks indented under it as <code>name: command</code>, or just one command. Quote a command with <code>: </code> or <code>#</code> in it. To run one by itself, give it <code>command:</code> and <code>run: after-turn</code> (when an agent in a task&apos;s worktree finishes a turn) or <code>run: on-commit</code>, and optionally <code>timeout:</code> in minutes. Checks only warn; nothing is blocked when one fails.
@@ -125,7 +131,7 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
       </Panel>
 
       <Panel id="tasks-settings-title" title="Tasks">
-        <div className="setting-row">
+        <div className={settingRowClass}>
           <ToggleSetting name="tasks.autoDeleteDone" label="Delete done tasks"
             hint="Done and dropped tasks are deleted after the days set here. Their sessions end and their worktrees are removed; a worktree with uncommitted changes or unmerged commits asks you first." />
           <TextSetting name="tasks.deleteDoneAfterDays" inputMode="decimal" label="Delete done tasks after (days)"
@@ -134,11 +140,11 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
       </Panel>
 
       <Panel id="workers-title" title="Workers">
-        <p className="setting-hint">For the workers a lead starts (Start ▾ › Start as lead on the Tasks page), set as each one starts. A prompt for anything not allowed here comes to you on the dashboard; the lead never answers one.</p>
-        <div className="setting-row">
+        <p className={cx(settingHintClass, 'my-3')}>For the workers a lead starts (Start ▾ › Start as lead on the Tasks page), set as each one starts. A prompt for anything not allowed here comes to you on the dashboard; the lead never answers one.</p>
+        <div className={settingRowClass}>
           <SelectSetting name="workers.permissionMode" label="Permission mode" options={WORKER_MODES}
             hint="The mode a worker starts in. Bypassing permissions isn't offered." />
-          <TextSetting name="workers.allowedTools" label="Allowed without asking" rows={5} mono
+          <TextSetting name="workers.allowedTools" label="Allowed without asking" rows={5}
             hint={<>Claude permission rules, one per line: a tool such as <code>Edit</code>, or what it may run, such as <code>Bash(npm test)</code>. Added to your own Claude settings&apos; rules, not instead of them.</>} />
         </div>
       </Panel>
@@ -155,12 +161,12 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
       </Panel>
 
       <Panel id="startup-title" title="Set when switchyard starts">
-        <dl className="setting-facts" id="facts">
-          <dt>Port</dt><dd>{String(view.port)}</dd>
-          <dt>Claude folder</dt><dd>{shortPath(view.claudeDir)}</dd>
-          <dt>Config file</dt><dd>{shortPath(view.configPath)}</dd>
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 mt-0 mb-2 text-sm" id="facts">
+          <dt className={FACT_NAME}>Port</dt><dd className={FACT}>{String(view.port)}</dd>
+          <dt className={FACT_NAME}>Claude folder</dt><dd className={FACT}>{shortPath(view.claudeDir)}</dd>
+          <dt className={FACT_NAME}>Config file</dt><dd className={FACT}>{shortPath(view.configPath)}</dd>
         </dl>
-        <p className="setting-hint">Change these in config.json, then restart switchyard.</p>
+        <p className={cx(settingHintClass, 'my-3')}>Change these in config.json, then restart switchyard.</p>
       </Panel>
     </>
   );
@@ -201,7 +207,7 @@ function SettingsEditor({ view }: { view: SettingsView }) {
   return (
     <>
       <Errors errors={messages(errors)} bare />
-      <form id="settings" className="settings" noValidate onSubmit={submit}>
+      <form id="settings" className="grid grid-cols-[minmax(0,1fr)] gap-4 max-w-[760px]" noValidate onSubmit={submit}>
         <SettingsFormProvider value={{
           fields,
           defaults,
@@ -213,14 +219,14 @@ function SettingsEditor({ view }: { view: SettingsView }) {
         }}>
           <Sections view={view} saved={saved} />
         </SettingsFormProvider>
-        <div className="settings-actions">
+        <div className="flex gap-2 items-center">
           <Button type="submit"  id="save" disabled={!changed || save.isPending}>Save</Button>
           <Button type="button" variant="secondary" id="revert" disabled={!changed} onClick={() => {
             setEdited(null);
             setErrors([]);
             save.reset();
           }}>Undo changes</Button>
-          <span className="muted" id="save-state" aria-live="polite">{state}</span>
+          <span className="text-gray-500" id="save-state" aria-live="polite">{state}</span>
         </div>
       </form>
     </>

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, PaneHeader } from '../../components/Dialog';
+import { paneButtonClass, panePillClass, paneSelectClass } from '../../components/pane-classes';
 import { ResizeHandle } from '../../components/ResizeHandle';
 import { appearanceApi, useAppearance } from '../../lib/appearance';
 import { cx } from '../../lib/cx';
 import { tmuxPlace } from '../../lib/paths';
-import { sessionTitle } from '../../lib/shared';
-import { terminalPicker } from '../../lib/themes';
+import { sessionTitle } from '../../lib/session-text';
+import { terminalPicker } from '../../../../shared/terminal-themes.ts';
 import type { LiveSession } from '../../lib/types';
 import { usePaneStore } from '../../stores/panes';
 import { toast } from '../../stores/toast';
@@ -30,7 +31,7 @@ function TerminalColours({ onPicked }: { onPicked: () => void }) {
   const { options, selected } = terminalPicker(appearance);
   return (
     <select
-      className="pane-select term-theme"
+      className={cx(paneSelectClass, 'flex-none max-w-[15em]')}
       title="Terminal colours, for this browser"
       aria-label="Terminal colours"
       value={selected}
@@ -74,14 +75,14 @@ function LivePane({ session }: { session: LiveSession }) {
 
   return (
     // Esc belongs to the terminal (it stops Claude), so it doesn't close the dialog.
-    <Dialog className={cx('term-pane', isLive && 'is-live')} label={`Live terminal: ${title}`} onClose={closePane} keepOnEscape>
-      <PaneHeader heading={title} sub={tmuxPlace(session.host ?? {})}>
-        <span className="pane-pill">{status}</span>
+    <Dialog label={`Live terminal: ${title}`} onClose={closePane} keepOnEscape>
+      <PaneHeader heading={title} sub={tmuxPlace(session.host ?? {})} dot={isLive ? 'live' : undefined}>
+        <span className={panePillClass}>{status}</span>
         <TerminalColours onPicked={() => live.current?.focus()} />
         {canReconnect && (
-          <button type="button" className="pane-btn" onClick={() => live.current?.reconnect()}>Reconnect</button>
+          <button type="button" className={paneButtonClass()} onClick={() => live.current?.reconnect()}>Reconnect</button>
         )}
-        <button type="button" className="pane-btn" title="Close the terminal (the session keeps running)" onClick={closePane}>
+        <button type="button" className={paneButtonClass()} title="Close the terminal (the session keeps running)" onClick={closePane}>
           Close
         </button>
       </PaneHeader>

@@ -1,7 +1,7 @@
-import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
+import cytoscape, { type Core } from 'cytoscape';
 import { useEffect, useEffectEvent, useImperativeHandle, useRef, type Ref } from 'react';
 import { useAppearance } from '../../lib/appearance';
-import { diffElements, layoutSteps, toElements, type SessionGraph } from './model';
+import { diffElements, layoutSteps, toElements, type GraphElement, type SessionGraph } from './model';
 import { graphStyle } from './style';
 
 /*
@@ -11,6 +11,12 @@ import { graphStyle } from './style';
  * connect to, so the rest stays where you left it. Arrange lays the whole
  * graph out again.
  */
+
+/* The canvas: a sunken box most of the window tall; narrower than a tablet, a little over half of it. */
+const CANVAS = [
+  'relative h-[calc(100vh-210px)] min-h-[420px] rounded-sm bg-surface-sunken shadow-[inset_0_0_0_1px_var(--divider)]',
+  'max-narrow:h-[60vh] max-narrow:min-h-[320px]',
+].join(' ');
 
 export interface GraphCanvasHandle { arrange: () => void; fit: () => void }
 
@@ -46,7 +52,7 @@ function arrange(cy: Core) {
 }
 
 /** Apply the next graph as a diff; true when this was the first. */
-function update(cy: Core, shown: { current: ElementDefinition[] }, graph: SessionGraph): boolean {
+function update(cy: Core, shown: { current: GraphElement[] }, graph: SessionGraph): boolean {
   const first = shown.current.length === 0;
   const diff = diffElements(shown.current, graph);
   cy.batch(() => {
@@ -81,7 +87,7 @@ export function GraphCanvas({ graph, hidden, selected, onSelect, ref }: {
 }) {
   const container = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
-  const shown = useRef<{ current: ElementDefinition[] }>({ current: [] });
+  const shown = useRef<{ current: GraphElement[] }>({ current: [] });
   const appearance = useAppearance();
   const selectedHere = useEffectEvent((id: string | null) => onSelect(id));
 
@@ -139,5 +145,6 @@ export function GraphCanvas({ graph, hidden, selected, onSelect, ref }: {
     fit: () => { if (cyRef.current) fit(cyRef.current); },
   }), []);
 
-  return <div ref={container} id="graph" className="graph-canvas" role="img" aria-label="The session's context graph" />;
+  // `relative` is Cytoscape's own rule for its container, which the page's CSP keeps it from adding (see graph.html).
+  return <div ref={container} id="graph" className={CANVAS} role="img" aria-label="The session's context graph" />;
 }

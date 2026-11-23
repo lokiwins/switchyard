@@ -1,4 +1,4 @@
-import { branchFromTask } from '../public/branch-name.js';
+import { branchFromTask } from '../shared/branch-name.ts';
 import { ActionError } from './errors.js';
 import { taskWorktrees, ticketKeys } from './task-links.js';
 

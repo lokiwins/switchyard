@@ -3,7 +3,7 @@ import { getJson, post } from '../../lib/api';
 import { announceChange } from '../../lib/changes';
 import type { MakeTaskFrom, TaskDraft, TaskPaneFields } from '../../stores/panes';
 import { toast } from '../../stores/toast';
-import { linkedWhere } from '../tasks/logic';
+import { linkedWhere } from '../tasks/task-state';
 import { TaskEditor } from './TaskEditor';
 
 /*

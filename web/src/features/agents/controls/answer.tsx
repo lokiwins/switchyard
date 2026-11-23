@@ -1,14 +1,15 @@
 import { Fragment, useState, type FormEvent } from 'react';
-import { Menu, menuItemClass } from '../../../components/Menu';
+import { Menu, menuItemClass, MenuHint } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { announceChange } from '../../../lib/changes';
 import { tmuxPlace } from '../../../lib/paths';
-import { canPressKeys } from '../../../lib/shared';
+import { canPressKeys } from '../../../lib/session-text';
 import type { Approval, Host, LiveSession, PromptOption, ScreenPrompt } from '../../../lib/types';
 import { openPane } from '../../../stores/panes';
 import { useDraft } from '../../../stores/drafts';
 import { toast } from '../../../stores/toast';
 import { Button, buttonClass } from '../../../components/Button';
+import { lineFormClass, lineInputClass } from '../../../components/Field';
 
 /*
  * Answering the dialog a session shows in tmux or iTerm (a question, plan
@@ -143,7 +144,7 @@ export function AnswerControls({ session, style, onDone }: { session: LiveSessio
   );
 }
 
-const MENU_STYLE: AnswerStyle = { button: menuItemClass, form: 'reply-form', input: '', send: buttonClass({ size: 'sm' }) };
+const MENU_STYLE: AnswerStyle = { button: menuItemClass, form: lineFormClass, input: lineInputClass, send: buttonClass({ size: 'sm' }) };
 
 /** "Answer ▾": the options of the dialog on a session's screen, each pressed there. */
 export function AnswerMenu({ session, approvals }: { session: LiveSession; approvals: Approval[] }) {
@@ -152,11 +153,11 @@ export function AnswerMenu({ session, approvals }: { session: LiveSession; appro
   const prompt = session.screenPrompt;
   return (
     // A text box with the cursor in it isn't focused on opening: the boxes you tick show as the page updates.
-    <Menu label="Answer ▾" title={`Answer: ${prompt?.question ?? 'its dialog'}`} panelClass="answer-panel" focusInput={false}
+    <Menu label="Answer ▾" title={`Answer: ${prompt?.question ?? 'its dialog'}`} roomy width={[300, 420]} panelClass="gap-1" focusInput={false}
       open={open} onOpenChange={setOpen}>
-      {prompt?.question && <p className="answer-question">{prompt.question}</p>}
+      {prompt?.question && <p className="mt-0 mb-0.5 px-2 text-xs font-semibold text-gray-900">{prompt.question}</p>}
       <AnswerControls session={session} style={MENU_STYLE} onDone={() => setOpen(false)} />
-      <p className="reply-hint">{`Pressed in ${answerTarget(session.host)}, if its screen still shows this question.`}</p>
+      <MenuHint>{`Pressed in ${answerTarget(session.host)}, if its screen still shows this question.`}</MenuHint>
     </Menu>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Menu, MenuItem, MenuTitle } from '../../components/Menu';
-import { hasFailedCheck } from './logic';
+import { hasFailedCheck } from './check-status';
 import type { ShownTask } from './types';
 
 /* ⋯ on a task: Mark done, Drop, Add subtask…, Reopen, Delete…. Delete asks once more inside the menu. */

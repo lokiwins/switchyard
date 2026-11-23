@@ -138,7 +138,7 @@ export interface AgentsData {
   taskStarts?: TaskStart[];
 }
 
-/** A line describing a session (see public/session-text.js sessionDetail). */
+/** A line describing a session (see session-text.ts sessionDetail). */
 export interface Detail {
   kind: string;
   label?: string | null;

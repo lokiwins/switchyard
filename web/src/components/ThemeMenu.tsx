@@ -1,5 +1,6 @@
 import { appearanceApi, useAppearance, type AppearanceKey } from '../lib/appearance';
-import { MODES, TERMINAL_CHOICES, THEMES, type Choice } from '../lib/themes';
+import { TERMINAL_CHOICES } from '../../../shared/terminal-themes.ts';
+import { MODES, THEMES, type Choice } from '../../../shared/themes.ts';
 import { Menu, MenuItem, MenuLabel, MenuTitle } from './Menu';
 
 /* ◐ in the top bar: this browser's theme, light or dark, and terminal colours, or the Settings defaults. */
@@ -38,7 +39,8 @@ export function ThemeMenu() {
       title="Theme, light or dark, and terminal colours for this browser"
       look={{ variant: 'secondary', size: 'glyph' }}
       // A short window scrolls the panel rather than the page.
-      panelClass="[--panel-min:300px] [--panel-max:340px] max-h-[calc(100vh-72px)] overflow-y-auto overscroll-contain"
+      width={[300, 340]}
+      panelClass="max-h-[calc(100vh-72px)] overflow-y-auto overscroll-contain"
       focusInput={false}
     >
       <div className="flex flex-col">

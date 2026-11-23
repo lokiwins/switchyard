@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Menu, MenuItem, MenuTitle } from '../../../components/Menu';
+import { Menu, MenuItem, MenuItemHint, MenuTitle } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { announceChange } from '../../../lib/changes';
 import type { EndedSession } from '../../../lib/types';
@@ -50,9 +50,9 @@ const trashTranscript = (sessionId: string) => withUndo({
 function DeleteChoice({ title, hint, perform, onDone }: { title: string; hint: string; perform: () => Promise<void>; onDone: () => void }) {
   const action = useMutation({ mutationFn: perform, onSuccess: onDone, onError: (error) => toast(error.message) });
   return (
-    <MenuItem className="delete-choice" disabled={action.isPending} onClick={() => action.mutate()}>
+    <MenuItem stacked disabled={action.isPending} onClick={() => action.mutate()}>
       <MenuTitle>{title}</MenuTitle>
-      <span className="delete-hint">{hint}</span>
+      <MenuItemHint>{hint}</MenuItemHint>
     </MenuItem>
   );
 }
@@ -62,7 +62,7 @@ export function DeleteMenu({ session }: { session: EndedSession }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   return (
-    <Menu label="Delete ▾" title="Delete this ended session" look={{ variant: 'secondary', size: 'sm' }} panelClass="delete-panel" focusInput={false}
+    <Menu label="Delete ▾" title="Delete this ended session" look={{ variant: 'secondary', size: 'sm' }} width={[240, 300]} focusInput={false}
       open={open} onOpenChange={setOpen}>
       <DeleteChoice title="Remove from list" hint="The transcript stays, so claude --resume still finds it." onDone={close}
         perform={() => hideSessions([session.sessionId])} />

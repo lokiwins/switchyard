@@ -8,9 +8,8 @@
  */
 
 /**
- * A menu's button, by the start of its label: a <summary> in the pages built in public/, a
- * .menu-trigger button in the ones built from web/ (a scene runs against both, before and after).
- * From the start, since hasText alone is a case-insensitive substring: "Clean up" would also match "1 to clean up".
+ * A menu's button, by the start of its label. From the start, since hasText alone is a
+ * case-insensitive substring: "Clean up" would also match "1 to clean up".
  */
 const menuButton = (scope, label) => scope.locator('button[aria-haspopup="dialog"]', { hasText: new RegExp(`^${label}`) });
 
@@ -35,7 +34,8 @@ function inTheme(theme, mode) {
 }
 
 /** The row of the session with this title. */
-const rowOf = (page, title) => page.locator('li.list-row', { hasText: title });
+// A session or task row by its title: the innermost list item holding it, so a lead's row isn't taken for its worker's.
+const rowOf = (page, title) => page.getByRole('listitem').filter({ hasText: title }).last();
 
 /** @type {{ name: string, title: string, path: string, fullPage?: boolean, prepare?: (page: import('playwright').Page) => Promise<void> }[]} */
 export const SCENES = [
@@ -72,7 +72,7 @@ export const SCENES = [
       await inTheme('classic', 'dark')(page);
       await page.evaluate(() => window.switchyardAppearance.choose({ terminal: 'dracula' }));
       await page.getByRole('button', { name: 'Review', exact: true }).first().click();
-      await page.locator('dialog.glass-pane[open] .diff').waitFor();
+      await page.locator('dialog[open]').getByText(/^@@ /).first().waitFor();
     },
   },
   {
@@ -83,7 +83,7 @@ export const SCENES = [
       await inTheme('classic', 'light')(page);
       await page.evaluate(() => window.switchyardAppearance.choose({ terminal: 'catppuccin-latte' }));
       await page.getByRole('button', { name: 'Review', exact: true }).first().click();
-      await page.locator('dialog.glass-pane[open] .diff').waitFor();
+      await page.locator('dialog[open]').getByText(/^@@ /).first().waitFor();
     },
   },
   {
@@ -124,7 +124,7 @@ export const SCENES = [
       await page.locator('select[name="repo"]').selectOption({ label: 'storefront' });
       await page.getByPlaceholder('What should Claude do?').fill('Show order history on the account page');
       await page.getByRole('button', { name: 'Start', exact: true }).click();
-      await page.locator('li.list-row.is-pending', { hasText: 'Starting…' }).waitFor();
+      await rowOf(page, 'Starting…').waitFor();
     },
   },
   {
@@ -134,7 +134,7 @@ export const SCENES = [
     prepare: async (page) => {
       await agentsLoaded(page);
       await page.getByRole('button', { name: 'Review', exact: true }).first().click();
-      await page.locator('dialog.review-pane[open]').waitFor();
+      await page.locator('dialog[open]').waitFor();
       await settle(page);
     },
   },
@@ -145,7 +145,7 @@ export const SCENES = [
     prepare: async (page) => {
       await agentsLoaded(page);
       await menuButton(rowOf(page, 'Download invoices as PDF'), 'Answer').click();
-      await page.locator('.answer-panel').filter({ visible: true }).waitFor();
+      await page.locator('[data-radix-popper-content-wrapper] > *').filter({ visible: true }).waitFor();
     },
   },
   {
@@ -155,7 +155,7 @@ export const SCENES = [
     prepare: async (page) => {
       await agentsLoaded(page);
       await rowOf(page, 'Make the invoice total test deterministic').getByRole('button', { name: 'Plan', exact: true }).click();
-      await page.locator('dialog.plan-pane[open]').waitFor();
+      await page.locator('dialog[open]').waitFor();
     },
   },
   {
@@ -196,7 +196,7 @@ export const SCENES = [
     prepare: async (page) => {
       await page.locator('#facts dd').first().waitFor();
       // The repos for the GitHub issues list load after the rest.
-      await page.locator('.repo-choice').first().waitFor();
+      await page.locator('#issue-repos input[type="checkbox"]').first().waitFor();
     },
   },
   {
@@ -207,7 +207,7 @@ export const SCENES = [
       await agentsLoaded(page);
       const href = await rowOf(page, 'Retry failed charges with backoff').getByRole('link', { name: 'Graph' }).getAttribute('href');
       await page.goto(new URL(href, page.url()).href);
-      await page.locator('.graph-kind').first().waitFor();
+      await page.locator('#legend label').first().waitFor();
       await settle(page);
     },
   },
@@ -220,7 +220,7 @@ export const SCENES = [
       await page.getByText('Email a receipt after each charge').waitFor();
       // The work under the tasks: worktrees, the PR and Terminal/Jump on the running sessions.
       await page.getByRole('link', { name: '#42', exact: true }).waitFor();
-      await page.locator('.hub-group.is-needs-you').waitFor();
+      await page.getByRole('region', { name: 'Needs you' }).waitFor();
     },
   },
   {
@@ -230,7 +230,8 @@ export const SCENES = [
     prepare: async (page) => {
       await page.getByText('Email a receipt after each charge').waitFor();
       await page.getByRole('button', { name: 'Download invoices as PDF', exact: true }).click();
-      await page.locator('dialog.task-pane[open] .pane-ticket .markdown').waitFor();
+      // The linked ticket, as ClickUp has it: its title comes with its description.
+      await page.locator('dialog[open] article').getByRole('heading', { level: 3 }).waitFor();
       await settle(page);
     },
   },
@@ -240,8 +241,8 @@ export const SCENES = [
     path: '/tasks',
     prepare: async (page) => {
       await page.getByText('Email a receipt after each charge').waitFor();
-      await menuButton(page.locator('form.hub-new'), 'Add from').click();
-      await page.locator('.picker-panel .picker-item').first().waitFor();
+      await menuButton(page.getByRole('form', { name: 'Add a task' }), 'Add from').click();
+      await page.locator('[data-radix-popper-content-wrapper] [role="menuitem"]').first().waitFor();
     },
   },
   {
@@ -251,7 +252,7 @@ export const SCENES = [
     prepare: async (page) => {
       await agentsLoaded(page);
       await rowOf(page, 'Fix the login redirect on the settings page').getByRole('button', { name: 'Make task', exact: true }).click();
-      await page.locator('dialog.task-pane[open] textarea[name=notes]').waitFor();
+      await page.locator('dialog[open] textarea[name=notes]').waitFor();
       await settle(page);
     },
   },

@@ -1,5 +1,5 @@
 import { shellQuote } from '../../lib/paths';
-import { sessionSearchText } from '../../lib/shared';
+import { sessionSearchText } from '../../lib/session-text';
 import type { Tile } from '../../components/Tiles';
 import type { RepoGroup, StateData, WorktreeRow } from './types';
 

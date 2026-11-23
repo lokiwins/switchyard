@@ -6,6 +6,7 @@ import { endedMatches, endedShown, endedWorkers, FILTERS, runningShown } from '.
 import { useAgentsUi } from './store';
 import { Pill } from '../../components/Pill';
 import { Empty } from '../../components/Empty';
+import { listToggleClass, stackedListClass } from '../../components/classes';
 
 export function EndedPanel({ data, query }: { data: AgentsData; query: string }) {
   const filter = useAgentsUi((s) => s.filter);
@@ -34,10 +35,10 @@ export function EndedPanel({ data, query }: { data: AgentsData; query: string })
     )}>
       <div id="ended">
         {sessions.length === 0 ? <Empty>No ended sessions match.</Empty> : (
-          <ul className="list">{shown.map((s) => <EndedRow key={s.sessionId} session={s} caps={data.capabilities} />)}</ul>
+          <ul className={stackedListClass}>{shown.map((s) => <EndedRow key={s.sessionId} session={s} caps={data.capabilities} />)}</ul>
         )}
         {more > 0 && (
-          <button type="button" className="list-toggle" onClick={toggle}>{expanded ? 'Show fewer' : `Show ${more} more`}</button>
+          <button type="button" className={listToggleClass} onClick={toggle}>{expanded ? 'Show fewer' : `Show ${more} more`}</button>
         )}
       </div>
     </Panel>

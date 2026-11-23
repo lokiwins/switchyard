@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { THEME_IDS } from '../public/themes.js';
+import { THEME_IDS } from '../shared/themes.ts';
 import { contrastOf, over, parseColor, themeTokens } from './support/theme-colors.js';
 
 // Text and the background it's drawn on, with the WCAG AA contrast it needs:

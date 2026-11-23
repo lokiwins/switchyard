@@ -1,12 +1,13 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Markdown } from '../../components/Markdown';
+import { paneLinkClass, paneNoteClass, panePillBaseClass, paneSelectClass } from '../../components/pane-classes';
 import { getJson, post } from '../../lib/api';
 import { cx } from '../../lib/cx';
 import { queryClient } from '../../lib/query';
 import { statusStyle } from '../../lib/status-style';
 import { toast } from '../../stores/toast';
-import { ticketLabel, trackerOf } from '../tasks/logic';
+import { ticketLabel, trackerOf } from '../tasks/task-state';
 
 /*
  * One linked ticket in the task pane: what its tracker says about it (ClickUp's
@@ -29,11 +30,14 @@ interface ReadTicket {
 }
 type TicketDetail = { supported: false; tracker?: string } | ReadTicket;
 
+/** A linked ticket: a faintly lit card on the glass. */
+const TICKET = 'grid gap-2 py-3 px-3.5 border border-pane-edge rounded-[10px] bg-[color-mix(in_srgb,var(--pane-shine)_3%,transparent)]';
+
 const ticketKey = (link: string) => ['hub-ticket', link] as const;
 const ticketTitle = (ticket: ReadTicket) => ticket.name ?? ticket.title ?? '';
 
 const StatusPill = ({ status }: { status: TicketStatus }) => (
-  <span className="pane-pill ticket-pane-status" style={statusStyle(status.color)}>{status.name || 'no status'}</span>
+  <span className={cx(panePillBaseClass, 'uppercase tracking-[0.04em] text-[color-mix(in_srgb,var(--status,var(--pane-dim))_70%,var(--pane-lift))] border-[color-mix(in_srgb,var(--status,var(--pane-dim))_60%,transparent)]')} style={statusStyle(status.color)}>{status.name || 'no status'}</span>
 );
 
 /** Status ▾: the statuses a ticket can move to (a ClickUp list's, or an issue's open/closed); choosing one changes it there. */
@@ -50,7 +54,7 @@ function StatusPicker({ link, ticket, statuses }: { link: string; ticket: ReadTi
   });
   return (
     <select
-      className="pane-select"
+      className={paneSelectClass}
       aria-label={`Status in ${trackerName(ticket.tracker) ?? 'its tracker'}: ${title}`}
       value={change.isPending ? change.variables : ticket.status.name}
       disabled={change.isPending}
@@ -63,8 +67,8 @@ function StatusPicker({ link, ticket, statuses }: { link: string; ticket: ReadTi
 
 const TicketBody = ({ ticket }: { ticket: ReadTicket }) => (
   <>
-    <h3 className="pane-ticket-title">{ticketTitle(ticket)}</h3>
-    {ticket.description ? <Markdown text={ticket.description} /> : <p className="pane-note">No description.</p>}
+    <h3 className="m-0 text-[15px] font-semibold [letter-spacing:normal] normal-case text-pane-text">{ticketTitle(ticket)}</h3>
+    {ticket.description ? <Markdown text={ticket.description} size="sm" /> : <p className={paneNoteClass}>No description.</p>}
   </>
 );
 
@@ -76,18 +80,18 @@ export function TicketCard({ link }: { link: string }) {
     retry: false,
   });
   const head = (extra?: ReactNode) => (
-    <header className="pane-ticket-head">
-      <span className="pane-ticket-label">{ticketLabel(link)}</span>
+    <header className="flex flex-wrap items-center gap-2">
+      <span className="font-mono font-semibold text-xs [line-height:normal] text-pane-text">{ticketLabel(link)}</span>
       {extra}
-      <a href={link} target="_blank" rel="noopener noreferrer" className="pane-link">{`Open in ${trackerName(tracker) ?? 'its tracker'} ↗`}</a>
+      <a href={link} target="_blank" rel="noopener noreferrer" className={cx(paneLinkClass, 'ml-auto')}>{`Open in ${trackerName(tracker) ?? 'its tracker'} ↗`}</a>
     </header>
   );
   const ticket = query.data;
   let content: ReactNode;
-  if (query.error) content = <>{head()}<p className="pane-note">{query.error.message}</p></>;
-  else if (!ticket) content = <>{head()}<p className="pane-note">Loading…</p></>;
+  if (query.error) content = <>{head()}<p className={paneNoteClass}>{query.error.message}</p></>;
+  else if (!ticket) content = <>{head()}<p className={paneNoteClass}>Loading…</p></>;
   else if (ticket.supported === false) {
-    content = <>{head()}<p className="pane-note">{`switchyard doesn't read ${trackerName(ticket.tracker) ?? 'this site'} yet; open it to see it.`}</p></>;
+    content = <>{head()}<p className={paneNoteClass}>{`switchyard doesn't read ${trackerName(ticket.tracker) ?? 'this site'} yet; open it to see it.`}</p></>;
   } else {
     const statuses = ticket.statuses ?? [];
     content = (
@@ -100,5 +104,5 @@ export function TicketCard({ link }: { link: string }) {
       </>
     );
   }
-  return <article className={cx('pane-ticket', tracker && `is-${tracker}`)}>{content}</article>;
+  return <article className={TICKET}>{content}</article>;
 }

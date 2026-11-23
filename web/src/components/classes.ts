@@ -15,3 +15,9 @@ export const sepClass = "before:content-['·'] before:text-gray-400 before:mr-1.
 /** Lines added or removed: small bold figures in the monospace face, green or red. */
 export const addedClass = 'tabular-nums font-mono text-[11.5px] font-semibold text-green';
 export const removedClass = 'tabular-nums font-mono text-[11.5px] font-semibold text-red';
+
+/** "Show 3 more" under a list: a quiet full-width button. */
+export const listToggleClass = [
+  'block w-full mt-0.5 py-1.5 px-2 border-0 rounded-sm bg-transparent cursor-pointer text-left',
+  '[font-family:inherit] [line-height:inherit] text-xs font-semibold text-gray-500 hover:bg-hover hover:text-gray-900',
+].join(' ');

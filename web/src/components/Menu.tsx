@@ -1,5 +1,5 @@
 import * as Popover from '@radix-ui/react-popover';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ComponentProps, CSSProperties, ReactNode } from 'react';
 import { cx } from '../lib/cx';
 import { buttonClass, type ButtonLook } from './Button';
 
@@ -10,12 +10,12 @@ import { buttonClass, type ButtonLook } from './Button';
  * typed in it. Opening it puts the cursor in its first field unless
  * `focusInput` is false. Pass `open` and `onOpenChange` to close it from inside.
  *
- * A panel is as wide as its contents within --panel-min and --panel-max (a
- * menu with more to say sets them), and never wider than the window less 8px
- * each side.
+ * A panel is as wide as its contents within `width` (220 to 340px unless a
+ * menu with more to say sets it), and never wider than the window less 8px
+ * each side. A `roomy` one, holding a form or a few words, gets more padding.
  */
 const PANEL = [
-  'z-20 flex flex-col p-1 rounded-sm bg-surface-raised',
+  'z-20 flex flex-col rounded-sm bg-surface-raised',
   'min-w-[min(var(--panel-min,220px),calc(100vw-16px))] max-w-[min(var(--panel-max,340px),calc(100vw-16px))]',
   'shadow-[inset_0_1px_0_var(--highlight),inset_0_0_0_1px_var(--hairline),var(--shadow-md)]',
 ].join(' ');
@@ -24,7 +24,7 @@ const PANEL = [
 const TRIGGER_OPEN = 'data-[state=open]:[background:var(--accent-fill)] data-[state=open]:text-on-accent';
 
 export function Menu({
-  label, title, look = { variant: 'action' }, triggerClass, panelClass, focusInput = true, open, onOpenChange, children,
+  label, title, look = { variant: 'action' }, triggerClass, panelClass, width, roomy = false, focusInput = true, open, onOpenChange, children,
 }: {
   label: ReactNode;
   title?: string;
@@ -33,6 +33,9 @@ export function Menu({
   /** Layout for the trigger's contents, beside its look. */
   triggerClass?: string;
   panelClass?: string;
+  /** The panel's least and greatest width, in px. */
+  width?: readonly [number, number];
+  roomy?: boolean;
   focusInput?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -43,7 +46,8 @@ export function Menu({
       <Popover.Trigger className={cx(buttonClass(look), TRIGGER_OPEN, triggerClass)} title={title}>{label}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          className={cx(PANEL, panelClass)}
+          className={cx(PANEL, roomy ? 'p-2' : 'p-1', panelClass)}
+          style={width ? ({ '--panel-min': `${width[0]}px`, '--panel-max': `${width[1]}px` } as CSSProperties) : undefined}
           align="end"
           sideOffset={4}
           collisionPadding={8}
@@ -58,12 +62,25 @@ export function Menu({
   );
 }
 
-/** A menu's choice, for a <button> that isn't a <MenuItem> (one whose look is passed around as a class). */
-export const menuItemClass = [
-  'flex items-baseline gap-2 px-2 py-1.25 border-0 rounded-xs [font-family:inherit] text-xs leading-xs text-left',
+// A choice's look, whatever its layout.
+const ITEM_LOOK = [
+  'px-2 py-1.25 border-0 rounded-xs [font-family:inherit] text-xs leading-xs text-left',
   'text-gray-700 bg-transparent cursor-pointer',
   'hover:bg-accent-soft hover:text-accent focus-visible:bg-accent-soft focus-visible:text-accent focus-visible:outline-none',
 ].join(' ');
+
+/** A menu's choice, for a <button> that isn't a <MenuItem> (one whose look is passed around as a class). */
+export const menuItemClass = `flex items-baseline gap-2 ${ITEM_LOOK}`;
+/** The same, with what it holds centred on the line rather than on the text's baseline (a badge beside a title). */
+export const menuItemCenteredClass = `flex items-center gap-2 ${ITEM_LOOK}`;
+
+// A choice with a line under its title (see MenuItem's `stacked`); its hint takes the choice's colour when it's lit.
+const STACKED_ITEM = `group flex flex-col items-stretch gap-0.5 ${ITEM_LOOK}`;
+
+/** The line under a stacked choice's title: what it does, or keeps. */
+export function MenuItemHint({ children }: { children: ReactNode }) {
+  return <span className="text-2xs text-gray-500 whitespace-normal group-hover:text-inherit group-focus-visible:text-inherit">{children}</span>;
+}
 
 /** What a choice is, cut short with … where it doesn't fit. */
 export const menuTitleClass = 'flex-1 min-w-0 truncate';
@@ -71,9 +88,9 @@ export const menuTitleClass = 'flex-1 min-w-0 truncate';
 /** A choice's small grey aside, at its end (when, where). */
 export const menuMetaClass = 'flex-none text-2xs text-gray-500';
 
-/** One choice in a menu; `className` adds a menu's own layout. */
-export function MenuItem({ className, type = 'button', ...props }: ComponentProps<'button'>) {
-  return <button type={type} className={cx(menuItemClass, className)} {...props} />;
+/** One choice in a menu; `stacked` puts a MenuItemHint under its title; `className` adds a menu's own layout. */
+export function MenuItem({ className, stacked = false, type = 'button', ...props }: ComponentProps<'button'> & { stacked?: boolean }) {
+  return <button type={type} className={cx(stacked ? STACKED_ITEM : menuItemClass, className)} {...props} />;
 }
 
 export function MenuTitle({ className, ...props }: ComponentProps<'span'>) {
@@ -92,4 +109,14 @@ export function MenuLabel({ className, divided = true, ...props }: ComponentProp
       {...props}
     />
   );
+}
+
+/** A small grey note: what a menu's form will do, or what a choice means. */
+export function MenuHint({ className, ...props }: ComponentProps<'p'>) {
+  return <p className={cx('m-0 text-2xs leading-xs text-gray-500', className)} {...props} />;
+}
+
+/** A menu form's last row: its note on the left, its button on the right. */
+export function MenuActions({ className, ...props }: ComponentProps<'div'>) {
+  return <div className={cx('flex gap-2 items-end justify-between', className)} {...props} />;
 }

@@ -1,4 +1,5 @@
-import { foldsWhenParked, sessionSearchText, type PendingTask } from '../../lib/shared';
+import type { PendingTask } from '../../lib/pending-tasks';
+import { foldsWhenParked, sessionSearchText } from '../../lib/session-text';
 import type { AgentsData, EndedSession, LiveSession, Repo, Worktree } from '../../lib/types';
 
 /* What the Agents page lists, and in what order. No React here, so it's tested on its own. */

@@ -11,13 +11,14 @@ import { toast } from '../../stores/toast';
 import { taskActions, createTask } from './actions';
 import { refreshTasks, TASKS_KEY, useHubTasks, useTaskTools } from './api';
 import { ConnectionsMenu } from './Connections';
-import { groupTasks, matchesHubTask } from './logic';
+import { groupTasks, matchesHubTask } from './task-state';
 import { NewTaskForm } from './NewTaskForm';
 import { useTasksUi } from './store';
 import { TaskGroups } from './TaskGroups';
 import type { HubData } from './types';
 import { WorktreeChoices } from './WorktreeChoices';
 import { Empty } from '../../components/Empty';
+import { filtersClass } from '../../components/classes';
 
 /* The Tasks page: your own tasks, what needs you first, then by when they're due, each with the work on it. */
 
@@ -76,8 +77,8 @@ export function TasksPage() {
       </TopBar>
       <main>
         <Errors errors={errors.map((message) => ({ source: '', message }))} bare />
-        <Panel id="tasks-title" title="Tasks" className="hub" head={(
-          <div className="filters">
+        <Panel id="tasks-title" title="Tasks" head={(
+          <div className={filtersClass}>
             <span id="task-count" className="text-xs text-gray-500">{data?.tasks.length ? `${open} open` : ''}</span>
             <SearchBox placeholder="Filter title, id, notes, link, branch…" label="Filter tasks" value={query} onChange={setQuery} />
           </div>

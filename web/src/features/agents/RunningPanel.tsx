@@ -3,7 +3,7 @@ import { Panel } from '../../components/Panel';
 import { SearchBox } from '../../components/SearchBox';
 import { Segmented } from '../../components/Segmented';
 import { useNow } from '../../lib/time';
-import { settlePending } from '../../lib/shared';
+import { settlePending } from '../../lib/pending-tasks';
 import type { AgentsData, Approval, EndedSession, LiveSession } from '../../lib/types';
 import { usePendingStore } from '../../stores/pending';
 import { toast } from '../../stores/toast';
@@ -14,6 +14,7 @@ import { LiveRow } from './LiveRow';
 import { PendingRow } from './PendingRow';
 import { useAgentsUi } from './store';
 import { Empty } from '../../components/Empty';
+import { filtersClass, listToggleClass, stackedListClass } from '../../components/classes';
 
 const NO_APPROVALS: Approval[] = [];
 
@@ -44,7 +45,7 @@ const NO_ENDED: EndedSession[] = [];
  * The running sessions, each lead's workers listed under it (see nestWorkers): the running ones, then the
  * ones that have ended (see endedWorkers), which Recently ended leaves out.
  */
-function SessionList({ sessions, ended, data, className = 'list' }: {
+function SessionList({ sessions, ended, data, className = stackedListClass }: {
   sessions: LiveSession[]; ended: Map<string, EndedSession[]>; data: AgentsData; className?: string;
 }) {
   const approvals = approvalsBySession(data.approvals ?? []);
@@ -72,8 +73,8 @@ function SessionList({ sessions, ended, data, className = 'list' }: {
 /** Shown when a session needs you but its prompts can't be answered here yet. */
 function HookHint() {
   return (
-    <p className="hint">
-      {'To allow or deny permission prompts from this page, run '}<code>npm run hook -- install</code>{' in the switchyard folder.'}
+    <p className="m-0 py-1.5 px-3 text-xs text-gray-700 bg-amber-soft border-b border-divider">
+      {'To allow or deny permission prompts from this page, run '}<code className="text-2xs">npm run hook -- install</code>{' in the switchyard folder.'}
     </p>
   );
 }
@@ -103,7 +104,7 @@ export function RunningPanel({ data, query }: { data: AgentsData; query: string 
     <Panel id="running-title" title="Running" hidden={!live} head={(
       <>
         <span id="show-sessions" className="mr-auto"><ShowSessionsButton caps={data.capabilities} /></span>
-        <div className="filters">
+        <div className={filtersClass}>
           <SearchBox placeholder="Filter name, repo, branch, text…" label="Filter sessions" value={query} onChange={setQuery} />
           <ViewFilter />
         </div>
@@ -112,12 +113,12 @@ export function RunningPanel({ data, query }: { data: AgentsData; query: string 
       <div id="running">
         {data.capabilities.approvalsHook === false && sessions.some((s) => s.needsYou) && <HookHint />}
         {starting.length > 0 && (
-          <ul className="list pending-list">{starting.map((task) => <PendingRow key={task.id} task={task} now={now} />)}</ul>
+          <ul className={stackedListClass}>{starting.map((task) => <PendingRow key={task.id} task={task} now={now} />)}</ul>
         )}
         {sessions.length === 0 && starting.length === 0 && <Empty>{empty}</Empty>}
         {active.length > 0 && <SessionList sessions={active} ended={ended} data={data} />}
         {parked.length > 0 && active.length > 0 && filter !== 'parked' && (
-          <button type="button" className="list-toggle" onClick={toggleParked}>
+          <button type="button" className={listToggleClass} onClick={toggleParked}>
             {showParked ? 'Hide parked sessions' : `Show ${parked.length} parked session${parked.length > 1 ? 's' : ''} (idle over a day, no open tab)`}
           </button>
         )}

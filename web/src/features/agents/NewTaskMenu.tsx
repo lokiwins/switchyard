@@ -1,14 +1,16 @@
 import { useMutation } from '@tanstack/react-query';
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { Menu } from '../../components/Menu';
+import { useState, type FormEvent } from 'react';
+import { Menu, MenuHint, MenuActions } from '../../components/Menu';
 import { post } from '../../lib/api';
 import { readPref, writePref } from '../../lib/prefs';
-import { BRANCH_INPUT_PATTERN, branchFromTask, pendingTask, startedTask, type StartResult } from '../../lib/shared';
+import { BRANCH_INPUT_PATTERN, branchFromTask } from '../../../../shared/branch-name.ts';
+import { pendingTask, startedTask, type StartResult } from '../../lib/pending-tasks';
 import type { AgentsData, Repo } from '../../lib/types';
 import { usePendingStore } from '../../stores/pending';
 import { toast } from '../../stores/toast';
 import { refreshAgents } from './api';
 import { Button } from '../../components/Button';
+import { Field, fieldInputClass, fieldSelectClass, formClass } from '../../components/Field';
 
 /*
  * "New task ▾": Claude Code on a task, in a worktree on its own branch beside
@@ -37,10 +39,6 @@ function preview(repo: Repo | undefined, { prompt, branch }: Fields): string {
   return typed
     ? `Folder ${repo.name}-${lastSegment(name)}, on ${name}: yours if it exists, else origin's, else new from the default branch.`
     : `New branch ${name} (or ${name}-2… if taken) in folder ${repo.name}-${name}, from the default branch.`;
-}
-
-function TaskField({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="task-field"><span>{label}</span>{children}</label>;
 }
 
 function NewTaskForm({ repos, onStarted }: { repos: Repo[]; onStarted: () => void }) {
@@ -75,24 +73,24 @@ function NewTaskForm({ repos, onStarted }: { repos: Repo[]; onStarted: () => voi
     start.mutate({ ...fields, id: `task-${nextPendingId++}` });
   };
   return (
-    <form className="task-form" onSubmit={submit}>
-      <TaskField label="Repository">
-        <select name="repo" required value={fields.repo} onChange={change('repo')}>
+    <form className={formClass} onSubmit={submit}>
+      <Field label="Repository">
+        <select name="repo" className={fieldSelectClass} required value={fields.repo} onChange={change('repo')}>
           {repos.map((r) => <option key={r.mainPath} value={r.mainPath}>{r.name}</option>)}
         </select>
-      </TaskField>
-      <TaskField label="Task">
-        <input name="prompt" type="text" required maxLength={MAX_TASK_CHARS} autoComplete="off" placeholder="What should Claude do?"
+      </Field>
+      <Field label="Task">
+        <input name="prompt" type="text" className={fieldInputClass} required maxLength={MAX_TASK_CHARS} autoComplete="off" placeholder="What should Claude do?"
           value={fields.prompt} onChange={change('prompt')} />
-      </TaskField>
-      <TaskField label="Branch (optional)">
-        <input name="branch" type="text" maxLength={MAX_BRANCH_CHARS} autoComplete="off" placeholder="Named after the task"
+      </Field>
+      <Field label="Branch (optional)">
+        <input name="branch" type="text" className={fieldInputClass} maxLength={MAX_BRANCH_CHARS} autoComplete="off" placeholder="Named after the task"
           pattern={BRANCH_INPUT_PATTERN} title={'Letters, digits, ".", "_", "-" and "/"'} value={fields.branch} onChange={change('branch')} />
-      </TaskField>
-      <div className="task-actions">
-        <p className="reply-hint">{preview(repos.find((r) => r.mainPath === fields.repo), fields)}</p>
+      </Field>
+      <MenuActions>
+        <MenuHint>{preview(repos.find((r) => r.mainPath === fields.repo), fields)}</MenuHint>
         <Button type="submit" size="sm" disabled={start.isPending}>Start</Button>
-      </div>
+      </MenuActions>
     </form>
   );
 }
@@ -103,7 +101,7 @@ export function NewTaskMenu({ data }: { data: AgentsData }) {
   if (!data.capabilities.tmux || data.repos.length === 0) return null;
   const repos = [...data.repos].sort((a, b) => a.name.localeCompare(b.name));
   return (
-    <Menu label="New task ▾" title="Start Claude on a new branch in its own worktree" look={{ variant: 'primary' }} panelClass="reply-panel" open={open} onOpenChange={setOpen}>
+    <Menu label="New task ▾" title="Start Claude on a new branch in its own worktree" look={{ variant: 'primary' }} roomy width={[340, 420]} panelClass="gap-1.5" open={open} onOpenChange={setOpen}>
       <NewTaskForm repos={repos} onStarted={() => setOpen(false)} />
     </Menu>
   );

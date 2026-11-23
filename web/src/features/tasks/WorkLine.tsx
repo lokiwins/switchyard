@@ -3,9 +3,10 @@ import type { Approval, Capabilities } from '../../lib/types';
 import { SessionControls } from '../agents/controls/SessionControls';
 import { SessionAlerts } from '../agents/Row';
 import { ChecksControl } from './ChecksControl';
-import { sessionToJump } from './logic';
+import { sessionToJump } from './task-views';
 import { ReviewControl } from './ReviewControl';
 import type { Work } from './types';
+import { cx } from '../../lib/cx';
 
 /*
  * A worktree working on a task: where, its PR, its session's alerts, its
@@ -28,10 +29,11 @@ export function WorkLine({ work, caps, approvals, onRunCheck, onReview }: {
   const state = work.pr ? PR_STATES[work.pr.state] : undefined;
   const reviewer = work.review?.session;
   return (
-    <div className="task-link">
-      <span className="task-link-where" title={work.path}>{work.repoName}{' · '}<span className="mono">{work.branch}</span></span>
+    <div className="flex flex-wrap items-center gap-2 min-w-0 text-xs text-gray-500">
+      <span className="truncate min-w-0" title={work.path}>{work.repoName}{' · '}<span className="font-mono text-xs text-gray-700">{work.branch}</span></span>
       {work.pr && (
-        <a className={`small task-link-pr${state ? ` is-${state}` : ''}`} href={work.pr.url} target="_blank" rel="noopener noreferrer"
+        // A closed PR is struck through.
+        <a className={cx('text-xs leading-xs', state === 'closed' && 'text-gray-500 line-through')} href={work.pr.url} target="_blank" rel="noopener noreferrer"
           title={`Pull request${state ? ` (${state})` : ''}`}>{`#${work.pr.number}`}</a>
       )}
       {session && <SessionAlerts session={session} />}
@@ -40,7 +42,7 @@ export function WorkLine({ work, caps, approvals, onRunCheck, onReview }: {
         <ReviewControl review={work.review} onReview={() => onReview(work.path)}
           controls={reviewer ? <SessionControls session={reviewer} approvals={mine(approvals, reviewer.sessionId)} /> : null} />
       )}
-      <div className="actions">
+      <div className="flex flex-wrap justify-end gap-1 ml-auto shrink-0">
         {session ? <SessionControls session={session} approvals={mine(approvals, session.sessionId)} /> : <OpenMenu path={work.path} sessions={work.recent} caps={caps} />}
       </div>
     </div>

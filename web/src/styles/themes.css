@@ -1,7 +1,7 @@
 /*
  * Every theme's colours. theme-boot.js sets <html data-theme data-scheme>;
  * Classic is the default (:root), and each other theme sets every color token
- * for light, then again for dark. The list of themes is public/themes.js.
+ * for light, then again for dark. The list of themes is shared/themes.ts.
  *
  * Fonts: Manrope, JetBrains Mono, Fraunces and Anton, under the SIL Open Font
  * License (web/src/fonts/OFL-*.txt), Latin subset. A browser only
@@ -541,4 +541,59 @@
   --brand-tracking: 0.02em;
   --brand-case: uppercase;
   --tile-value-size: 28px;
+}
+
+/*
+ * The glass panes' colours (see Dialog.tsx): the terminal colours set them
+ * (shared/terminal-themes.ts), so a light terminal scheme gives light glass; these
+ * defaults are Classic dark's.
+ */
+:root {
+  --pane-bg: rgb(8 13 24 / 0.68);
+  --pane-tint-a: rgb(56 189 248 / 0.10);
+  --pane-tint-b: rgb(168 85 247 / 0.08);
+  --pane-edge: rgb(125 211 252 / 0.28);
+  --pane-glow: rgb(56 189 248 / 0.18);
+  --pane-text: #e6f1ff;
+  --pane-dim: #8aa4c2;
+  --pane-accent: #7dd3fc;
+  --pane-accent-strong: #38bdf8;
+  --pane-ok: #34d399;
+  --pane-wait: #fbbf24;
+  --pane-bad: #f87171;
+  --pane-add-text: #a7f3d0;
+  --pane-del-text: #fecaca;
+  --pane-shade: #000000;
+  --pane-shine: #ffffff;
+  --pane-lift: #ffffff;
+  /* The page behind an open pane is dimmed the same whatever the terminal theme: it's the page's, not the pane's. */
+  --pane-backdrop: rgb(4 8 16 / 0.18);
+  --pane-drop: rgb(0 0 0 / 0.55);
+  --pane-scheme: dark;
+}
+
+/*
+ * The session graph's kinds: one categorical palette, validated in this order for colour blindness and contrast
+ * in both modes (prompt, file, tool, skill, subagent, reply, memory, compaction); "other" is a neutral gray.
+ */
+:root {
+  --graph-session: var(--gray-900);
+  --graph-prompt: #2a78d6;
+  --graph-file: #eb6834;
+  --graph-tool: #1baf7a;
+  --graph-skill: #eda100;
+  --graph-subagent: #e87ba4;
+  --graph-reply: #008300;
+  --graph-memory: #6250d6;
+  --graph-compaction: #e34948;
+  --graph-other: var(--gray-400);
+}
+:root[data-scheme="dark"] {
+  --graph-prompt: #3987e5;
+  --graph-file: #d95926;
+  --graph-tool: #199e70;
+  --graph-skill: #c98500;
+  --graph-subagent: #d55181;
+  --graph-memory: #9085e9;
+  --graph-compaction: #e66767;
 }

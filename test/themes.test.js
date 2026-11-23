@@ -2,16 +2,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { MODES, THEMES } from '../public/themes.js';
+import { MODES, THEMES } from '../shared/themes.ts';
 import { DEFAULT_SETTINGS, parseSettings } from '../src/settings.js';
 import { editableSettings, applyEdits } from '../src/settings-file.js';
-import { editsFromFields, fieldsFromValues, FIELD_NAMES } from '../public/settings-form.js';
 
-const PUBLIC_DIR = join(import.meta.dirname, '..', 'public');
-const read = (file) => readFileSync(join(PUBLIC_DIR, file), 'utf8');
+const ROOT = join(import.meta.dirname, '..');
+const read = (file) => readFileSync(join(ROOT, file), 'utf8');
 const readStyles = (file) => readFileSync(join(import.meta.dirname, '..', 'web', 'src', 'styles', file), 'utf8');
-// The pages in public/, and the ones built from web/ (whose tags carry vite-ignore, so the build leaves them as they are).
-const PAGES = ['../web/agents.html', '../web/prs.html', '../web/worktrees.html', '../web/settings.html', '../web/tasks.html', '../web/graph.html'];
+// The pages, built from web/ (their tags carry vite-ignore, so the build leaves them as they are).
+const PAGES = ['web/agents.html', 'web/prs.html', 'web/worktrees.html', 'web/settings.html', 'web/tasks.html', 'web/graph.html'];
 
 /** The color tokens Classic defines in themes.css's :root, which every other theme must define too. */
 function colorTokens() {
@@ -49,13 +48,13 @@ test('every theme but Classic sets every color token, light and dark', () => {
 });
 
 test('Classic\'s dark colors follow the chosen mode, not only the system\'s', () => {
-  const css = readStyles('themes.css') + readStyles('legacy.css') + readStyles('app.css');
+  const css = readStyles('themes.css') + readStyles('base.css') + readStyles('app.css');
   assert.equal(/prefers-color-scheme/.test(css), false, 'dark mode comes from data-scheme, which the boot script sets');
   assert.ok(tokensIn(css, ':root[data-scheme="dark"]')?.includes('bg'));
 });
 
 test('text on an accent or danger color uses its token, never a hard-coded white', () => {
-  const css = readStyles('themes.css') + readStyles('legacy.css') + readStyles('app.css');
+  const css = readStyles('themes.css') + readStyles('base.css') + readStyles('app.css');
   assert.deepEqual(css.match(/color:\s*(#fff\b|#ffffff\b|white\b)/g), null);
 });
 
@@ -78,11 +77,8 @@ test('appearance settings: Classic, following the system, by default; only known
   assert.throws(() => parseSettings({ appearance: { font: 'x' } }), /appearance.font/);
 });
 
-test('the Settings page edits the appearance, and saves only what differs from the default', () => {
+test('the Settings page edits the appearance, and saves only what differs from the default (its form: web/src/features/settings)', () => {
   assert.deepEqual(editableSettings({}).appearance, { theme: 'classic', mode: 'system', terminal: 'match' });
   assert.deepEqual(applyEdits({}, { appearance: { theme: 'ember', mode: 'system', terminal: 'match' } }), { appearance: { theme: 'ember' } });
   assert.deepEqual(applyEdits({ appearance: { theme: 'ember' } }, { appearance: { theme: 'classic', mode: 'system', terminal: 'match' } }), {});
-  assert.ok(['appearance.theme', 'appearance.mode', 'appearance.terminal'].every((name) => FIELD_NAMES.includes(name)));
-  const values = { ...editableSettings({}), appearance: { theme: 'dusk', mode: 'light', terminal: 'one-dark' } };
-  assert.deepEqual(editsFromFields(fieldsFromValues(values)).appearance, { theme: 'dusk', mode: 'light', terminal: 'one-dark' });
 });

@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { Menu } from '../../../components/Menu';
+import { Menu, MenuHint } from '../../../components/Menu';
 import { post } from '../../../lib/api';
 import { announceChange } from '../../../lib/changes';
 import { tmuxPlace } from '../../../lib/paths';
@@ -8,6 +8,7 @@ import type { LiveSession } from '../../../lib/types';
 import { useDraft } from '../../../stores/drafts';
 import { toast } from '../../../stores/toast';
 import { Button } from '../../../components/Button';
+import { lineFormClass, lineInputClass } from '../../../components/Field';
 
 /* "Reply ▾": a one-line message typed into the session's tab, as if you'd typed it there. */
 
@@ -43,14 +44,14 @@ export function ReplyMenu({ session }: { session: LiveSession }) {
     send.mutate();
   };
   return (
-    <Menu label="Reply ▾" title={`Type a message into this session's ${replyTarget(session)}`} panelClass="reply-panel" open={open} onOpenChange={setOpen}>
-      <form className="reply-form" onSubmit={submit}>
-        <input name="text" type="text" maxLength={MAX_REPLY_CHARS} required autoComplete="off" aria-label="Message"
+    <Menu label="Reply ▾" title={`Type a message into this session's ${replyTarget(session)}`} roomy width={[340, 420]} panelClass="gap-1.5" open={open} onOpenChange={setOpen}>
+      <form className={lineFormClass} onSubmit={submit}>
+        <input name="text" type="text" className={lineInputClass} maxLength={MAX_REPLY_CHARS} required autoComplete="off" aria-label="Message"
           placeholder={session.status === 'busy' ? 'Queue a message for when it finishes this step' : 'Message Claude'}
           value={text} onChange={(event) => setText(event.target.value)} />
         <Button type="submit" size="sm" disabled={send.isPending}>Send</Button>
       </form>
-      <p className="reply-hint">{`Typed into its ${replyTarget(session)}, after anything already in the input box there.`}</p>
+      <MenuHint>{`Typed into its ${replyTarget(session)}, after anything already in the input box there.`}</MenuHint>
     </Menu>
   );
 }
