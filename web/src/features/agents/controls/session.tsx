@@ -76,10 +76,10 @@ function TakeOverMenu({ session }: { session: LiveSession }) {
   return (
     <Menu label="Resume ▾" title="switchyard can't reach where this session is running: resume it here instead" panelClass="end-panel" focusInput={false}
       open={open} onOpenChange={setOpen}>
-      <p className="reply-hint">
+      <MenuHint>
         It&apos;s running somewhere switchyard can&apos;t reach: no tab, window or tmux pane it can find. Resuming ends it there and opens the
         conversation here, where you can see and steer it.
-      </p>
+      </MenuHint>
       <ActionButton label="Resume here" title="End it where it runs, and resume it here" look={{ size: 'sm' }}
         onDone={() => setOpen(false)}
         perform={async () => resumedMessage(await post<{ window?: string; host?: string }>('/api/terminal/resume', { sessionId: session.sessionId }))} />
