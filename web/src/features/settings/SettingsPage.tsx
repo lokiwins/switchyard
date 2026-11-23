@@ -5,6 +5,7 @@ import { Panel } from '../../components/Panel';
 import { TopBar, TopBarStatus } from '../../components/TopBar';
 import { getJson, post } from '../../lib/api';
 import { appearanceApi } from '../../lib/appearance';
+import { cx } from '../../lib/cx';
 import { shortPath } from '../../lib/paths';
 import { queryClient } from '../../lib/query';
 import { MODES, TERMINAL_CHOICES, THEMES } from '../../lib/themes';
@@ -138,7 +139,7 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
       </Panel>
 
       <Panel id="workers-title" title="Workers">
-        <p className={settingHintClass}>For the workers a lead starts (Start ▾ › Start as lead on the Tasks page), set as each one starts. A prompt for anything not allowed here comes to you on the dashboard; the lead never answers one.</p>
+        <p className={cx(settingHintClass, 'my-3')}>For the workers a lead starts (Start ▾ › Start as lead on the Tasks page), set as each one starts. A prompt for anything not allowed here comes to you on the dashboard; the lead never answers one.</p>
         <div className={settingRowClass}>
           <SelectSetting name="workers.permissionMode" label="Permission mode" options={WORKER_MODES}
             hint="The mode a worker starts in. Bypassing permissions isn't offered." />
@@ -164,7 +165,7 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
           <dt className={FACT_NAME}>Claude folder</dt><dd className={FACT}>{shortPath(view.claudeDir)}</dd>
           <dt className={FACT_NAME}>Config file</dt><dd className={FACT}>{shortPath(view.configPath)}</dd>
         </dl>
-        <p className={settingHintClass}>Change these in config.json, then restart switchyard.</p>
+        <p className={cx(settingHintClass, 'my-3')}>Change these in config.json, then restart switchyard.</p>
       </Panel>
     </>
   );

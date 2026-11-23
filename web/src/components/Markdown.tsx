@@ -34,7 +34,10 @@ const parseMarkdown = parse as (text: string) => Block[];
  */
 const BLOCK = 'mt-0 mx-0 mb-[0.9em]';
 const HEADING = 'first:mt-0 mt-[1.2em] mb-[0.5em] leading-[1.3]';
-const HEADING_SIZES: Record<number, string> = { 1: 'text-[1.6em]', 2: 'text-[1.35em]', 3: 'text-[1.15em]' };
+// h1 to h3 take their weight from base.css; h4 to h6 are bold, at the sizes a browser gives them.
+const HEADING_SIZES: Record<number, string> = {
+  1: 'text-[1.6em]', 2: 'text-[1.35em]', 3: 'text-[1.15em]', 4: 'font-bold', 5: 'text-[0.83em] font-bold', 6: 'text-[0.67em] font-bold',
+};
 const LIST = cx(BLOCK, 'pl-[1.5em] [&>li>p]:m-0 [&>li>ul]:my-[0.2em] [&>li>ol]:my-[0.2em]');
 const CODE = 'font-mono text-[0.9em] [line-height:normal]';
 const INLINE_CODE = cx(CODE, 'py-[0.1em] px-[0.35em] rounded-xs bg-[color-mix(in_srgb,var(--pane-accent)_12%,transparent)]');
@@ -88,8 +91,8 @@ function BlockNode({ block }: { block: Block }): ReactNode {
     case 'list': {
       const items = block.items.map((item, i) => <ListItem key={i} item={item} />);
       return block.ordered
-        ? <ol className={LIST} start={block.start && block.start !== 1 ? block.start : undefined}>{items}</ol>
-        : <ul className={LIST}>{items}</ul>;
+        ? <ol className={cx(LIST, 'list-decimal')} start={block.start && block.start !== 1 ? block.start : undefined}>{items}</ol>
+        : <ul className={cx(LIST, 'list-disc')}>{items}</ul>;
     }
     case 'table': return (
       <div className={cx(BLOCK, 'overflow-x-auto')}>

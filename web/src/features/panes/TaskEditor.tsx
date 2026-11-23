@@ -21,9 +21,9 @@ interface FormText { title: string; dueOn: string; notes: string; links: string 
 
 const Field = ({ label, children }: { label: string; children: ReactNode }) => <label className="grid gap-1 text-2xs text-pane-dim"><span>{label}</span>{children}</label>;
 
-/** A field's text box; a long one is resized only down the page. */
+/** A field's text box, and one of several lines. */
 const INPUT = paneInputClass({ field: true });
-const TEXTAREA = cx(INPUT, 'resize-y [font-family:inherit] leading-[1.5]');
+const TEXTAREA = paneInputClass({ field: true, lines: true });
 
 function TaskForm({ id, task, onSave }: { id: string; task: TaskDraft; onSave: (fields: TaskPaneFields) => void }) {
   const [text, setText] = useState<FormText>({ title: task.title, dueOn: task.dueOn ?? '', notes: task.notes, links: task.links.join('\n') });

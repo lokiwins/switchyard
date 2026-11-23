@@ -14,7 +14,7 @@ const fadedEdge = '[border-image:linear-gradient(90deg,transparent,var(--pane-ed
 /** A button on the glass; the primary one (Allow, Save) is tinted green. */
 export function paneButtonClass({ primary = false }: { primary?: boolean } = {}): string {
   return cx(
-    'px-3 py-1 border rounded-[8px] text-pane-text text-xs cursor-pointer disabled:opacity-50 disabled:cursor-default',
+    'px-3 py-1 border rounded-[8px] text-pane-text text-xs [line-height:normal] cursor-pointer disabled:opacity-50 disabled:cursor-default',
     focusRing,
     primary
       ? 'border-[color-mix(in_srgb,var(--pane-ok)_50%,transparent)] bg-[color-mix(in_srgb,var(--pane-ok)_18%,transparent)] hover:bg-[color-mix(in_srgb,var(--pane-ok)_30%,transparent)]'
@@ -22,19 +22,20 @@ export function paneButtonClass({ primary = false }: { primary?: boolean } = {})
   );
 }
 
-/** A text box on the glass; in a form's field it reads a step bigger. */
-export function paneInputClass({ field = false }: { field?: boolean } = {}): string {
+/** A text box on the glass; in a form's field it reads a step bigger; `lines`, a box of several lines, resized only down the page. */
+export function paneInputClass({ field = false, lines = false }: { field?: boolean; lines?: boolean } = {}): string {
   return cx(
     'flex-1 min-w-0 py-1.5 px-2.5 border border-pane-edge rounded-[8px] text-pane-text placeholder:text-pane-dim',
     'bg-[color-mix(in_srgb,var(--pane-shade)_25%,transparent)]',
     field ? 'text-sm' : 'text-xs',
+    lines ? 'resize-y leading-[1.5]' : '[line-height:normal]',
     focusRing,
   );
 }
 
 /** A select on the glass, with room on the right for its ▾. */
 export const paneSelectClass = cx(
-  'py-[3px] pr-[26px] pl-2 border border-pane-edge rounded-[8px] text-pane-text text-xs [color-scheme:var(--pane-scheme)]',
+  'py-[3px] pr-[26px] pl-2 border border-pane-edge rounded-[8px] text-pane-text text-xs [line-height:normal] [color-scheme:var(--pane-scheme)]',
   'bg-[color-mix(in_srgb,var(--pane-shade)_25%,transparent)]',
 );
 
@@ -55,7 +56,7 @@ export const paneSectionClass = 'm-0 text-2xs font-bold tracking-[0.06em] upperc
 
 /** One of a few views of the same thing (Diff, Rendered); the one shown is lit. */
 export const paneTabClass = cx(
-  'py-[3px] px-3 border border-pane-edge rounded-full bg-transparent text-pane-dim text-xs cursor-pointer',
+  'py-[3px] px-3 border border-pane-edge rounded-full bg-transparent text-pane-dim text-xs [line-height:normal] cursor-pointer',
   'aria-pressed:bg-[color-mix(in_srgb,var(--pane-accent)_16%,transparent)] aria-pressed:text-pane-text',
   focusRing,
 );

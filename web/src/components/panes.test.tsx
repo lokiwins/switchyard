@@ -76,6 +76,13 @@ describe('pane controls', () => {
     expect(primary).not.toEqual(plain);
   });
 
+  it('keep a box of several lines at its own line height, and a one-line box at the form controls\' own', () => {
+    const lines = paneInputClass({ field: true, lines: true }).split(' ');
+    expect(lines).toEqual(expect.arrayContaining(['leading-[1.5]', 'resize-y']));
+    expect(lines).not.toContain('[line-height:normal]');
+    expect(paneInputClass().split(' ')).toContain('[line-height:normal]');
+  });
+
   it('size a field\'s input a step up from a footer\'s', () => {
     expect(paneInputClass().split(' ')).toContain('text-xs');
     expect(paneInputClass({ field: true }).split(' ')).toContain('text-sm');
@@ -89,6 +96,14 @@ describe('Markdown', () => {
     const list = screen.getByRole('list');
     expect(classes(list)).toContain('[&>li>p]:m-0');
     expect(classes(screen.getByRole('checkbox').closest('li'))).toContain('list-none');
+  });
+
+  it('keeps a list\'s bullets and numbers, and the smaller headings bold', () => {
+    render(<Markdown text={'- a\n- b\n\n1. one\n2. two\n\n#### Four'} />);
+    const [bullets, numbers] = screen.getAllByRole('list');
+    expect(classes(bullets ?? null)).toContain('list-disc');
+    expect(classes(numbers ?? null)).toContain('list-decimal');
+    expect(classes(screen.getByRole('heading', { name: 'Four' }))).toContain('font-bold');
   });
 
   it('drops the top margin of whatever comes first', () => {
@@ -106,6 +121,14 @@ describe('Markdown', () => {
 describe('the styles', () => {
   it('keep the page behind an open pane still', () => {
     expect(base).toMatch(/html:has\(dialog:modal\)\s*\{\s*overflow:\s*hidden;?\s*\}/);
+  });
+
+  it('put Tailwind\'s base reset under the page\'s own element styles, which give every box the same hint colour', () => {
+    const imports = [...app.matchAll(/@import "([^"]+)"/g)].map((m) => m[1]);
+    expect(imports.indexOf('tailwindcss/preflight.css')).toBeGreaterThan(-1);
+    expect(imports.indexOf('tailwindcss/preflight.css')).toBeLessThan(imports.indexOf('./base.css'));
+    expect(app).toMatch(/@import "tailwindcss\/preflight.css" layer\(base\);/);
+    expect(base).toMatch(/::placeholder\s*\{\s*color:\s*var\(--gray-400\);?\s*\}/);
   });
 
   it('define the pane\'s slide-in', () => {
