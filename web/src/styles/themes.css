@@ -571,3 +571,29 @@
   --pane-drop: rgb(0 0 0 / 0.55);
   --pane-scheme: dark;
 }
+
+/*
+ * The session graph's kinds: one categorical palette, validated in this order for colour blindness and contrast
+ * in both modes (prompt, file, tool, skill, subagent, reply, memory, compaction); "other" is a neutral gray.
+ */
+:root {
+  --graph-session: var(--gray-900);
+  --graph-prompt: #2a78d6;
+  --graph-file: #eb6834;
+  --graph-tool: #1baf7a;
+  --graph-skill: #eda100;
+  --graph-subagent: #e87ba4;
+  --graph-reply: #008300;
+  --graph-memory: #6250d6;
+  --graph-compaction: #e34948;
+  --graph-other: var(--gray-400);
+}
+:root[data-scheme="dark"] {
+  --graph-prompt: #3987e5;
+  --graph-file: #d95926;
+  --graph-tool: #199e70;
+  --graph-skill: #c98500;
+  --graph-subagent: #d55181;
+  --graph-memory: #9085e9;
+  --graph-compaction: #e66767;
+}

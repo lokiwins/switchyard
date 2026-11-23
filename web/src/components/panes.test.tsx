@@ -9,12 +9,11 @@ import { ResizeHandle } from './ResizeHandle';
 /*
  * The glass panes and the Markdown in them carry their own look as utilities.
  * These check what a screenshot can't: the states (dragging, live, a primary
- * button), and that legacy.css no longer styles any of it.
+ * button).
  */
 
 afterEach(cleanup);
 
-const legacy = cssSource('legacy');
 const base = cssSource('base');
 const app = cssSource('app');
 const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/);
@@ -114,15 +113,4 @@ describe('the styles', () => {
     expect(app).toMatch(/@keyframes pane-slide-in/);
   });
 
-  it('no longer style the panes, the terminal or Markdown in legacy.css', () => {
-    const moved = ['.glass-pane', '.pane-resize', '.pane-header', '.pane-heading', '.pane-sub', '.pane-dot', '.pane-pill', '.pane-btn', '.pane-note',
-      '.pane-tabs', '.pane-tab', '.pane-footer', '.pane-input', '.pane-form', '.pane-field', '.pane-textarea', '.pane-section', '.pane-tickets',
-      '.pane-ticket', '.pane-select', '.pane-link', '.task-pane-body', '.ticket-pane-status', '.review-body', '.review-code', '.plan-answers',
-      '.plan-text-answer', '.term-screen', '.term-parking', '.term-theme', '.diff', '.diff-line', '.markdown', '.md-task'];
-    for (const selector of moved) {
-      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      expect(legacy, selector).not.toMatch(new RegExp(`${escaped}(?![\\w-])`));
-    }
-    expect(legacy).not.toMatch(/--pane-bg/);
-  });
 });

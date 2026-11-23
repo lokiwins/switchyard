@@ -207,7 +207,7 @@ export const SCENES = [
       await agentsLoaded(page);
       const href = await rowOf(page, 'Retry failed charges with backoff').getByRole('link', { name: 'Graph' }).getAttribute('href');
       await page.goto(new URL(href, page.url()).href);
-      await page.locator('.graph-kind').first().waitFor();
+      await page.locator('#legend label').first().waitFor();
       await settle(page);
     },
   },

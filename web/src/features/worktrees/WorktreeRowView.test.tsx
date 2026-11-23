@@ -7,7 +7,6 @@ import { WorktreeRowView } from './WorktreeRowView';
 afterEach(cleanup);
 
 const base = cssSource('base');
-const legacy = cssSource('legacy');
 
 const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/);
 
@@ -47,10 +46,4 @@ describe('styles', () => {
     expect(base).toMatch(/max-width:\s*900px\)\s*{\s*table\s*{\s*table-layout:\s*auto/);
   });
 
-  it('legacy.css no longer styles the worktrees page or a menu\'s form', () => {
-    for (const selector of ['.repo', '.repo-meta', '.table-wrap', '.cell-lines', '.branch-name', '.plain-list', '.cleanup-panel', '.reply-panel', '.reply-hint', '.task-actions', '.tag', '.line', '.row', '.secondary', '.strong']) {
-      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      expect(legacy, selector).not.toMatch(new RegExp(`${escaped}(?![\\w-])`));
-    }
-  });
 });

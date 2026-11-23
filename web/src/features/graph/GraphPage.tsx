@@ -8,7 +8,8 @@ import { GraphCanvas, type GraphCanvasHandle } from './GraphCanvas';
 import { KINDS, kindCounts, type SessionGraph } from './model';
 import { useGraphUi } from './store';
 import { Button } from '../../components/Button';
-import { searchInputClass } from '../../components/SearchBox';
+import { searchInputBaseClass } from '../../components/SearchBox';
+import { kindSwatchClass } from './kinds';
 import { Errors, messages } from '../../components/Errors';
 import { panelClass, panelHeadClass } from '../../components/Panel';
 import { cx } from '../../lib/cx';
@@ -39,13 +40,13 @@ function Legend({ graph }: { graph: SessionGraph | undefined }) {
   const setShown = useGraphUi((s) => s.setShown);
   const counts = graph ? kindCounts(graph) : {};
   return (
-    <fieldset className="graph-legend" id="legend">
+    <fieldset className="flex flex-wrap gap-y-1 gap-x-3 mt-0 mx-0 mb-2 p-0 border-0 min-w-0" id="legend">
       <legend className="sr-only">Show</legend>
       {Object.entries(KINDS).filter(([kind]) => counts[kind] && kind !== 'session').map(([kind, { name }]) => (
-        <label key={kind} className="graph-kind">
+        <label key={kind} className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer [&_input]:m-0">
           <input type="checkbox" checked={!hidden.includes(kind)} onChange={(event) => setShown(kind, event.target.checked)} />
-          <span className={`graph-swatch kind-${kind}`} aria-hidden="true" />
-          {`${name} `}<span className="muted">{String(counts[kind])}</span>
+          <span className={kindSwatchClass(kind)} aria-hidden="true" />
+          {`${name} `}<span className="text-gray-500">{String(counts[kind])}</span>
         </label>
       ))}
     </fieldset>
@@ -68,7 +69,7 @@ function FindBox({ graph }: { graph: SessionGraph | undefined }) {
   };
   return (
     <>
-      <input type="search" id="find" className={searchInputClass} list="node-names" placeholder="Find a node…" aria-label="Find a node" autoComplete="off" spellCheck={false}
+      <input type="search" id="find" className={cx(searchInputBaseClass, 'w-[220px] min-w-0 flex-[1_1_auto]')} list="node-names" placeholder="Find a node…" aria-label="Find a node" autoComplete="off" spellCheck={false}
         value={text} onChange={(event) => setText(event.target.value)} onBlur={find} onKeyDown={(event) => { if (event.key === 'Enter') find(); }} />
       <datalist id="node-names">{labels.map((label) => <option key={label} value={label} />)}</datalist>
     </>
@@ -97,15 +98,16 @@ export function GraphPage() {
       <TopBar current="/graph">
         <TopBarStatus>{status({ graph, live, visible, updatedAt, error })}</TopBarStatus>
       </TopBar>
-      <main className="graph-main">
+      <main className="max-w-none">
         <Errors errors={messages(error ? [error] : [])} bare />
-        <section className={cx(panelClass, 'graph-panel')} aria-labelledby="graph-title">
-          <div className={cx(panelHeadClass, 'mb-2 graph-head')}>
-            <div className="stack">
+        <section className={panelClass} aria-labelledby="graph-title">
+          <div className={cx(panelHeadClass, 'mb-2')}>
+            <div className="grid gap-0.5 justify-items-start min-w-0 flex-[1_1_280px]">
               <h2 id="graph-title">{title}</h2>
-              <span className="muted small" id="graph-where">{graph?.cwd ? shortPath(graph.cwd) : ''}</span>
+              <span className="text-xs leading-xs text-gray-500 [overflow-wrap:anywhere]" id="graph-where">{graph?.cwd ? shortPath(graph.cwd) : ''}</span>
             </div>
-            <div className="filters">
+            {/* Find and the buttons stay on one line; narrower than a tablet, it's the whole width. */}
+            <div className="flex flex-nowrap items-center gap-2 max-narrow:w-full">
               <FindBox graph={graph} />
               <Button type="button" variant="secondary" size="sm" id="arrange" title="Lay the whole graph out again" onClick={() => canvas.current?.arrange()}>Arrange</Button>
               <Button type="button" variant="secondary" size="sm" id="fit" title="Zoom to show every node" onClick={() => canvas.current?.fit()}>Fit</Button>
@@ -113,7 +115,7 @@ export function GraphPage() {
             </div>
           </div>
           <Legend graph={graph} />
-          <div className="graph-body">
+          <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-3 max-narrow:grid-cols-[minmax(0,1fr)]">
             <GraphCanvas ref={canvas} graph={graph} hidden={hidden} selected={selected} onSelect={select} />
             <Detail graph={graph} />
           </div>

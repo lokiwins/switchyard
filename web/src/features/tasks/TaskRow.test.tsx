@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { pillClass } from '../../components/Pill';
 import type { Capabilities } from '../../lib/types';
-import { cssSource } from '../../styles/source';
 import { ChecksControl } from './ChecksControl';
 import { TaskGroups } from './TaskGroups';
 import { TaskRow, type RowContext } from './TaskRow';
@@ -13,13 +12,11 @@ import type { CheckResult, ShownTask, Work } from './types';
 /*
  * The Tasks page carries its own look as utilities. These check what one
  * screenshot can't: how a row is laid out narrower than a tablet and on a
- * phone, the states a row and its work can be in, and that legacy.css no
- * longer styles any of it.
+ * phone, and the states a row and its work can be in.
  */
 
 afterEach(cleanup);
 
-const legacy = cssSource('legacy');
 const classes = (el: Element | null | undefined) => (el?.getAttribute('class') ?? '').split(/\s+/);
 
 const CONTEXT: RowContext = { now: Date.parse('2026-11-20T12:00:00Z'), caps: { tmux: true } as Capabilities, repos: [{ name: 'shop', mainPath: '/code/shop' }], approvals: [] };
@@ -126,17 +123,3 @@ describe('Pill', () => {
   });
 });
 
-describe('legacy.css', () => {
-  it('no longer styles the Tasks page', () => {
-    const moved = ['.list', '.list-row', '.row-who', '.row-title', '.row-where', '.row-detail', '.row-detail-label', '.actions', '.hub-row', '.hub-new',
-      '.hub-new-row', '.hub-new-more', '.hub-group', '.hub-group-head', '.hub-count', '.ticket-badge', '.ticket-status', '.task-due', '.task-links',
-      '.task-link', '.task-link-where', '.task-link-pr', '.subtasks', '.check-status', '.checks', '.check-body', '.check-output', '.check-meta',
-      '.review-actions', '.review-reasons', '.row-title-btn', '.tool-card', '.tool-head', '.tool-connect', '.tool-label', '.tool-help', '.tool-meta',
-      '.tool-row', '.tool-select', '.picker-tabs', '.picker-tab', '.picker-panel', '.picker-filter', '.picker-list', '.picker-item', '.picker-note',
-      '.connections-panel', '.worktree-choices', '.worktree-choice', '.subhead', '.sep', '.row-note', '.row-time', '.row-detail-cell', '.row-detail-full'];
-    for (const selector of moved) {
-      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      expect(legacy, selector).not.toMatch(new RegExp(`${escaped}(?![\\w-])`));
-    }
-  });
-});
