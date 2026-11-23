@@ -44,7 +44,7 @@ export function EndMenu({ session }: { session: LiveSession }) {
   const tmux = inTmux(session) && session.host;
   const place = tmux ? `tmux window ${tmuxPlace(tmux)}` : hostPlace(session.host);
   return (
-    <Menu label="End ▾" look={{ variant: 'secondary', size: 'sm' }} panelClass="end-panel" focusInput={false} open={open} onOpenChange={setOpen}
+    <Menu label="End ▾" look={{ variant: 'secondary', size: 'sm' }} roomy width={[240, 320]} panelClass="gap-1.5" focusInput={false} open={open} onOpenChange={setOpen}
       title={tmux ? 'End this Claude session and close its tmux window' : `End this Claude session; its ${place} stays open`}>
       <MenuHint>
         {tmux
@@ -74,7 +74,7 @@ function TakeOverMenu({ session }: { session: LiveSession }) {
   const [open, setOpen] = useState(false);
   if ((session.kind && session.kind !== 'interactive') || session.status === 'busy') return null;
   return (
-    <Menu label="Resume ▾" title="switchyard can't reach where this session is running: resume it here instead" panelClass="end-panel" focusInput={false}
+    <Menu label="Resume ▾" title="switchyard can't reach where this session is running: resume it here instead" roomy width={[240, 320]} panelClass="gap-1.5" focusInput={false}
       open={open} onOpenChange={setOpen}>
       <MenuHint>
         It&apos;s running somewhere switchyard can&apos;t reach: no tab, window or tmux pane it can find. Resuming ends it there and opens the

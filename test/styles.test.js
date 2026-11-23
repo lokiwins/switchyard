@@ -64,12 +64,12 @@ test('a select draws its own arrow, inset from its right edge', async () => {
   assert.match(select, /background-image:[^;]*currentColor/);
   assert.match(select, /background-position:\s*right\s+\d+px\s+center/);
   // A select's own rule sets only its colour, as the background shorthand would drop the arrow, and leaves the arrow room.
-  for (const selector of ['.task-field input, .task-field select', '.tool-select', '.pane-select']) {
+  for (const selector of ['.tool-select', '.pane-select']) {
     const own = rule(selector) ?? '';
     assert.ok(own, `no rule for ${selector}`);
     assert.doesNotMatch(own, /(^|[;\s])background:/, `${selector} uses the background shorthand`);
   }
-  for (const selector of ['.task-field select', '.tool-select', '.pane-select']) {
+  for (const selector of ['.tool-select', '.pane-select']) {
     const room = Number((rule(selector) ?? '').match(/padding(?:-right:\s*|:\s*\S+\s+)(\d+)px/)?.[1]);
     assert.ok(room >= 24, `${selector} leaves ${room}px for the arrow`);
   }

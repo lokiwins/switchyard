@@ -8,9 +8,8 @@
  */
 
 /**
- * A menu's button, by the start of its label: a <summary> in the pages built in public/, a
- * .menu-trigger button in the ones built from web/ (a scene runs against both, before and after).
- * From the start, since hasText alone is a case-insensitive substring: "Clean up" would also match "1 to clean up".
+ * A menu's button, by the start of its label. From the start, since hasText alone is a
+ * case-insensitive substring: "Clean up" would also match "1 to clean up".
  */
 const menuButton = (scope, label) => scope.locator('button[aria-haspopup="dialog"]', { hasText: new RegExp(`^${label}`) });
 
@@ -35,7 +34,8 @@ function inTheme(theme, mode) {
 }
 
 /** The row of the session with this title. */
-const rowOf = (page, title) => page.locator('li.list-row', { hasText: title });
+// A session or task row by its title: the innermost list item holding it, so a lead's row isn't taken for its worker's.
+const rowOf = (page, title) => page.getByRole('listitem').filter({ hasText: title }).last();
 
 /** @type {{ name: string, title: string, path: string, fullPage?: boolean, prepare?: (page: import('playwright').Page) => Promise<void> }[]} */
 export const SCENES = [
@@ -124,7 +124,7 @@ export const SCENES = [
       await page.locator('select[name="repo"]').selectOption({ label: 'storefront' });
       await page.getByPlaceholder('What should Claude do?').fill('Show order history on the account page');
       await page.getByRole('button', { name: 'Start', exact: true }).click();
-      await page.locator('li.list-row.is-pending', { hasText: 'Starting…' }).waitFor();
+      await rowOf(page, 'Starting…').waitFor();
     },
   },
   {
@@ -145,7 +145,7 @@ export const SCENES = [
     prepare: async (page) => {
       await agentsLoaded(page);
       await menuButton(rowOf(page, 'Download invoices as PDF'), 'Answer').click();
-      await page.locator('.answer-panel').filter({ visible: true }).waitFor();
+      await page.locator('[data-radix-popper-content-wrapper] > *').filter({ visible: true }).waitFor();
     },
   },
   {

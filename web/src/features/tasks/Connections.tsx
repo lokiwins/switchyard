@@ -7,6 +7,7 @@ import type { TaskTool } from './types';
 import { Button } from '../../components/Button';
 import { Pill } from '../../components/Pill';
 import { Dot } from '../../components/Dot';
+import { lineFormClass, lineInputClass } from '../../components/Field';
 
 /*
  * Connections ▾ in the header: which trackers are connected, and a card for
@@ -34,8 +35,9 @@ function ConnectForm() {
   return (
     <form className="tool-connect" onSubmit={submit}>
       <label className="tool-label" htmlFor="clickup-token">Personal API token</label>
-      <div className="reply-form">
+      <div className={lineFormClass}>
         <input
+          className={lineInputClass}
           id="clickup-token" name="token" type="password" required autoComplete="off" spellCheck={false} placeholder="pk_…"
           value={token} onChange={(event) => setToken(event.target.value)}
         />

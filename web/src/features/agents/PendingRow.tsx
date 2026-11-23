@@ -11,7 +11,7 @@ export function PendingRow({ task, now }: { task: PendingTask; now: number }) {
   const text = pendingText(task, now);
   return (
     <SessionRow
-      className={`is-pending is-${task.stage}`}
+      tone={task.stage === 'trust' || task.stage === 'exited' ? task.stage : 'pending'}
       badge={<StatusBadge tone={TONE[task.stage] ?? ''} dot={task.stage in DOT ? DOT[task.stage] : 'busy'} label={text.label} />}
       title={task.prompt}
       titleHint={[task.path, task.place && `in tmux window ${task.place}`].filter(Boolean).join(' · ') || task.prompt}

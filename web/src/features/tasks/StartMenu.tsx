@@ -4,6 +4,7 @@ import { readPref, writePref } from '../../lib/prefs';
 import { parentWorkFor } from './logic';
 import type { ShownTask } from './types';
 import { Button } from '../../components/Button';
+import { CheckField, Field, fieldSelectClass, formClass } from '../../components/Field';
 
 /*
  * Start ▾: pick the repo, then Start: the agent on the task in a new
@@ -36,22 +37,21 @@ export function StartMenu({ task, repos, parent, onStart }: {
   };
   return (
     <Menu label="Start ▾" title="Start Claude on this task" look={{ size: 'sm' }} roomy width={[340, 420]} panelClass="gap-1.5" focusInput={false} open={open} onOpenChange={setOpen}>
-      <form className="task-form" onSubmit={submit}>
-        <label className="task-field">
-          <span>Repository</span>
-          <select name="repo" required value={repo} onChange={(event) => setRepo(event.target.value)}>
+      <form className={formClass} onSubmit={submit}>
+        <Field label="Repository">
+          <select name="repo" className={fieldSelectClass} required value={repo} onChange={(event) => setRepo(event.target.value)}>
             {sorted.map((r) => <option key={r.mainPath} value={r.mainPath}>{r.name}</option>)}
           </select>
-        </label>
+        </Field>
         {parentWork && (
           <MenuHint>In <strong>{parentWork.repoName}</strong> it starts from <code>{parentWork.branch}</code>, its parent&apos;s branch, so its work can be merged back there.</MenuHint>
         )}
         {/* Only a top-level task leads: its workers are its subtasks, one level deep. */}
         {!task.parentId && (
-          <label className="task-check">
+          <CheckField>
             <input type="checkbox" name="lead" checked={lead} onChange={(event) => setLead(event.target.checked)} />
             <span><strong>Start as lead</strong>: Claude can start workers on subtasks of this task with switchyard&apos;s tools, and asks you before using them.</span>
-          </label>
+          </CheckField>
         )}
         <MenuActions>
           <MenuHint>Starts Claude on this task in a new worktree beside the repo, on a branch that names the task, in the switchyard tmux session.</MenuHint>
