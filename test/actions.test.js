@@ -136,6 +136,49 @@ test('Jump refuses unknown hosts, unknown sessions and malformed ids', async () 
   await rejectsWith(setup().actions.focusSession({ sessionId: '$(rm -rf ~)' }), 400);
 });
 
+test("Resume takes over a running session switchyard can't reach: hangs it up, then resumes it here", async () => {
+  // Running with no tab or window switchyard can find (its tmux server lost its socket, say): Jump can't get to it.
+  const { actions, calls } = setup({ host: null, session: { kind: 'interactive' } });
+  assert.deepEqual(await actions.resumeSession({ sessionId: ID }), { opened: true, tookOver: true, host: 'iTerm' });
+  assert.deepEqual(calls, [['ps', 42], ['signal', -42, 'SIGHUP'], ['open', `cd '/w/my repo' && claude --resume ${ID}`]]);
+});
+
+test('Resume takes an unreachable session over into a switchyard tmux window when tmux is used', async () => {
+  const { actions, calls } = setup({ host: null, useTmux: true });
+  const result = await actions.resumeSession({ sessionId: ID });
+  assert.equal(result.tookOver, true);
+  assert.equal(result.host, 'tmux');
+  // Hung up first, then a new window that runs the resume command.
+  assert.deepEqual(calls.map((c) => c[0]), ['ps', 'signal', 'new-window', 'tmux-type']);
+  assert.match(calls.at(-1)[2], new RegExp(`--resume ${ID}`));
+});
+
+test('Resume reopens an unreachable session at once when its process has already gone', async () => {
+  const { actions, calls } = setup({ host: null, alive: false });
+  assert.equal((await actions.resumeSession({ sessionId: ID })).tookOver, true);
+  assert.deepEqual(calls, [['open', `cd '/w/my repo' && claude --resume ${ID}`]]);
+});
+
+test("Resume doesn't open a second copy when the unreachable session won't end", async () => {
+  const { actions, calls } = setup({ host: null, exitsOn: [] });
+  await rejectsWith(actions.resumeSession({ sessionId: ID }), 500);
+  assert.equal(calls.some((c) => c[0] === 'open'), false);
+});
+
+test('Resume leaves an unreachable session alone while it is working, so its turn is not cut off', async () => {
+  const working = setup({ host: null, session: { status: 'busy' } });
+  await rejectsWith(working.actions.resumeSession({ sessionId: ID }), 409);
+  assert.deepEqual(working.calls, []);
+});
+
+test("Resume leaves a running session it can reach, and one that isn't interactive, alone", async () => {
+  await rejectsWith(setup({ host: iterm }).actions.resumeSession({ sessionId: ID }), 409);
+  await rejectsWith(setup({ host: inTmux }).actions.resumeSession({ sessionId: ID }), 409);
+  const headless = setup({ host: null, session: { kind: 'background' } });
+  await rejectsWith(headless.actions.resumeSession({ sessionId: ID }), 409);
+  assert.deepEqual(headless.calls, []);
+});
+
 test('Resume types the server-built resume command, and refuses live sessions', async () => {
   const { actions, calls } = setup();
   await actions.resumeSession({ sessionId: 'ended-session-1' });

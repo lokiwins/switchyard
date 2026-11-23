@@ -472,13 +472,32 @@ export function createActionService({
     }
   }
 
-  /** Open a new tab that resumes an ended session in its own folder. */
+  /**
+   * Resume a session that's running where switchyard can't reach it: no tab,
+   * window or tmux pane it can find (its tmux server lost its socket, say), so
+   * Jump can't get to it. Claude is hung up first, as End does outside tmux,
+   * so two copies never write one conversation; then it's resumed here. Only
+   * an interactive session that isn't working: a background one is left to
+   * finish its work, and a working one its turn.
+   */
+  async function takeOver(session) {
+    if (session.kind && session.kind !== 'interactive') {
+      throw new ActionError(409, "That session is running in the background; it isn't one to resume in a terminal");
+    }
+    // Ending it now would cut its turn off; it can be resumed once the turn ends.
+    if (session.status === 'busy') throw new ActionError(409, "That session is working; resume it once it's done");
+    if (isAlive(session.pid)) await hangUp(session);
+    // It replaces itself, so the running-agents cap doesn't count it twice.
+    return { opened: true, tookOver: true, ...await resume(session) };
+  }
+
+  /** Open a new tab that resumes an ended session in its own folder, or one running out of reach (see takeOver). */
   async function resumeSession(body) {
     const sessionId = parseSessionId(body);
     const state = await stateService.getState();
-    if (state.liveSessions.some((s) => s.sessionId === sessionId)) {
-      throw new ActionError(409, 'That session is still running; use Jump instead');
-    }
+    const running = state.liveSessions.find((s) => s.sessionId === sessionId);
+    if (running && !running.host) return takeOver(running);
+    if (running) throw new ActionError(409, 'That session is still running; use Jump instead');
     const session = findEndedSession(state, sessionId);
     if (!session) throw new ActionError(404, 'Unknown session');
     await limit.check();
