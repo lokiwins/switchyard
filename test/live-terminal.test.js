@@ -10,8 +10,8 @@ function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = f
   let client = null;
   // The pane's real size, which a test can change as tmux would.
   const pane = { window: '@4', cols: 80, rows: 24, cursorX: 2, cursorY: 1 };
-  const attach = ({ session, onEvent, onClose }) => {
-    client = { session, onEvent, onClose, closed: false };
+  const attach = ({ session, socket, onEvent, onClose }) => {
+    client = { session, socket, onEvent, onClose, closed: false };
     return {
       command: (line) => {
         commands.push(line);
@@ -27,7 +27,9 @@ function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = f
       close: () => { client.closed = true; },
     };
   };
+  const servers = [];
   const tmux = {
+    at: (socket) => { servers.push(socket); return tmux; },
     paneSize: async () => ({ ...pane }),
     // The session's current window: another task's, unless the test says otherwise.
     currentWindowSize: async (session) => {
@@ -60,7 +62,7 @@ function setup({ target = { session: 'switchyard', pane: '%3' }, failCapture = f
     resize: (size) => sink.events.push(['resize', size]),
     end: () => sink.events.push(['end']),
   };
-  return { terminals, sink, commands, pane, client: () => client };
+  return { terminals, sink, commands, pane, servers, client: () => client };
 }
 
 test('seedBytes redraws the capture with CRLF line ends and puts the cursor back', () => {
@@ -314,4 +316,12 @@ test('without a size from the page, the size new windows start at is left as it 
   const { terminals, sink, commands } = setup();
   await terminals.start({ sessionId: SESSION }, sink);
   assert.equal(commands.some((c) => c.includes('default-size')), false);
+});
+
+test('a pane on switchyard\'s own server is watched there: its sizes, its screen and the control client', async () => {
+  const socket = '/Users/me/.config/switchyard/tmux';
+  const { terminals, sink, servers, client } = setup({ target: { session: 'switchyard', pane: '%3', socket } });
+  await terminals.start({ sessionId: SESSION }, sink);
+  assert.equal(client().socket, socket);
+  assert.deepEqual(servers, [socket]);
 });

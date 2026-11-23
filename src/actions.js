@@ -111,6 +111,9 @@ export function createActionService({
   // The settings file a new session starts with: switchyard's session event hooks (see session-events.js).
   defaultSettings = async () => null,
 }) {
+  // The tmux server a session's pane is on: switchyard's own, or the default one for your own tmux sessions.
+  const serverOf = (host) => tmux.at(host?.socket ?? null);
+
   const drivers = new Map();
   const driverFor = (app) => {
     if (!drivers.has(app)) drivers.set(app, terminalFor(app));
@@ -167,17 +170,18 @@ export function createActionService({
    * in a tab of its own, showing just that window (see openView in tmux.js).
    */
   async function focusTmux(host) {
-    if (await showsInIterm(host.session, host.pane)) return { precision: 'tab', host: 'iTerm' };
-    for (const tty of await tmux.clientsShowing(host.window)) {
+    const server = serverOf(host);
+    if (await showsInIterm(server, host.session, host.pane)) return { precision: 'tab', host: 'iTerm' };
+    for (const tty of await server.clientsShowing(host.window)) {
       if (await terminal.focus(tty).catch(() => false)) return { precision: 'tab', host: host.label };
     }
-    await terminal.open(await tmux.openView(host.window));
+    await terminal.open(await server.openView(host.window));
     return { precision: 'opened', host: terminal.app };
   }
 
-  /** Whether iTerm's tmux integration shows `session`, and could bring `pane`'s window forward. */
-  async function showsInIterm(session, pane) {
-    if (terminal.app !== 'iTerm' || (await tmux.integrationClients(session)).length === 0) return false;
+  /** Whether iTerm's tmux integration shows `session` (on `server`), and could bring `pane`'s window forward. */
+  async function showsInIterm(server, session, pane) {
+    if (terminal.app !== 'iTerm' || (await server.integrationClients(session)).length === 0) return false;
     return terminal.focusTmuxPane(pane);
   }
 
@@ -188,9 +192,11 @@ export function createActionService({
    */
   async function showTerminalSessions() {
     if (terminal.app !== 'iTerm') throw new ActionError(501, 'Showing terminal sessions needs iTerm, for its tmux integration');
-    if (!(await tmux.hasSession(TASK_SESSION))) throw new ActionError(404, 'No terminal sessions yet: start one with New task');
-    if (await showsInIterm(TASK_SESSION, await tmux.activePane(TASK_SESSION))) return { precision: 'tab', host: 'iTerm' };
-    await terminal.open(await tmux.integrationCommand(TASK_SESSION));
+    // switchyard's own server, or the default one, where its windows ran before it had a server of its own.
+    const server = (await tmux.hasSession(TASK_SESSION)) ? tmux : tmux.at(null);
+    if (!(await server.hasSession(TASK_SESSION))) throw new ActionError(404, 'No terminal sessions yet: start one with New task');
+    if (await showsInIterm(server, TASK_SESSION, await server.activePane(TASK_SESSION))) return { precision: 'tab', host: 'iTerm' };
+    await terminal.open(await server.integrationCommand(TASK_SESSION));
     return { precision: 'opened', host: 'iTerm' };
   }
 
@@ -243,7 +249,7 @@ export function createActionService({
    */
   async function currentTmuxPane(session) {
     const tty = isAlive(session.pid) ? await lookupTty(session.pid) : null;
-    const pane = tty ? (await tmux.listPanes()).get(tty) : null;
+    const pane = tty ? (await serverOf(session.host).listPanes()).get(tty) : null;
     if (pane?.pane !== session.host.pane) throw new ActionError(409, 'That session is no longer running in its tmux pane');
     return pane.pane;
   }
@@ -258,7 +264,7 @@ export function createActionService({
     }
     if (session.needsYou) throw new ActionError(409, 'It is showing a question or permission prompt; answer that first');
     if (inTmux) {
-      await tmux.sendLine(await currentTmuxPane(session), text);
+      await serverOf(session.host).sendLine(await currentTmuxPane(session), text);
       return { queued: session.status === 'busy' };
     }
     if (!isAlive(session.pid)) throw new ActionError(409, 'That session has ended');
@@ -274,14 +280,14 @@ export function createActionService({
   async function tmuxTarget(body) {
     const session = await liveSession(parseSessionId(body));
     if (session.host?.kind !== 'tmux') throw new ActionError(501, 'The live terminal works for sessions running in tmux');
-    return { session: session.host.session, pane: await currentTmuxPane(session) };
+    return { session: session.host.session, pane: await currentTmuxPane(session), socket: session.host.socket ?? null };
   }
 
   /** Stop what a session is doing (Esc), as you would in its terminal. Needs tmux to reach it without a tab. */
   async function interruptSession(body) {
     const session = await liveSession(parseSessionId(body));
     if (session.host?.kind !== 'tmux') throw new ActionError(501, 'Interrupting from switchyard works for sessions running in tmux');
-    await tmux.interrupt(await currentTmuxPane(session));
+    await serverOf(session.host).interrupt(await currentTmuxPane(session));
     return { interrupted: true };
   }
 
@@ -329,11 +335,12 @@ export function createActionService({
     const session = await liveSession(parseSessionId(body));
     if (session.host?.kind !== 'tmux') return hangUp(session);
     const pane = await currentTmuxPane(session);
-    const panes = [...(await tmux.listPanes()).values()];
+    const server = serverOf(session.host);
+    const panes = [...(await server.listPanes()).values()];
     const { window, windowName, session: tmuxSession } = panes.find((p) => p.pane === pane);
     const shared = panes.filter((p) => p.window === window).length > 1;
-    if (shared) await tmux.killPane(pane);
-    else await tmux.killWindow(window);
+    if (shared) await server.killPane(pane);
+    else await server.killWindow(window);
     return { ended: true, window: `${tmuxSession}:${windowName}` };
   }
 
@@ -355,11 +362,13 @@ export function createActionService({
     const host = session.host;
     if (host?.kind === 'tmux') {
       const pane = await currentTmuxPane(session);
+      const server = serverOf(host);
       return {
-        id: pane,
-        read: () => tmux.screenText(pane),
-        press: (key) => tmux.pressKey(pane, key),
-        typeLine: (text) => tmux.sendLine(pane, text),
+        // A pane id is unique only on its own server.
+        id: `${host.socket ?? ''}${pane}`,
+        read: () => server.screenText(pane),
+        press: (key) => server.pressKey(pane, key),
+        typeLine: (text) => server.sendLine(pane, text),
       };
     }
     if (host?.kind === 'terminal' && canAnswerIn(host.app)) {

@@ -108,8 +108,10 @@ export function createLiveTerminals({
    * end() if the pane or tmux goes away. Resolves to a function that closes it.
    */
   async function start(body, sink) {
-    const { session, pane } = await actions.tmuxTarget(body);
-    const first = await tmux.paneSize(pane);
+    const { session, pane, socket = null } = await actions.tmuxTarget(body);
+    // The server the pane is on: switchyard's own, or the default one for your own tmux sessions.
+    const server = tmux.at(socket);
+    const first = await server.paneSize(pane);
     const token = newToken();
     // Output that arrives while the screen is being captured, sent after it.
     let held = [];
@@ -133,7 +135,7 @@ export function createLiveTerminals({
 
     async function redraw(size) {
       held = held ?? [];
-      const capture = await tmux.capturePane(pane, HISTORY_LINES);
+      const capture = await server.capturePane(pane, HISTORY_LINES);
       if (shown) {
         sink.resize({ cols: size.cols, rows: size.rows });
         send(Buffer.concat([CLEAR_SCREEN, seedBytes(capture, size)]));
@@ -157,7 +159,7 @@ export function createLiveTerminals({
         return;
       }
       redrawing = true;
-      tmux.paneSize(pane)
+      server.paneSize(pane)
         .then((size) => {
           latest = { cols: size.cols, rows: size.rows };
           return redraw(size);
@@ -174,6 +176,7 @@ export function createLiveTerminals({
 
     client = attach({
       session,
+      socket,
       onEvent: (event) => {
         if (event.pane !== pane) return;
         if (event.type === 'subscription' && event.name === SIZE_SUBSCRIPTION) {
@@ -199,7 +202,7 @@ export function createLiveTerminals({
       const deadline = Date.now() + resizeWaitMs;
       while (Date.now() < deadline) {
         await new Promise((resolve) => { setTimeout(resolve, SIZE_POLL_MS); });
-        const size = await tmux.paneSize(pane).catch(() => null);
+        const size = await server.paneSize(pane).catch(() => null);
         if (!size) return;
         if (size.cols !== latest.cols || size.rows !== latest.rows) {
           latest = { cols: size.cols, rows: size.rows };
@@ -228,7 +231,7 @@ export function createLiveTerminals({
      * for 80 columns, and redrawing again when it's next opened.
      */
     async function keepCurrentWindowSize(name) {
-      const size = await tmux.currentWindowSize(name).catch(() => null);
+      const size = await server.currentWindowSize(name).catch(() => null);
       if (size && inRange(size.cols, COLS) && inRange(size.rows, ROWS)) client.command(`refresh-client -C ${size.cols}x${size.rows}`);
     }
 
@@ -246,7 +249,7 @@ export function createLiveTerminals({
       const deadline = Date.now() + resizeWaitMs;
       for (;;) {
         await new Promise((resolve) => { setTimeout(resolve, SIZE_POLL_MS); });
-        const size = await tmux.paneSize(pane);
+        const size = await server.paneSize(pane);
         if ((size.cols === wanted.cols && size.rows === wanted.rows) || Date.now() >= deadline) {
           // What tmux has now, so its later report of the same size doesn't redraw it again.
           latest = { cols: size.cols, rows: size.rows };

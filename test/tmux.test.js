@@ -11,7 +11,8 @@ function fakeExec(responses = {}) {
   const exec = async (cmd, args, options) => {
     calls.push([cmd, ...args]);
     if (options?.env) envs.push([cmd, options.env.PATH]);
-    const response = responses[args[0]];
+    // The command, after a socket (-S path) when one is named.
+    const response = responses[args[0] === '-S' ? args[2] : args[0]];
     if (response instanceof Error) throw response;
     const value = typeof response === 'function' ? response(args) : response ?? '';
     if (value instanceof Error) throw value;
@@ -28,7 +29,7 @@ const rejectsWith = (promise, status) => assert.rejects(promise, (error) => erro
 
 test('parsePanes maps each pane tty to its session, window and pane', () => {
   const panes = parsePanes('/dev/ttys010\tswitchyard\t@4\tmy-repo-fix\t%3\n/dev/ttys011\tscratch\t@5\tzsh\t%4\n\n');
-  assert.deepEqual(panes.get('/dev/ttys010'), { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3' });
+  assert.deepEqual(panes.get('/dev/ttys010'), { session: 'switchyard', window: '@4', windowName: 'my-repo-fix', pane: '%3', socket: null });
   assert.equal(panes.size, 2);
 });
 
@@ -251,4 +252,48 @@ test('currentWindowSize reads the size of the window a session is showing', asyn
   const { exec, calls } = fakeExec({ 'display-message': '137 39\n' });
   assert.deepEqual(await tmuxWith(exec).currentWindowSize('switchyard'), { cols: 137, rows: 39 });
   assert.deepEqual(calls[0], ['tmux', 'display-message', '-p', '-t', '=switchyard:', '#{window_width} #{window_height}']);
+});
+
+const SOCKET = '/Users/me/.config/switchyard/tmux';
+
+test('with a socket of its own, every command goes to that server', async () => {
+  const { exec, calls } = fakeExec({ 'list-panes': '/dev/ttys010\tswitchyard\t@4\tmy-repo-fix\t%3\n', 'new-window': '@4\t%7\n' });
+  const tmux = createTmux({ exec, locate: () => TMUX, socket: SOCKET });
+  await tmux.listPanes();
+  await tmux.newWindow(NEW_WINDOW);
+  await tmux.sendLine('%3', 'hi');
+  for (const call of calls) assert.deepEqual(call.slice(1, 3), ['-S', SOCKET], call.join(' '));
+});
+
+test('each pane says which server it is on, so a command about it goes there', async () => {
+  const { exec } = fakeExec({ 'list-panes': '/dev/ttys010\tswitchyard\t@4\tmy-repo-fix\t%3\n' });
+  assert.equal((await createTmux({ exec, socket: SOCKET }).listPanes()).get('/dev/ttys010').socket, SOCKET);
+  assert.equal((await createTmux({ exec }).listPanes()).get('/dev/ttys010').socket, null);
+});
+
+test('at() is the same client on another server; at(null) is the default one', async () => {
+  const { exec, calls } = fakeExec();
+  const own = createTmux({ exec, socket: SOCKET });
+  await own.at(null).interrupt('%3');
+  await own.at('/tmp/other').interrupt('%3');
+  await own.at(SOCKET).interrupt('%3');
+  assert.deepEqual(calls, [['tmux', 'send-keys', '-t', '%3', 'Escape'], ['tmux', '-S', '/tmp/other', 'send-keys', '-t', '%3', 'Escape'], ['tmux', '-S', SOCKET, 'send-keys', '-t', '%3', 'Escape']]);
+});
+
+test('listAllPanes lists its own server and the default one, where your own tmux sessions run', async () => {
+  const { exec } = fakeExec({ 'list-panes': (args) => (args[0] === '-S' ? '/dev/ttys010\tswitchyard\t@4\tfix\t%3\n' : '/dev/ttys020\tmine\t@1\tzsh\t%1\n') });
+  const panes = await createTmux({ exec, socket: SOCKET }).listAllPanes();
+  assert.deepEqual([...panes].map(([tty, p]) => [tty, p.session, p.socket]), [['/dev/ttys010', 'switchyard', SOCKET], ['/dev/ttys020', 'mine', null]]);
+});
+
+test('a tab attaching to a view names the server, so its shell finds the right one', async () => {
+  const { exec } = fakeExec({ 'has-session': new Error("can't find session"), 'new-session': '@9\n' });
+  const command = await createTmux({ exec, socket: SOCKET }).openView('@4');
+  assert.match(command, new RegExp(`^exec tmux -S '${SOCKET}' attach-session -t '=switchyard-view-4'`));
+});
+
+test('ownSocket lives in switchyard\'s folder, unless its path is too long to be a socket', async () => {
+  const { ownSocket } = await import('../src/tmux.js');
+  assert.equal(ownSocket('/Users/me/.config/switchyard'), '/Users/me/.config/switchyard/tmux');
+  assert.equal(ownSocket(`/${'x'.repeat(120)}`), null);
 });
