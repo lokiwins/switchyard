@@ -162,6 +162,12 @@ test("Resume doesn't open a second copy when the unreachable session won't end",
   assert.equal(calls.some((c) => c[0] === 'open'), false);
 });
 
+test('Resume leaves an unreachable session alone while it is working, so its turn is not cut off', async () => {
+  const working = setup({ host: null, session: { status: 'busy' } });
+  await rejectsWith(working.actions.resumeSession({ sessionId: ID }), 409);
+  assert.deepEqual(working.calls, []);
+});
+
 test("Resume leaves a running session it can reach, and one that isn't interactive, alone", async () => {
   await rejectsWith(setup({ host: iterm }).actions.resumeSession({ sessionId: ID }), 409);
   await rejectsWith(setup({ host: inTmux }).actions.resumeSession({ sessionId: ID }), 409);

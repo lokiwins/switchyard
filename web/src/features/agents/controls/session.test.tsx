@@ -16,15 +16,23 @@ function button(session: LiveSession) {
 }
 
 describe('JumpButton', () => {
-  it('offers Resume for a running session it has no tab or window for, and resumes it through the server', async () => {
+  it('offers Resume for an idle running session it has no tab or window for, and resumes it through the server', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, data: { opened: true, tookOver: true, host: 'tmux', window: 'switchyard:app' } })));
     vi.stubGlobal('fetch', fetchMock);
     button(SESSION);
-    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    // Two clicks, as End is: the menu says what resuming does, then Resume here does it.
+    fireEvent.click(screen.getByRole('button', { name: 'Resume ▾' }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume here' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/terminal/resume');
     expect(JSON.parse(String(init.body))).toEqual({ sessionId: SESSION.sessionId });
+  });
+
+  it('leaves a working session alone, so its turn is not cut off', () => {
+    button({ ...SESSION, status: 'busy' });
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('leaves a session running in the background alone', () => {
