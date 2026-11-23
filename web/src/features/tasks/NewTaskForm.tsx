@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { AddFromMenu } from './AddFromMenu';
 import type { HubTask, TaskFields } from './types';
 import { Button } from '../../components/Button';
+import { Field } from '../../components/Field';
 
 /* The add-a-task form: a title and due day, with notes and links behind "Notes and links"; and Add from ▾. */
 
@@ -41,14 +42,12 @@ export function NewTaskForm({ tasks, onCreate }: { tasks: HubTask[]; onCreate: (
       </div>
       <details className="hub-new-more" open={moreOpen} onToggle={(event) => setMoreOpen(event.currentTarget.open)}>
         <summary>Notes and links</summary>
-        <label className="task-field">
-          <span>Notes (what Claude is told when you start it)</span>
+        <Field label="Notes (what Claude is told when you start it)">
           <textarea name="notes" rows={3} maxLength={MAX_NOTES_CHARS} value={fields.notes} onChange={change('notes')} />
-        </label>
-        <label className="task-field">
-          <span>Ticket links (ClickUp, GitHub, Jira, Azure DevOps or any other), one per line</span>
+        </Field>
+        <Field label="Ticket links (ClickUp, GitHub, Jira, Azure DevOps or any other), one per line">
           <textarea name="links" rows={2} spellCheck={false} placeholder="https://app.clickup.com/t/…" value={fields.links} onChange={change('links')} />
-        </label>
+        </Field>
       </details>
     </form>
   );

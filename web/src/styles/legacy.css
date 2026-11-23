@@ -16,42 +16,6 @@
 .small { font-size: var(--text-xs); line-height: var(--leading-xs); }
 .stack { display: grid; gap: 2px; justify-items: start; min-width: 0; }
 
-/* End ▾: what ending does, then the button that does it. */
-.end-panel { --panel-min: 240px; --panel-max: 320px; padding: --spacing(2); gap: 6px; }
-/* Delete ▾: two ways to delete, each saying what it keeps. */
-.delete-panel { --panel-min: 240px; --panel-max: 300px; }
-.delete-choice { flex-direction: column; align-items: stretch; gap: 2px; }
-.delete-hint { font-size: 11px; color: var(--gray-500); white-space: normal; }
-.delete-choice:hover .delete-hint, .delete-choice:focus-visible .delete-hint { color: inherit; }
-.reply-form { display: flex; gap: 6px; }
-.reply-form input {
-  flex: 1; min-width: 0; padding: 4px 8px;
-  font: inherit; font-size: var(--text-xs); line-height: var(--leading-xs);
-  color: var(--gray-900); background: var(--surface);
-  border: 0; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--gray-200);
-}
-.reply-form input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
-.task-form { display: grid; gap: --spacing(2); }
-.task-field { display: grid; gap: 2px; font-size: var(--text-xs); color: var(--gray-500); }
-.task-field input, .task-field select {
-  padding: 4px 8px; font: inherit; font-size: var(--text-xs); line-height: var(--leading-xs);
-  color: var(--gray-900); background-color: var(--surface);
-  border: 0; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--gray-200);
-}
-.task-field select { padding-right: 26px; }
-.task-field input:focus, .task-field select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
-.task-check { display: flex; align-items: flex-start; gap: --spacing(2); font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--gray-500); cursor: pointer; }
-.task-check input { flex: none; margin: 2px 0 0; }
-.task-check strong { color: var(--gray-900); font-weight: 600; }
-/* Answer ▾: the options of the dialog on a tmux session's screen. */
-.answer-panel { min-width: 300px; max-width: 420px; padding: --spacing(2); gap: 4px; }
-.answer-question { margin: 0 0 2px; padding: 0 --spacing(2); font-size: var(--text-xs); font-weight: 600; color: var(--gray-900); }
-.hint {
-  margin: 0; padding: 6px --spacing(3);
-  font-size: var(--text-xs); color: var(--gray-700);
-  background: var(--amber-soft); border-bottom: 1px solid var(--divider);
-}
-.hint code { font-family: var(--font-mono); font-size: 11px; }
 /* Tasks: a closed task's worktree kept for its changes, asking Keep or Delete. */
 .worktree-choices { display: flex; flex-direction: column; gap: --spacing(2); }
 .worktree-choices:not(:empty) { margin-bottom: --spacing(3); }
@@ -115,12 +79,6 @@ button.row-detail:hover { color: var(--gray-900); }
 .list-row.is-interrupted { background: color-mix(in srgb, var(--amber-soft) 70%, transparent); }
 .list-row.is-parked { opacity: 0.6; }
 .list-row.is-parked:hover { opacity: 1; }
-.list-toggle {
-  display: block; width: 100%; margin-top: 2px;
-  font: inherit; font-size: var(--text-xs); font-weight: 600; color: var(--gray-500);
-  padding: 6px --spacing(2); border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; text-align: left;
-}
-.list-toggle:hover { background: var(--hover); color: var(--gray-900); }
 
 .actions { display: flex; gap: --spacing(1); flex-wrap: wrap; justify-content: flex-end; }
 
@@ -239,11 +197,6 @@ details.hub-group[open] > summary::before { content: "▾"; }
 .checks { display: flex; flex-wrap: wrap; align-items: center; gap: --spacing(2); min-width: 0; }
 .checks:has(.check-status[open]) { flex-basis: 100%; }
 .check-status[open] { flex-basis: 100%; }
-.row-alerts { display: flex; flex-wrap: wrap; gap: --spacing(2); }
-/* With none of its alerts showing yet (a stuck alert waits for its time), the line takes no room, so the row sits as before. */
-.row-alerts:not(:has(> .session-alert:not([hidden]))) { display: none; }
-.session-alert { display: inline-block; font-size: var(--text-xs); line-height: var(--leading-xs); padding: 0 6px; border-radius: 999px; color: var(--amber); background: var(--amber-soft); white-space: nowrap; }
-.session-alert[hidden] { display: none; }
 .review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: --spacing(2); }
 .review-reasons { margin: 0; font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--gray-900); white-space: pre-wrap; overflow-wrap: anywhere; }
 .check-body { display: grid; gap: --spacing(2); margin-top: --spacing(2); justify-items: start; }

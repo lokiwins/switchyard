@@ -62,12 +62,23 @@ export function Menu({
   );
 }
 
-/** A menu's choice, for a <button> that isn't a <MenuItem> (one whose look is passed around as a class). */
-export const menuItemClass = [
-  'flex items-baseline gap-2 px-2 py-1.25 border-0 rounded-xs [font-family:inherit] text-xs leading-xs text-left',
+// A choice's look, whatever its layout.
+const ITEM_LOOK = [
+  'px-2 py-1.25 border-0 rounded-xs [font-family:inherit] text-xs leading-xs text-left',
   'text-gray-700 bg-transparent cursor-pointer',
   'hover:bg-accent-soft hover:text-accent focus-visible:bg-accent-soft focus-visible:text-accent focus-visible:outline-none',
 ].join(' ');
+
+/** A menu's choice, for a <button> that isn't a <MenuItem> (one whose look is passed around as a class). */
+export const menuItemClass = `flex items-baseline gap-2 ${ITEM_LOOK}`;
+
+// A choice with a line under its title (see MenuItem's `stacked`); its hint takes the choice's colour when it's lit.
+const STACKED_ITEM = `group flex flex-col items-stretch gap-0.5 ${ITEM_LOOK}`;
+
+/** The line under a stacked choice's title: what it does, or keeps. */
+export function MenuItemHint({ children }: { children: ReactNode }) {
+  return <span className="text-2xs text-gray-500 whitespace-normal group-hover:text-inherit group-focus-visible:text-inherit">{children}</span>;
+}
 
 /** What a choice is, cut short with … where it doesn't fit. */
 export const menuTitleClass = 'flex-1 min-w-0 truncate';
@@ -75,9 +86,9 @@ export const menuTitleClass = 'flex-1 min-w-0 truncate';
 /** A choice's small grey aside, at its end (when, where). */
 export const menuMetaClass = 'flex-none text-2xs text-gray-500';
 
-/** One choice in a menu; `className` adds a menu's own layout. */
-export function MenuItem({ className, type = 'button', ...props }: ComponentProps<'button'>) {
-  return <button type={type} className={cx(menuItemClass, className)} {...props} />;
+/** One choice in a menu; `stacked` puts a MenuItemHint under its title; `className` adds a menu's own layout. */
+export function MenuItem({ className, stacked = false, type = 'button', ...props }: ComponentProps<'button'> & { stacked?: boolean }) {
+  return <button type={type} className={cx(stacked ? STACKED_ITEM : menuItemClass, className)} {...props} />;
 }
 
 export function MenuTitle({ className, ...props }: ComponentProps<'span'>) {

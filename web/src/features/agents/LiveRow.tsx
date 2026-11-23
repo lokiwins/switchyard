@@ -36,7 +36,7 @@ export function LiveRow({ session, repoName, worktree, approvals, workers = null
   const pr = worktree?.pr;
   return (
     <SessionRow
-      className={session.parked ? 'is-parked' : null}
+      tone={session.parked ? 'parked' : null}
       badge={<StatusBadge tone={tone(session)} dot={sessionDot(session)} label={sessionLabel(session)} />}
       title={sessionTitle(session)}
       titleHint={[session.cwd, host && `running in ${host.kind === 'tmux' ? `tmux window ${tmuxPlace(host)}` : host.label}`].filter(Boolean).join(' · ')}
@@ -57,7 +57,7 @@ export function LiveRow({ session, repoName, worktree, approvals, workers = null
           <ReplyMenu session={session} />
           <StopButton session={session} />
           <TrackerLink task={worktree?.task} />
-          {pr && <a href={pr.url} target="_blank" rel="noopener" className="small">{`#${pr.number}`}</a>}
+          {pr && <a href={pr.url} target="_blank" rel="noopener" className="text-xs leading-xs">{`#${pr.number}`}</a>}
           <TerminalButton session={session} />
           <JumpButton session={session} />
           <TaskFromWork from={{ sessionId: session.sessionId }} hubTask={session.hubTask} />

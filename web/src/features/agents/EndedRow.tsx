@@ -18,7 +18,7 @@ export function EndedRow({ session, caps }: { session: EndedSession; caps: Capab
   return (
     <SessionRow
       // Only recent interruptions are highlighted; older ones are history.
-      className={session.needsAttention ? 'is-interrupted' : null}
+      tone={session.needsAttention ? 'interrupted' : null}
       badge={<StatusBadge tone={state.tone} label={state.label} hint={state.hint} />}
       title={sessionTitle(session)}
       titleHint={[t.title, t.agentName, session.cwd].filter(Boolean).join(' · ')}
@@ -31,7 +31,7 @@ export function EndedRow({ session, caps }: { session: EndedSession; caps: Capab
       actions={(
         <>
           <TrackerLink task={session.task} />
-          {session.prUrl && <a href={session.prUrl} target="_blank" rel="noopener" className="small">{`#${session.prNumber}`}</a>}
+          {session.prUrl && <a href={session.prUrl} target="_blank" rel="noopener" className="text-xs leading-xs">{`#${session.prNumber}`}</a>}
           <ResumeButton session={session} caps={caps} />
           <EditorLink path={session.cwd} caps={caps} />
           {/* Only a session in a worktree switchyard knows can be linked to a task. */}
