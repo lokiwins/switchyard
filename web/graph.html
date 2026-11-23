@@ -6,8 +6,8 @@
   <title>Session graph · Switchyard</title>
   <script src="/theme-boot.js" vite-ignore></script>
   <!-- Cytoscape adds a <style> for its container unless an element with this id exists; the CSP blocks
-       inline styles, so legacy.css carries that rule instead (see .__________cytoscape_container). -->
-  <meta name="cytoscape-style" id="__________cytoscape_stylesheet" content="in legacy.css">
+       inline styles, so the container carries that rule itself (`relative`, see GraphCanvas.tsx). -->
+  <meta name="cytoscape-style" id="__________cytoscape_stylesheet" content="on the container">
 </head>
 <body>
   <div id="root"></div>

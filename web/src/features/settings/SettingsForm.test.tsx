@@ -1,12 +1,10 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cssSource } from '../../styles/source';
 import { SelectSetting, SettingsFormProvider, settingRowClass, TextSetting, ToggleSetting } from './SettingsForm';
 
 afterEach(cleanup);
 
-const legacy = cssSource('legacy');
 const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/);
 
 function form(children: ReactNode) {
@@ -38,10 +36,4 @@ describe('settings fields', () => {
     expect(settingRowClass).toContain('*:mb-0');
   });
 
-  it('legacy.css no longer styles the settings page', () => {
-    for (const selector of ['.settings', '.setting', '.setting-label', '.setting-hint', '.setting-row', '.setting-facts', '.repo-checklist', '.repo-choice', '.repo-name']) {
-      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      expect(legacy, selector).not.toMatch(new RegExp(`${escaped}(?![\\w-])`));
-    }
-  });
 });

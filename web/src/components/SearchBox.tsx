@@ -1,8 +1,11 @@
-/** A search field's look, for one that isn't a <SearchBox> (the graph's Find). On a phone it takes the row. */
-export const searchInputClass = [
-  '[font-family:inherit] [line-height:inherit] text-sm px-2.5 py-1 w-60 max-w-full border-0 rounded-sm bg-surface-sunken text-gray-900',
-  'shadow-[inset_0_0_0_1px_var(--divider)] placeholder:text-gray-400 max-phone:w-full',
+/** A search field's look without its width, for one that sizes itself (the graph's Find). */
+export const searchInputBaseClass = [
+  '[font-family:inherit] [line-height:inherit] text-sm px-2.5 py-1 max-w-full border-0 rounded-sm bg-surface-sunken text-gray-900',
+  'shadow-[inset_0_0_0_1px_var(--divider)] placeholder:text-gray-400',
 ].join(' ');
+
+/** A page's search field: a fixed width, and on a phone the whole row. */
+export const searchInputClass = `${searchInputBaseClass} w-60 max-phone:w-full`;
 
 /** A page's search box: it filters as you type (the page defers the lists, so typing stays quick). */
 export function SearchBox({ placeholder, label, value, onChange }: {

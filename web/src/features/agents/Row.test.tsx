@@ -1,12 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Field, fieldSelectClass } from '../../components/Field';
-import { cssSource } from '../../styles/source';
 import { SessionRow, type RowProps } from './Row';
 
 afterEach(cleanup);
 
-const legacy = cssSource('legacy');
 const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/);
 
 const BASE: RowProps = {
@@ -71,11 +69,3 @@ describe('Field', () => {
   });
 });
 
-describe('legacy.css', () => {
-  it('no longer styles the Agents page\'s menus, forms and alerts', () => {
-    for (const selector of ['.end-panel', '.delete-panel', '.delete-choice', '.reply-form', '.task-form', '.task-field', '.task-check', '.answer-panel', '.hint', '.list-toggle', '.row-alerts', '.session-alert']) {
-      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      expect(legacy, selector).not.toMatch(new RegExp(`${escaped}(?![\\w-])`));
-    }
-  });
-});

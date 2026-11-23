@@ -49,13 +49,13 @@ test('every theme but Classic sets every color token, light and dark', () => {
 });
 
 test('Classic\'s dark colors follow the chosen mode, not only the system\'s', () => {
-  const css = readStyles('themes.css') + readStyles('legacy.css') + readStyles('app.css');
+  const css = readStyles('themes.css') + readStyles('base.css') + readStyles('app.css');
   assert.equal(/prefers-color-scheme/.test(css), false, 'dark mode comes from data-scheme, which the boot script sets');
   assert.ok(tokensIn(css, ':root[data-scheme="dark"]')?.includes('bg'));
 });
 
 test('text on an accent or danger color uses its token, never a hard-coded white', () => {
-  const css = readStyles('themes.css') + readStyles('legacy.css') + readStyles('app.css');
+  const css = readStyles('themes.css') + readStyles('base.css') + readStyles('app.css');
   assert.deepEqual(css.match(/color:\s*(#fff\b|#ffffff\b|white\b)/g), null);
 });
 

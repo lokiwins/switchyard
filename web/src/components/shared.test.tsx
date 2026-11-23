@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cssSource } from '../styles/source';
 import { NAV_KEY } from './nav-api';
 import { Menu, MenuItem, MenuLabel } from './Menu';
 import { Panel } from './Panel';
@@ -18,8 +17,6 @@ import { TopBar, TopBarStatus } from './TopBar';
  */
 
 afterEach(cleanup);
-
-const legacy = cssSource('legacy');
 
 function withNav(children: ReactNode, nav: Record<string, unknown> = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
@@ -116,13 +113,3 @@ describe('Pill', () => {
   });
 });
 
-describe('legacy.css', () => {
-  it('no longer styles the components that carry their own look', () => {
-    const moved = ['.topbar', '.brand', '.nav', '.nav-badge', '.menu-panel', '.menu-item', '.menu-label', '.menu-title', '.menu-meta',
-      '.theme-panel', '.toast', '.panel', '.panel-head', '.tiles', '.tile', '.segmented', '.pill', '.errors', '.visually-hidden'];
-    for (const selector of moved) {
-      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      expect(legacy, selector).not.toMatch(new RegExp(`${escaped}(?![\\w-])`));
-    }
-  });
-});

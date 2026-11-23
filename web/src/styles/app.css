@@ -7,21 +7,20 @@
  *   and the colour utilities read those tokens live (`bg-surface`, `text-accent`).
  * - The layout scale (spacing, type, radii, fonts) is the theme below; a theme
  *   may override a token (Signal's square corners, its own fonts) the same way.
- * - legacy.css holds the component classes not yet moved to utilities. It's
- *   unlayered, so it wins over any utility; a component moves off it whole.
- *   Tailwind's base reset (preflight) comes in once it's gone.
+ * - Every component carries its own look as utilities; base.css holds only
+ *   the page's element styles, under them. Tailwind's base reset (preflight)
+ *   isn't on yet.
  */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "./base.css";
-@import "./legacy.css";
 @import "./themes.css";
 
 /* `dark:` follows the page's own light or dark choice, not only the system's. */
 @custom-variant dark (&:where([data-scheme="dark"], [data-scheme="dark"] *));
 
-/* Always emitted, since the legacy classes and the themes read these by name. */
+/* Always emitted, since base.css and the themes read these by name. */
 @theme static {
   --*: initial;
 

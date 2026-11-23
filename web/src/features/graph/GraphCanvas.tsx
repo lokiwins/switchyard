@@ -12,6 +12,12 @@ import { graphStyle } from './style';
  * graph out again.
  */
 
+/* The canvas: a sunken box most of the window tall; narrower than a tablet, a little over half of it. */
+const CANVAS = [
+  'relative h-[calc(100vh-210px)] min-h-[420px] rounded-sm bg-surface-sunken shadow-[inset_0_0_0_1px_var(--divider)]',
+  'max-narrow:h-[60vh] max-narrow:min-h-[320px]',
+].join(' ');
+
 export interface GraphCanvasHandle { arrange: () => void; fit: () => void }
 
 const LAYOUT = { name: 'cose', animate: false, nodeDimensionsIncludeLabels: false, idealEdgeLength: 90, nodeRepulsion: 20000, gravity: 0.3, padding: 24 };
@@ -139,5 +145,6 @@ export function GraphCanvas({ graph, hidden, selected, onSelect, ref }: {
     fit: () => { if (cyRef.current) fit(cyRef.current); },
   }), []);
 
-  return <div ref={container} id="graph" className="graph-canvas" role="img" aria-label="The session's context graph" />;
+  // `relative` is Cytoscape's own rule for its container, which the page's CSP keeps it from adding (see graph.html).
+  return <div ref={container} id="graph" className={CANVAS} role="img" aria-label="The session's context graph" />;
 }

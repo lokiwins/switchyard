@@ -1,6 +1,6 @@
 /*
- * The page's own element styles, under every utility (and every legacy.css
- * class) so a component's classes always win over them.
+ * The page's own element styles, under every utility, so a component's
+ * classes always win over them.
  */
 @layer base {
   * { box-sizing: border-box; }
