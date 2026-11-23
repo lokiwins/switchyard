@@ -13,10 +13,10 @@ const COLUMNS = [
   ['Agent', 'w-[24%]'], ['Activity', 'w-[72px]'], ['', 'w-[196px]'],
 ] as const;
 
-// The repo's name line, with a chevron that turns as the repo opens.
+// The repo's name line, with a chevron that turns as the repo opens: a 5px box's right and bottom edges, 6.5px with them.
 const SUMMARY = [
   'flex flex-wrap items-baseline gap-3 py-1 cursor-pointer list-none [&::-webkit-details-marker]:hidden',
-  "before:content-[''] before:w-[5px] before:h-[5px] before:self-center before:border-r-[1.5px] before:border-b-[1.5px] before:border-gray-400",
+  "before:content-[''] before:w-[6.5px] before:h-[6.5px] before:self-center before:border-r-[1.5px] before:border-b-[1.5px] before:border-gray-400",
   'before:[transform:rotate(-45deg)] before:[transition:transform_150ms_ease] [details[open]>&]:before:[transform:rotate(45deg)]',
 ].join(' ');
 
