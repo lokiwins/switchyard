@@ -24,8 +24,8 @@ function Choice({ choice }: { choice: WorktreeChoice }) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
   });
   return (
-    <div className="worktree-choice" role="group" aria-label={`Keep or delete ${folderName(choice.path)}`}>
-      <p className="worktree-choice-text">
+    <div className="flex flex-col gap-1 py-2 px-3 rounded-sm bg-amber-soft shadow-[inset_3px_0_0_var(--amber)]" role="group" aria-label={`Keep or delete ${folderName(choice.path)}`}>
+      <p className="m-0 text-sm text-gray-900 [overflow-wrap:anywhere] [&_code]:font-mono [&_code]:text-xs">
         <strong>{choice.taskTitle}</strong> is closed. Its worktree <code title={choice.path}>{folderName(choice.path)}</code>
         {choice.branch ? <> on <code>{choice.branch}</code></> : ''}
         {` has ${whatsLeft(choice)}. Keep it, or delete it?`}
@@ -35,7 +35,7 @@ function Choice({ choice }: { choice: WorktreeChoice }) {
           ? 'Delete removes the folder, and its uncommitted changes are gone for good. The branch and its commits stay.'
           : 'Delete removes the folder. The branch and its commits stay.'}
       </MenuHint>
-      <div className="worktree-choice-actions">
+      <div className="flex flex-wrap gap-1.5 mt-0.5">
         <Button type="button" variant="secondary" size="sm" disabled={choose.isPending} onClick={() => choose.mutate(true)}>Keep worktree</Button>
         <Button type="button" variant="danger" size="sm" disabled={choose.isPending} onClick={() => choose.mutate(false)}>Delete worktree</Button>
       </div>
@@ -45,7 +45,7 @@ function Choice({ choice }: { choice: WorktreeChoice }) {
 
 export function WorktreeChoices({ choices }: { choices: WorktreeChoice[] }) {
   return (
-    <div id="worktree-choices" className="worktree-choices" aria-live="polite">
+    <div id="worktree-choices" className="flex flex-col gap-2 not-empty:mb-3" aria-live="polite">
       {choices.map((choice) => <Choice key={choice.path} choice={choice} />)}
     </div>
   );

@@ -4,6 +4,7 @@ import { LiveTime } from '../../components/LiveTime';
 import { reviewLabel, reviewReasons } from './logic';
 import type { Review } from './types';
 import { Button } from '../../components/Button';
+import { resultBodyClass, resultClass, resultMetaClass, resultSummaryClass } from './badge';
 
 /*
  * A worktree's review (see src/review.js): Review to start one; then its
@@ -28,14 +29,14 @@ export function ReviewControl({ review, onReview, controls }: { review?: Review 
   const reasons = reviewReasons(review.summary);
   const running = review.state === 'reviewing' || Boolean(review.session);
   return (
-    <details className={`check-status review-status ${tone}`}>
-      <summary title="What the reviewer said">{text}</summary>
-      <div className="check-body">
-        <p className="check-meta"><LiveTime since={review.startedAt} prefix="started " /></p>
-        {reasons && <p className="review-reasons">{reasons}</p>}
+    <details className={resultClass}>
+      <summary className={resultSummaryClass(tone)} title="What the reviewer said">{text}</summary>
+      <div className={resultBodyClass}>
+        <p className={resultMetaClass}><LiveTime since={review.startedAt} prefix="started " /></p>
+        {reasons && <p className="m-0 text-xs leading-xs text-gray-900 whitespace-pre-wrap [overflow-wrap:anywhere]">{reasons}</p>}
         {/* Kept in the panel and named, apart from the work's own session's Terminal and Jump on the line. */}
-        <div className="review-actions">
-          {controls && <><span className="check-meta">The reviewer&apos;s session:</span>{controls}</>}
+        <div className="flex flex-wrap items-center gap-2">
+          {controls && <><span className={resultMetaClass}>The reviewer&apos;s session:</span>{controls}</>}
           {!running && <ReviewButton label="Review again" onReview={onReview} />}
         </div>
       </div>

@@ -71,6 +71,8 @@ const ITEM_LOOK = [
 
 /** A menu's choice, for a <button> that isn't a <MenuItem> (one whose look is passed around as a class). */
 export const menuItemClass = `flex items-baseline gap-2 ${ITEM_LOOK}`;
+/** The same, with what it holds centred on the line rather than on the text's baseline (a badge beside a title). */
+export const menuItemCenteredClass = `flex items-center gap-2 ${ITEM_LOOK}`;
 
 // A choice with a line under its title (see MenuItem's `stacked`); its hint takes the choice's colour when it's lit.
 const STACKED_ITEM = `group flex flex-col items-stretch gap-0.5 ${ITEM_LOOK}`;

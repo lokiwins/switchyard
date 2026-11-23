@@ -220,7 +220,7 @@ export const SCENES = [
       await page.getByText('Email a receipt after each charge').waitFor();
       // The work under the tasks: worktrees, the PR and Terminal/Jump on the running sessions.
       await page.getByRole('link', { name: '#42', exact: true }).waitFor();
-      await page.locator('.hub-group.is-needs-you').waitFor();
+      await page.getByRole('region', { name: 'Needs you' }).waitFor();
     },
   },
   {
@@ -241,8 +241,8 @@ export const SCENES = [
     path: '/tasks',
     prepare: async (page) => {
       await page.getByText('Email a receipt after each charge').waitFor();
-      await menuButton(page.locator('form.hub-new'), 'Add from').click();
-      await page.locator('.picker-panel .picker-item').first().waitFor();
+      await menuButton(page.getByRole('form', { name: 'Add a task' }), 'Add from').click();
+      await page.locator('[data-radix-popper-content-wrapper] [role="menuitem"]').first().waitFor();
     },
   },
   {
