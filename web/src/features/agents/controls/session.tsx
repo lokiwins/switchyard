@@ -6,6 +6,7 @@ import { tmuxPlace } from '../../../lib/paths';
 import { canShowTerminalSessions } from '../../../lib/shared';
 import type { Capabilities, Host, LiveSession } from '../../../lib/types';
 import { buttonClass } from '../../../components/Button';
+import { resumedMessage } from '../../../components/OpenMenu';
 
 /* A session's controls: stop it, end it, go to it, resume it, see its graph, make a task from it. */
 
@@ -62,10 +63,34 @@ export function EndMenu({ session }: { session: LiveSession }) {
 
 interface FocusResult { precision: string; window?: string; host?: string }
 
-/** Get to a running session: its exact tab in a terminal, its window in an editor, or its app. */
+/**
+ * "Resume ▾" on a running session switchyard can't reach: no tab, window or
+ * tmux pane it can find (its tmux server lost its socket, say), so there's
+ * nothing to jump to. Resuming ends it there and opens it here. Two clicks,
+ * as End is, since it ends a running Claude. Not while it's working, so its
+ * turn isn't cut off, nor for a session running in the background.
+ */
+function TakeOverMenu({ session }: { session: LiveSession }) {
+  const [open, setOpen] = useState(false);
+  if ((session.kind && session.kind !== 'interactive') || session.status === 'busy') return null;
+  return (
+    <Menu label="Resume ▾" title="switchyard can't reach where this session is running: resume it here instead" panelClass="end-panel" focusInput={false}
+      open={open} onOpenChange={setOpen}>
+      <p className="reply-hint">
+        It&apos;s running somewhere switchyard can&apos;t reach: no tab, window or tmux pane it can find. Resuming ends it there and opens the
+        conversation here, where you can see and steer it.
+      </p>
+      <ActionButton label="Resume here" title="End it where it runs, and resume it here" look={{ size: 'sm' }}
+        onDone={() => setOpen(false)}
+        perform={async () => resumedMessage(await post<{ window?: string; host?: string }>('/api/terminal/resume', { sessionId: session.sessionId }))} />
+    </Menu>
+  );
+}
+
+/** Get to a running session: its exact tab in a terminal, its window in an editor, or its app; "Resume" when switchyard can't find any. */
 export function JumpButton({ session }: { session: LiveSession }) {
   const host = session.host;
-  if (!host) return null;
+  if (!host) return <TakeOverMenu session={session} />;
   const isTerminal = host.kind === 'terminal' || host.kind === 'tmux';
   const title = host.kind === 'tmux' ? `Switch to the tab showing tmux window ${tmuxPlace(host)}, or open it in a new tab`
     : isTerminal ? `Switch to this session's tab in ${host.label}`
