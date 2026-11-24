@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/lokiwins/switchyard/compare/v0.4.0...v0.4.1) (2026-11-24)
+
+
+### Features
+
+* Mark as ▾ on a task's running session closes the task from its work ([#121](https://github.com/lokiwins/switchyard/issues/121)) ([5d1ff89](https://github.com/lokiwins/switchyard/commit/5d1ff89c557d296dee76e7d197f857a478c77bee))
+
 ## [0.4.0](https://github.com/lokiwins/switchyard/compare/v0.3.0...v0.4.0) (2026-11-23)
 
 
