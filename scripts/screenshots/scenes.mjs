@@ -224,6 +224,16 @@ export const SCENES = [
     },
   },
   {
+    name: 'tasks-mark-as',
+    title: 'Mark as: close a task from its running session, or end just the session',
+    path: '/tasks',
+    prepare: async (page) => {
+      await page.getByText('Email a receipt after each charge').waitFor();
+      await menuButton(page.getByLabel('Work on this task').first(), 'Mark as').click();
+      await page.locator('[data-radix-popper-content-wrapper]').getByRole('button', { name: 'End session' }).waitFor();
+    },
+  },
+  {
     name: 'task-details',
     title: 'A task\'s details: edit it, read its ClickUp ticket and change its status',
     path: '/tasks',
