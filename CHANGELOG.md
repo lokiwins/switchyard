@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/lokiwins/switchyard/compare/v0.4.1...v0.5.0) (2026-11-25)
+
+
+### Features
+
+* Review on a PR awaiting your review starts a read-only review agent ([#123](https://github.com/lokiwins/switchyard/issues/123)) ([2f0280e](https://github.com/lokiwins/switchyard/commit/2f0280e4f4b13260dfae16cf79469482fad8703b))
+
 ## [0.4.1](https://github.com/lokiwins/switchyard/compare/v0.4.0...v0.4.1) (2026-11-24)
 
 
