@@ -39,6 +39,7 @@ import { createMcpEndpoint } from './mcp-endpoint.js';
 import { createWorkerLaunch } from './worker-launch.js';
 import { createAgentLimit } from './agent-limit.js';
 import { createReviews, withReviews } from './review.js';
+import { PR_REVIEW_SWEEP_MS, createPrReviews } from './pr-review.js';
 import { defaultStoreDir } from './json-store.js';
 import { createChecks } from './checks.js';
 import { createCheckTriggers } from './check-triggers.js';
@@ -158,9 +159,18 @@ async function answerPrompt({ actions, agentFeed }, body) {
   return result;
 }
 
+/** Start or discard a PR's review agent (see pr-review.js); open PR pages hear of it at once. */
+async function prReviewAction({ prReviews, prService }, action, body) {
+  const result = await prReviews[action](body);
+  prService.reviewsChanged();
+  return result;
+}
+
 /** A new task; made from a session or worktree (`from`), it's saved with where that work is, so it shows under it. */
 const POST_ROUTES = {
   '/api/prs/copilot-review': ({ prService }, body) => prService.copilotReview(body),
+  '/api/prs/review': (services, body) => prReviewAction(services, 'start', body),
+  '/api/prs/review/discard': (services, body) => prReviewAction(services, 'discard', body),
   '/api/approvals/decide': ({ approvals }, body) => approvals.decide(body),
   '/api/terminal/focus': ({ actions }, body) => actions.focusSession(body),
   '/api/settings/save': ({ settingsService }, body) => settingsService.save(body),
@@ -650,9 +660,15 @@ async function main() {
     onChange: () => {
       stateService.sessionsRemoved();
       agentFeed.changed();
+      reviewsMayHaveMoved();
     },
   });
   sessionEvents.load().catch((error) => process.stderr.write(`[switchyard] reading session events: ${error.message}\n`));
+  // Made below; a session changing tells open PR pages when it may be a review agent's (see pr-review.js).
+  let prReviews = null;
+  const reviewsMayHaveMoved = () => {
+    if (prReviews?.any()) prService.reviewsChanged();
+  };
   const sessionSettings = createSessionSettings({ dir: defaultStoreDir(), port: config.port });
   // The agent CLIs switchyard runs and watches; Claude Code for now, more can be added alongside it.
   // Settings › Agent providers choose the default, turn providers off, and say how each runs; read each time, so saves apply at once.
@@ -674,6 +690,7 @@ async function main() {
   prService = createPrService({
     settings: config.settings,
     getLocalIndex: () => stateService.getLocal().then(buildLocalIndex),
+    agentReviews: () => stateService.getSessions().then((s) => prReviews.forPage(s.repos)),
   });
   const terminal = followingTerminal(config);
   // Actions only need sessions and worktree paths, so they read the fast sessions view.
@@ -691,7 +708,13 @@ async function main() {
   const actions = createActionService({
     stateService: sessionsView, agents, terminal, tmux, useTmux: tmuxInstalled, limit: agentLimit, defaultSettings: sessionSettings.file,
   });
-  const taskStarts = createTaskStarts({ tmux, onChange: () => agentFeed.changed() });
+  const taskStarts = createTaskStarts({
+    tmux,
+    onChange: () => {
+      agentFeed.changed();
+      reviewsMayHaveMoved();
+    },
+  });
   const tasks = createTaskService({
     stateService: sessionsView, tmux, agents, starts: taskStarts, limit: agentLimit, defaultSettings: sessionSettings.file,
   });
@@ -699,7 +722,12 @@ async function main() {
   // The full state: Clean up needs PR data, which the sessions view leaves out.
   const cleanup = createCleanupService({ stateService });
   const capabilities = { terminal: terminal.app, editorScheme: config.settings.editor.urlScheme, tmux: tmuxInstalled };
-  const approvals = createApprovalBroker({ onChange: () => agentFeed.changed() });
+  const approvals = createApprovalBroker({
+    onChange: () => {
+      agentFeed.changed();
+      reviewsMayHaveMoved();
+    },
+  });
   const hookInstalled = createHookCheck(config);
   // SWITCHYARD_CLICKUP_API points at a stand-in ClickUp, for the screenshots' made-up tasks.
   const clickupApi = process.env.SWITCHYARD_CLICKUP_API ?? CLICKUP_API;
@@ -734,6 +762,20 @@ async function main() {
     limit: agentLimit,
     withHooks: sessionSettings.withHooks,
   });
+  // PR review: a read-only reviewer in its own checkout of a PR awaiting your review (see pr-review.js).
+  prReviews = createPrReviews({
+    getRepos: freshRepos,
+    tmux,
+    provider: () => agents.default,
+    readReply: async (cwd, sessionId) => (agents.default.readReply ? agents.default.readReply(cwd, sessionId) : null),
+    instructions: () => config.settings.prReview.instructions,
+    dir: defaultStoreDir(),
+    endSession: actions.endSession,
+    starts: taskStarts,
+    limit: agentLimit,
+    withHooks: sessionSettings.withHooks,
+    rediscover: stateService.rediscover,
+  });
   const leadTools = createLeadTools({
     taskHub, hubStarter, getRepos: freshRepos, actions, checkResults: (options) => checks.results(options), reviewStatus: reviews.status,
   });
@@ -764,7 +806,7 @@ async function main() {
   });
   const sessionGraphs = createSessionGraphs({ claudeDir: config.claudeDir, home: homedir() });
   const services = {
-    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, mcpEndpoint, reviews, sessionEvents, port: config.port,
+    sessionGraphs, sessionRemoval, taskCleanup, checks, stateService, prService, actions, tasks, taskStarts, taskTools, taskHub, taskSources, hubStarter, ticketDetails, githubIssues, liveTerminals, cleanup, approvals, hookInstalled, capabilities, settingsService, mcpEndpoint, reviews, prReviews, sessionEvents, port: config.port,
   };
   const logError = (label) => (error) => process.stderr.write(`[switchyard] ${label}: ${error.message}\n`);
   const doneTaskSweep = createDoneTaskSweep({
@@ -788,7 +830,21 @@ async function main() {
     capabilities.terminal = terminal.app;
     capabilities.editorScheme = settings.editor.urlScheme;
   });
-  watchFolder(join(config.claudeDir, 'sessions'), agentFeed.changed, { onError: logError('watching Claude sessions') });
+  watchFolder(join(config.claudeDir, 'sessions'), () => {
+    agentFeed.changed();
+    reviewsMayHaveMoved();
+  }, { onError: logError('watching Claude sessions') });
+  // A PR merged or closed takes its review checkout with it.
+  function sweepPrReviews() {
+    prReviews.sweep()
+      .then(({ removed, errors }) => {
+        errors.forEach((message) => process.stderr.write(`[switchyard] removing a PR review: ${message}\n`));
+        if (removed.length > 0) prService.reviewsChanged();
+      })
+      .catch(logError('removing PR reviews'));
+  }
+  setInterval(sweepPrReviews, PR_REVIEW_SWEEP_MS).unref();
+  prReviews.load().catch(logError('reading PR reviews'));
 
   // Checks that run by themselves hear turns end from the agent feed and commits from the status tracker;
   // the feed is only followed while some check runs by itself, so otherwise this costs nothing.
@@ -818,6 +874,7 @@ async function main() {
     prService.start();
     // After the first scan has found the worktrees, so a task's work is known before it's put away.
     setTimeout(sweepDoneTasks, 60_000).unref();
+    setTimeout(sweepPrReviews, 60_000).unref();
     // ClickUp takes seconds to list tasks, so the Tasks page's first visit finds them ready.
     taskTools.tasks().catch((error) => process.stderr.write(`Initial ClickUp load failed: ${error.message}\n`));
   });

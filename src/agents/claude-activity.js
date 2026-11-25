@@ -71,6 +71,13 @@ export function stripMarkdown(text) {
     .replace(/^\s{0,3}(#{1,6}\s+|[-*+]\s+|>\s?)/gm, '');
 }
 
+/** A main-conversation reply's text as Claude wrote it, Markdown and all; null for an entry that isn't one. */
+export function replyText(entry) {
+  if (entry?.type !== 'assistant' || !isMainChain(entry)) return null;
+  const text = partsOf(entry).filter((p) => p.type === 'text').map((p) => p.text).join('\n\n');
+  return text.trim() ? text : null;
+}
+
 /** The last text Claude wrote in the main conversation, flattened for a one-line preview. */
 export function lastReply(entries) {
   const reply = entries.findLast((e) => e.type === 'assistant' && isMainChain(e)

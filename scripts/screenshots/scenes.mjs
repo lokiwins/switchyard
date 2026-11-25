@@ -189,6 +189,37 @@ export const SCENES = [
     },
   },
   {
+    name: 'prs-review-agent',
+    title: 'Review: a read-only Claude reviews a PR in its own checkout, and reports back here',
+    path: '/prs',
+    prepare: async (page) => {
+      const card = page.locator('main li').filter({ hasText: 'Cache product images at the edge' }).first();
+      await menuButton(card, '✗ Request changes').click();
+      await page.locator('[data-radix-popper-content-wrapper]').getByRole('button', { name: 'Read the report' }).waitFor();
+    },
+  },
+  {
+    name: 'prs-review-report',
+    title: 'A PR review agent\'s report, read on the PRs page',
+    path: '/prs',
+    prepare: async (page) => {
+      const card = page.locator('main li').filter({ hasText: 'Cache product images at the edge' }).first();
+      await menuButton(card, '✗ Request changes').click();
+      await page.locator('[data-radix-popper-content-wrapper]').getByRole('button', { name: 'Read the report' }).click();
+      await page.getByRole('dialog').getByText('the cache key leaves out the image size').waitFor();
+    },
+  },
+  {
+    name: 'settings-review-agent',
+    title: 'Settings › Review Agent Configuration: what the review agent is told',
+    path: '/settings',
+    prepare: async (page) => {
+      const box = page.getByRole('textbox', { name: /^Instructions/ });
+      await box.waitFor();
+      await box.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    },
+  },
+  {
     name: 'settings',
     title: 'Settings: change switchyard\'s options from the page; they apply at once',
     path: '/settings',

@@ -27,7 +27,8 @@ export type Pane =
   }
   | { kind: 'plan'; sessionId: string }
   | { kind: 'make-task'; from: MakeTaskFrom }
-  | { kind: 'terminal'; session: LiveSession };
+  | { kind: 'terminal'; session: LiveSession }
+  | { kind: 'report'; heading: string; sub?: string; markdown: string };
 
 interface PaneState {
   pane: Pane | null;

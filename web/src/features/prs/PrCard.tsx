@@ -17,8 +17,9 @@ import { Pill } from '../../components/Pill';
 import { cx } from '../../lib/cx';
 import { Dot } from '../../components/Dot';
 import { addedClass, removedClass, sepClass } from '../../components/classes';
+import { ReviewAgent } from './ReviewAgent';
 
-/* A PR's card: where it stands, its branch and size, its checks, reviews and local checkout, and Copilot. */
+/* A PR's card: where it stands, its branch and size, its checks, reviews and local checkout, Copilot, and a review agent. */
 
 const MAX_LISTED_CHECKS = 3;
 
@@ -190,7 +191,10 @@ export function PrCard({ pr, showAuthor, canAskCopilot, caps }: { pr: Pr; showAu
             </>
           )}
         </div>
-        <div className="[grid-row:1/span_3] [grid-column:2] flex items-center gap-2 max-phone:[grid-row:auto] max-phone:[grid-column:1]">{canAskCopilot && <CopilotButton pr={pr} />}</div>
+        <div className="[grid-row:1/span_3] [grid-column:2] flex items-center gap-2 max-phone:[grid-row:auto] max-phone:[grid-column:1]">
+          <ReviewAgent pr={pr} caps={caps} />
+          {canAskCopilot && <CopilotButton pr={pr} />}
+        </div>
       </article>
     </li>
   );

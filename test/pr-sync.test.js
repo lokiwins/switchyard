@@ -237,3 +237,57 @@ test('coming back while a regular check is running re-checks once that one finis
   await regular;
   assert.deepEqual(calls.full.sort(), [1, 2]);
 });
+
+test('PRs awaiting your review carry their review agent\'s status, whether their repo is cloned here, and whether the PR moved on since', async () => {
+  const { github } = fakeGithub({ details: { 1: pr(1, settled), 2: pr(2, settled), 5: pr(5, settled), 3: { ...pr(3, settled), repo: 'acme/other', headRefOid: 'new' } } });
+  github.lists.direct = [item(5), item(3, 'acme/other')];
+  const c = clock();
+  const sync = createPrSync({ ...github, now: c.now });
+  const review = { state: 'changes', headSha: 'old' };
+  const agentReviews = async () => ({
+    statusOf: (key) => ({ 'acme/app#5': review, 'acme/other#3': review })[key] ?? null,
+    canReview: (repo) => repo === 'acme/app',
+  });
+  const service = createPrService({ getLocalIndex: async () => new Map(), sync, now: c.now, agentReviews });
+  const page = await service.getPrs();
+
+  const [five, three] = [5, 3].map((n) => page.reviewRequested.find((p) => p.number === n));
+  assert.deepEqual([five.number, five.canAgentReview, five.agentReview.state, five.agentReview.outdated], [5, true, 'changes', false]);
+  assert.deepEqual([three.number, three.canAgentReview, three.agentReview.outdated], [3, false, true]);
+  assert.ok(page.authored.every((p) => p.agentReview === undefined), 'your own PRs have no Review');
+});
+
+test('a failure to read the reviews is an error on the page, not a broken page', async () => {
+  const { github } = fakeGithub();
+  github.lists.direct = [item(3)];
+  const sync = createPrSync({ ...github, now: clock().now });
+  const service = createPrService({ getLocalIndex: async () => new Map(), sync, agentReviews: async () => { throw new Error('disk full'); } });
+  const page = await service.getPrs();
+  assert.deepEqual(page.errors, [{ source: 'reviews', message: 'disk full' }]);
+  assert.equal(page.reviewRequested[0].agentReview, null);
+});
+
+test('reviewsChanged pushes the page to its streams, and does nothing with none open', async () => {
+  const { github } = fakeGithub();
+  const sync = createPrSync({ ...github, now: clock().now });
+  let reads = 0;
+  const service = createPrService({ getLocalIndex: async () => new Map(), sync, agentReviews: async () => { reads += 1; return { statusOf: () => null, canReview: () => false }; } });
+  await service.reviewsChanged();
+  assert.equal(reads, 0);
+  const pages = [];
+  service.subscribe((page) => pages.push(page));
+  await service.reviewsChanged();
+  assert.equal(pages.length, 1);
+});
+
+test('a burst of changes builds the page once, then once more for the changes made while it built', async () => {
+  const { github } = fakeGithub();
+  const sync = createPrSync({ ...github, now: clock().now });
+  let reads = 0;
+  const service = createPrService({ getLocalIndex: async () => new Map(), sync, agentReviews: async () => { reads += 1; return { statusOf: () => null, canReview: () => false }; } });
+  const pages = [];
+  service.subscribe((page) => pages.push(page));
+  await Promise.all(Array.from({ length: 10 }, () => service.reviewsChanged()));
+  assert.equal(reads, 2);
+  assert.equal(pages.length, 2);
+});

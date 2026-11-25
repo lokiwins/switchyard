@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { applyEdits, createSettingsStore, editableSettings } from '../src/settings-file.js';
+import { DEFAULTS } from '../src/settings.js';
 
 const folder = () => mkdtempSync(join(tmpdir(), 'switchyard-settings-'));
 const rejectsWith = (fn, status, pattern) => assert.throws(fn, (error) => error.status === status && (!pattern || pattern.test(error.message)));
@@ -139,4 +140,11 @@ test('check commands are edited as YAML text and kept in config.json as JSON', (
 test('check commands with a YAML mistake, or that switchyard would refuse, are refused with why', () => {
   rejectsWith(() => applyEdits({}, { checks: { commands: 'a:\n  t: x\n  t: y', timeoutMinutes: 10 } }), 400, /line 3/i);
   rejectsWith(() => applyEdits({}, { checks: { commands: 'a:\n  "my check": x', timeoutMinutes: 10 } }), 400, /my check/);
+});
+
+test('the PR review agent\'s instructions are edited on the page, and left out of config.json while they are the default', () => {
+  const shownNow = editableSettings({});
+  assert.equal(shownNow.prReview.instructions, DEFAULTS.prReview.instructions);
+  assert.deepEqual(applyEdits({}, { prReview: { instructions: DEFAULTS.prReview.instructions } }), {});
+  assert.deepEqual(applyEdits({}, { prReview: { instructions: 'Review {{pr.url}}.' } }), { prReview: { instructions: 'Review {{pr.url}}.' } });
 });

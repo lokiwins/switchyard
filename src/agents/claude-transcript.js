@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
-import { currentActivity, lastReply } from './claude-activity.js';
+import { currentActivity, lastReply, replyText } from './claude-activity.js';
 import { contextSize } from './context-tokens.js';
 
 const TAIL_BYTES = 256 * 1024;
@@ -168,6 +168,18 @@ export async function summarizeFile(file) {
       title: summary.title ?? title?.aiTitle ?? null,
       lastReply: summary.lastReply ?? (reply ? lastReply([reply]) : null),
     };
+  } finally {
+    await handle.close();
+  }
+}
+
+/** The last reply in a transcript in full, Markdown and all (a review's report); null when it has none. */
+export async function lastReplyText(file) {
+  const handle = await open(file, 'r');
+  try {
+    const { size } = await handle.stat();
+    const [entry] = await findLastBackwards(handle, size, { marker: '"type":"assistant"', predicate: (e) => replyText(e) !== null });
+    return entry ? replyText(entry) : null;
   } finally {
     await handle.close();
   }

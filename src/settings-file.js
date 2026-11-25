@@ -22,6 +22,7 @@ export const EDITABLE = {
   tasks: ['autoDeleteDone', 'deleteDoneAfterDays'],
   checks: ['commands', 'timeoutMinutes'],
   workers: ['permissionMode', 'allowedTools'],
+  prReview: ['instructions'],
   // The default, then each provider's settings ({ enabled, program, options }), edited as a whole.
   providers: Object.keys(DEFAULTS.providers),
 };

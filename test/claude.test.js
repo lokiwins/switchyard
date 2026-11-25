@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createClaudeProvider, readPlan, readScreenPrompt, readStatus, resumeCommand, summarizeTranscript, transcriptDirName } from '../src/agents/claude.js';
-import { classifyEnding, summarizeFile } from '../src/agents/claude-transcript.js';
+import { classifyEnding, lastReplyText, summarizeFile } from '../src/agents/claude-transcript.js';
 
 const line = (entry) => JSON.stringify(entry);
 
@@ -294,4 +294,23 @@ test('how a session ended is read past a compaction\'s re-attached files, beyond
 
   assert.equal((await summarizeFile(finished)).endState, 'finished');
   assert.equal((await summarizeFile(midTool)).endState, 'interrupted');
+});
+
+test('lastReplyText: the last reply in full, Markdown and all, however long and however far back', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'switchyard-reply-'));
+  const file = join(dir, 'reply.jsonl');
+  const report = `**Summary:** ${'long '.repeat(400)}\n\n- \`a.js:1\` a blocker\n\n**Verdict:** \`Approve\``;
+  const text = (t) => ({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: t }] } });
+  const filler = Array.from({ length: 60 }, (_, i) => line({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', content: 'x'.repeat(4000) }] }, uuid: `f${i}` }));
+  await writeFile(file, [
+    line(text('An earlier reply.')),
+    line(text(report)),
+    line({ ...text('A subagent\'s reply.'), isSidechain: true }),
+    line({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't', name: 'Read', input: {} }] } }),
+    ...filler,
+  ].join('\n'));
+  assert.equal(await lastReplyText(file), report);
+  await writeFile(file, line({ type: 'user', message: { role: 'user', content: 'hi' } }));
+  assert.equal(await lastReplyText(file), null);
+  await assert.rejects(lastReplyText(join(dir, 'missing.jsonl')));
 });

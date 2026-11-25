@@ -233,3 +233,20 @@ test('agents.stuckAfterMinutes and agents.contextAlertTokens: when a session is 
   for (const bad of [-1, 'soon']) assert.throws(() => parseSettings({ agents: { stuckAfterMinutes: bad } }), /agents.stuckAfterMinutes/);
   for (const bad of [-5, 1.5, '1k']) assert.throws(() => parseSettings({ agents: { contextAlertTokens: bad } }), /agents.contextAlertTokens/);
 });
+
+test('prReview.instructions: the PR review agent\'s instructions, your senior-engineer review by default', () => {
+  assert.match(DEFAULT_SETTINGS.prReview.instructions, /^You are a senior software engineer reviewing a pull request/);
+  const own = 'Review {{pr.url}} for security only.';
+  assert.equal(parseSettings({ prReview: { instructions: own } }).prReview.instructions, own);
+});
+
+test('prReview.instructions: empty, overlong, or with a placeholder switchyard can\'t fill, is refused', () => {
+  for (const [instructions, message] of [
+    ['  ', /"prReview.instructions" must be/],
+    [42, /"prReview.instructions" must be/],
+    ['x'.repeat(20_001), /"prReview.instructions" must be/],
+    ['Review {{pr.title}} with {{pr.labels}}', /"prReview.instructions" has \{\{pr.labels\}\}, which switchyard doesn't fill/],
+  ]) {
+    assert.throws(() => parseSettings({ prReview: { instructions } }), (error) => error instanceof SettingsError && message.test(error.message), String(instructions).slice(0, 20));
+  }
+});

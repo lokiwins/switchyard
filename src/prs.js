@@ -103,7 +103,13 @@ function prFromEntry(item, entry) {
  * scheduler that runs at full pace while a PR page is streaming, slower while
  * only header badges ask, and not at all when nothing is open.
  */
-export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sync = null, now = Date.now }) {
+/**
+ * `agentReviews()`, when given, gives the PR review agents' statuses (see pr-review.js) as { statusOf(key), canReview(repo) }:
+ * each PR awaiting your review shows its own, and Review only where its repo is cloned here.
+ */
+export function createPrService({
+  getLocalIndex, settings = DEFAULT_SETTINGS, sync = null, now = Date.now, agentReviews = null,
+}) {
   const listeners = new Set();
   let lastTouched = 0;
   let lastActive = 0;
@@ -118,6 +124,10 @@ export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sy
       errors.push({ source: 'local', message: error.message });
       return new Map();
     });
+    const reviews = agentReviews ? await agentReviews().catch((error) => {
+      errors.push({ source: 'reviews', message: error.message });
+      return null;
+    }) : null;
     const key = (item) => `${item.repository.nameWithOwner}#${item.number}`;
     const enrich = (item) => {
       const pr = prFromEntry(item, snap.entries.get(key(item)));
@@ -128,13 +138,22 @@ export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sy
         local: local.get(`${pr.repo}#${pr.headRefName}`) ?? null,
       };
     };
+    // A PR awaiting your review: its review agent's status, outdated once the PR has a newer head than it reviewed.
+    const withAgentReview = (pr) => {
+      const review = reviews?.statusOf(`${pr.repo}#${pr.number}`) ?? null;
+      return {
+        ...pr,
+        canAgentReview: reviews?.canReview(pr.repo) ?? false,
+        agentReview: review && { ...review, outdated: Boolean(pr.headRefOid && review.headSha && pr.headRefOid !== review.headSha) },
+      };
+    };
     const authoredKeys = new Set(snap.authored.map(key));
     const detailedKeys = new Set([...snap.authored, ...snap.direct].map(key));
     return {
       generatedAt: now(),
       syncedAt: snap.syncedAt,
       authored: sortByStage(snap.authored.map(enrich)),
-      reviewRequested: sortByStage(snap.direct.filter((item) => !authoredKeys.has(key(item))).map(enrich)),
+      reviewRequested: sortByStage(snap.direct.filter((item) => !authoredKeys.has(key(item))).map((item) => withAgentReview(enrich(item)))),
       teamReviewRequested: snap.team
         .filter((item) => !detailedKeys.has(key(item)))
         .map(lightPr)
@@ -143,14 +162,33 @@ export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sy
     };
   }
 
-  async function notify() {
-    if (listeners.size === 0) return;
-    try {
-      const page = await build();
-      listeners.forEach((listener) => listener(page));
-    } catch {
-      // A failed rebuild leaves streams on their last page; the next change retries.
+  // One build at a time: changes during a build (a busy session sends many) make one more, so the last page sent is
+  // never older than the last change.
+  let building = null;
+  let changedAgain = false;
+  function notify() {
+    if (listeners.size === 0) return Promise.resolve();
+    if (building) {
+      changedAgain = true;
+      return building;
     }
+    building = (async () => {
+      try {
+        do {
+          changedAgain = false;
+          if (listeners.size === 0) break;
+          try {
+            const page = await build();
+            listeners.forEach((listener) => listener(page));
+          } catch {
+            // A failed rebuild leaves streams on their last page; the next change retries.
+          }
+        } while (changedAgain);
+      } finally {
+        building = null;
+      }
+    })();
+    return building;
   }
 
   async function getPrs({ force = false } = {}) {
@@ -217,5 +255,8 @@ export function createPrService({ getLocalIndex, settings = DEFAULT_SETTINGS, sy
     return { requested: true, ...ref };
   }
 
-  return { getPrs, subscribe, start, stop, pace, markActive, syncSnapshot, copilotReview };
+  /** A review agent started, moved on or went: open PR pages get the page afresh. */
+  const reviewsChanged = () => notify();
+
+  return { getPrs, subscribe, start, stop, pace, markActive, syncSnapshot, copilotReview, reviewsChanged };
 }

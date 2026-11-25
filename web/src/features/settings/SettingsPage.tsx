@@ -10,11 +10,12 @@ import { shortPath } from '../../lib/paths';
 import { queryClient } from '../../lib/query';
 import { TERMINAL_CHOICES } from '../../../../shared/terminal-themes.ts';
 import { MODES, THEMES } from '../../../../shared/themes.ts';
+import { PR_PLACEHOLDERS } from '../../../../shared/pr-review.ts';
 import type { Nav } from '../../lib/types';
 import { toast } from '../../stores/toast';
 import { editsFromFields, fieldsFromValues, hasChanges, type Fields, type SettingsView } from './form';
 import { RepoChecklist } from './RepoChecklist';
-import { SelectSetting, settingHintClass, settingRowClass, SettingsFormProvider, TextSetting, ToggleSetting } from './SettingsForm';
+import { DefaultButton, SelectSetting, settingHintClass, settingRowClass, SettingsFormProvider, TextSetting, ToggleSetting } from './SettingsForm';
 import { Button } from '../../components/Button';
 import { Errors, messages } from '../../components/Errors';
 
@@ -147,6 +148,16 @@ function Sections({ view, saved }: { view: SettingsView; saved: Fields }) {
           <TextSetting name="workers.allowedTools" label="Allowed without asking" rows={5}
             hint={<>Claude permission rules, one per line: a tool such as <code>Edit</code>, or what it may run, such as <code>Bash(npm test)</code>. Added to your own Claude settings&apos; rules, not instead of them.</>} />
         </div>
+      </Panel>
+
+      <Panel id="review-agent-title" title="Review Agent Configuration">
+        <p className={cx(settingHintClass, 'my-3')}>For Review on the PRs page: a read-only Claude reviews a PR awaiting your review in its own checkout, and reports back there; it never posts to GitHub. It works out the stack, the risk and the repo&apos;s conventions from the checkout.</p>
+        <TextSetting name="prReview.instructions" label="Instructions" rows={18}
+          hint={<>What the review agent is told. Each placeholder is filled from the PR: {Object.entries(PR_PLACEHOLDERS).map(([name, what], i) => (
+            <span key={name}>{i > 0 && ', '}<code>{`{{${name}}}`}</code> {what}</span>
+          ))}. End with a <code>Verdict:</code> of <code>Approve</code>, <code>Request Changes</code> or <code>Needs Clarification</code> for the PRs page to show it.</>}>
+          <DefaultButton name="prReview.instructions" />
+        </TextSetting>
       </Panel>
 
       <Panel id="github-title" title="GitHub and CI">

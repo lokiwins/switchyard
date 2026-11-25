@@ -130,6 +130,9 @@ test('Claude can start in a permission mode, given after the task like the other
   const claude = createClaudeProvider({ claudeDir: '/nowhere' });
   assert.equal(claude.launchCommand('Work it', { permissionMode: 'acceptEdits', settings: '/c/workers/sy-abc123.settings.json' }),
     "claude 'Work it' --permission-mode acceptEdits --settings '/c/workers/sy-abc123.settings.json'");
+  // Isolated (an agent reading code someone else wrote): the folder's own settings, hooks and CLAUDE.md, and MCP servers, are left out.
+  assert.equal(claude.launchCommand('Review it', { settings: '/c/r.settings.json', isolated: true }),
+    "claude 'Review it' --settings '/c/r.settings.json' --setting-sources user --strict-mcp-config");
 });
 
 test('Claude can start a named session with an id switchyard chose', () => {
