@@ -188,6 +188,33 @@ function buildSessions({ code, claudeDir, now, env, root }) {
   return { pids, approvals };
 }
 
+// The PR review agent's report on storefront#39, as its transcript keeps it.
+const PR_REVIEW_REPORT = [
+  '**Summary:** Caches product images at the edge for an hour and sets `Cache-Control` on image responses. Medium risk: it changes what every shopper is served.',
+  '',
+  '**Blockers (Must Fix):**',
+  '- `src/images/cache.js:24`: the cache key leaves out the image size, so a thumbnail can be served where the full image was asked for.',
+  '',
+  '**Suggestions (Should Fix):**',
+  '- `src/images/cache.js:41`: purging after a product edit isn\'t tested.',
+  '',
+  '**Verdict:** `Request Changes`: the cache key needs the size.',
+].join('\n');
+
+/** A finished review of storefront#39 by the PR review agent (see src/pr-review.js): its record and its transcript. */
+function writePrReview({ home, code, claudeDir, now, headSha }) {
+  const sessionId = '5f0c9a7e-2b4d-4e1f-9a3c-6d8e7f9a0b1c';
+  const path = join(code, 'storefront-review-39');
+  const startedAt = now - 20 * 60_000;
+  writeFiles(join(home, '.config', 'switchyard'), {
+    'pr-reviews.json': JSON.stringify({ reviews: { 'acme/storefront#39': { repo: 'acme/storefront', number: 39, path, sessionId, startedAt, headSha } } }),
+  });
+  const dir = join(claudeDir, 'projects', path.replace(/[^a-zA-Z0-9]/g, '-'));
+  mkdirSync(dir, { recursive: true });
+  const reply = { type: 'assistant', sessionId, cwd: path, timestamp: new Date(startedAt + 5 * 60_000).toISOString(), uuid: randomUUID(), message: { role: 'assistant', content: [{ type: 'text', text: PR_REVIEW_REPORT }] } };
+  writeFileSync(join(dir, `${sessionId}.jsonl`), `${JSON.stringify(reply)}\n`);
+}
+
 /** A `gh` on PATH that answers from the fixture PRs. */
 function installFakeGh(root, tips, now) {
   const bin = join(root, 'bin');
@@ -237,6 +264,7 @@ export function buildFixtures({ root: tempRoot, home: homeDir, port, now }) {
     'task-tools.json': JSON.stringify({ clickup: { ...CLICKUP, workspaceId: CLICKUP.workspaces[0].id } }),
     'tasks.json': JSON.stringify({ tasks: hubTasks(now) }),
   });
+  writePrReview({ home, code, claudeDir, now, headSha: tips.get('acme/storefront#perf/image-cache') ?? '0'.repeat(40) });
   const clickup = startFakeClickUp({ port: port + 1, now });
 
   const env = {

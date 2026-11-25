@@ -1,4 +1,5 @@
 import { createContext, use, type ReactNode } from 'react';
+import { Button } from '../../components/Button';
 import { cx } from '../../lib/cx';
 import { placeholderFor, type Fields } from './form';
 
@@ -109,6 +110,19 @@ export function ToggleSetting({ name, label, hint }: { name: string; label: Reac
       </span>
       {hint && <span className={settingHintClass}>{hint}</span>}
     </label>
+  );
+}
+
+/** Puts a field back to its default; off while it's the default already. */
+export function DefaultButton({ name }: { name: string }) {
+  const form = use(FormContext);
+  if (!form) throw new Error('DefaultButton is used outside a settings form');
+  const fallback = form.defaults[name] ?? '';
+  return (
+    <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={form.fields[name] === fallback}
+      onClick={() => form.set(name, fallback)}>
+      Back to the default
+    </Button>
   );
 }
 

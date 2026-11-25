@@ -29,7 +29,8 @@ export const REVIEWER_SETTINGS = Object.freeze({
       'Read', 'Grep', 'Glob', 'Bash(git diff:*)', 'Bash(git log:*)', 'Bash(git show:*)', 'Bash(git status:*)',
       'Bash(cat:*)', 'Bash(ls:*)', 'Bash(head:*)', 'Bash(tail:*)', 'Bash(wc:*)',
     ]),
-    deny: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
+    // git's options that write a file (--output) or read one from anywhere on disk (--no-index), on any git command.
+    deny: Object.freeze(['Edit', 'Write', 'NotebookEdit', 'Bash(git * --output*)', 'Bash(git * --no-index*)']),
   }),
 });
 

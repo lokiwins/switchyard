@@ -41,7 +41,7 @@ test('long notes are cut to fit, rather than the review refused', () => {
 });
 
 test('the reviewer may read and look at git history, never edit', () => {
-  assert.deepEqual(REVIEWER_SETTINGS.permissions.deny, ['Edit', 'Write', 'NotebookEdit']);
+  assert.deepEqual(REVIEWER_SETTINGS.permissions.deny, ['Edit', 'Write', 'NotebookEdit', 'Bash(git * --output*)', 'Bash(git * --no-index*)']);
   for (const rule of ['Read', 'Grep', 'Glob', 'Bash(git diff:*)', 'Bash(git log:*)']) assert.ok(REVIEWER_SETTINGS.permissions.allow.includes(rule), rule);
 });
 

@@ -2,6 +2,7 @@ import { usePaneStore } from '../../stores/panes';
 import { TerminalPane } from '../terminal/TerminalPane';
 import { MakeTaskPane } from './MakeTaskPane';
 import { PlanPane } from './PlanPane';
+import { ReportPane } from './ReportPane';
 import { ReviewPane } from './ReviewPane';
 import { TaskPane } from './TaskPane';
 
@@ -13,6 +14,7 @@ export function PaneHost() {
     case 'plan': return <PlanPane key={pane.sessionId} sessionId={pane.sessionId} />;
     case 'task': return <TaskPane key={pane.task.id ?? 'new'} {...pane} />;
     case 'make-task': return <MakeTaskPane key={JSON.stringify(pane.from)} from={pane.from} />;
+    case 'report': return <ReportPane key={pane.heading} {...pane} />;
     case 'terminal': return <TerminalPane key={pane.session.sessionId} session={pane.session} />;
     default: return null;
   }

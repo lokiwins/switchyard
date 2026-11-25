@@ -21,7 +21,7 @@ export const FIELD_NAMES: readonly string[] = [
   'agents.stuckAfterMinutes', 'agents.contextAlertTokens',
   'github.copilotReviewer', 'github.issueRepos', 'git.longLivedBranches', 'ci.holdPatterns', 'ci.stripPrefixes',
   'tasks.autoDeleteDone', 'tasks.deleteDoneAfterDays', 'checks.commands', 'checks.timeoutMinutes',
-  'workers.permissionMode', 'workers.allowedTools',
+  'workers.permissionMode', 'workers.allowedTools', 'prReview.instructions',
   'providers.default', 'providers.claude.enabled', 'providers.claude.program', 'providers.claude.options',
 ];
 

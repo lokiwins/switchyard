@@ -1,7 +1,7 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
-import { SelectSetting, SettingsFormProvider, settingRowClass, TextSetting, ToggleSetting } from './SettingsForm';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DefaultButton, SelectSetting, SettingsFormProvider, settingRowClass, TextSetting, ToggleSetting } from './SettingsForm';
 
 afterEach(cleanup);
 
@@ -30,6 +30,17 @@ describe('settings fields', () => {
     const box = screen.getByRole('checkbox', { name: 'On' }) as HTMLInputElement;
     expect(box.checked).toBe(true);
     expect(classes(box)).not.toContain('w-full');
+  });
+
+  it('Back to the default puts the default in a field that differs from it, and is off when they\'re the same', () => {
+    const set = vi.fn();
+    const { rerender } = render(
+      <SettingsFormProvider value={{ fields: { text: 'mine' }, defaults: { text: 'theirs' }, set }}><DefaultButton name="text" /></SettingsFormProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the default' }));
+    expect(set).toHaveBeenCalledWith('text', 'theirs');
+    rerender(<SettingsFormProvider value={{ fields: { text: 'theirs' }, defaults: { text: 'theirs' }, set }}><DefaultButton name="text" /></SettingsFormProvider>);
+    expect((screen.getByRole('button', { name: 'Back to the default' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('settings side by side drop the space under each', () => {

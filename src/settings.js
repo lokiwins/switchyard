@@ -1,5 +1,6 @@
 import { MODE_IDS, THEME_IDS } from '../shared/themes.ts';
 import { TERMINAL_IDS } from '../shared/terminal-themes.ts';
+import { DEFAULT_PR_REVIEW_INSTRUCTIONS, unknownPlaceholders } from '../shared/pr-review.ts';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -69,6 +70,10 @@ export const DEFAULTS = Object.freeze({
     // Permission rules they may use without asking, such as "Bash(npm test)" or "Edit".
     allowedTools: Object.freeze([]),
   }),
+  // The PR review agent (see pr-review.js): what it's told, with {{pr.…}} filled from the PR (see shared/pr-review.ts).
+  prReview: Object.freeze({
+    instructions: DEFAULT_PR_REVIEW_INSTRUCTIONS,
+  }),
   // The agent CLIs (see src/agents/providers.js): which one is used when none is named, and how each is run.
   providers: Object.freeze({
     default: 'claude',
@@ -94,6 +99,7 @@ const SECTION_KEYS = {
   checks: ['commands', 'timeoutMinutes'],
   // leadWithoutAsking is no longer used (a lead uses switchyard's tools without asking), but still read, so an older file loads.
   workers: ['permissionMode', 'allowedTools', 'leadWithoutAsking'],
+  prReview: ['instructions'],
   providers: ['default', ...Object.keys(DEFAULTS.providers).filter((key) => key !== 'default')],
 };
 const PROVIDER_IDS = SECTION_KEYS.providers.slice(1);
@@ -183,6 +189,18 @@ function workerSettings(workers) {
     fail('workers.allowedTools', `must be a list of up to ${MAX_TOOL_RULES} permission rules such as "Edit" or "Bash(npm test)"`);
   }
   return { permissionMode: workers.permissionMode, allowedTools: [...rules] };
+}
+
+const MAX_INSTRUCTIONS = 20_000;
+
+function prReviewSettings(prReview) {
+  const { instructions } = prReview;
+  if (typeof instructions !== 'string' || instructions.trim() === '' || instructions.length > MAX_INSTRUCTIONS) {
+    fail('prReview.instructions', `must be text, up to ${MAX_INSTRUCTIONS} characters`);
+  }
+  const [unknown] = unknownPlaceholders(instructions);
+  if (unknown) fail('prReview.instructions', `has {{${unknown}}}, which switchyard doesn't fill`);
+  return { instructions };
 }
 
 const TOP_LEVEL_KEYS = ['roots', 'port', 'claudeDir', ...Object.keys(SECTION_KEYS)];
@@ -362,6 +380,7 @@ export function parseSettings(file = {}) {
     },
     checks: { commands: checkCommands(checks.commands), timeoutMs: checkMinutes * MINUTE_MS },
     workers: workerSettings(section(file, 'workers')),
+    prReview: prReviewSettings(section(file, 'prReview')),
     providers: providers(file),
   };
 }

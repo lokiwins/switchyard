@@ -212,6 +212,18 @@ export async function fetchPrFull({ repo, number }, ciSettings = DEFAULT_SETTING
   };
 }
 
+const REVIEW_FIELDS = 'number,title,body,url,state,author,baseRefName,headRefName,headRefOid,files';
+
+/** What a PR review agent is told about the PR (see pr-review.js): its title, description, branches and files. */
+export async function fetchPrForReview({ repo, number }) {
+  return JSON.parse(await run('gh', ['pr', 'view', String(number), '--repo', repo, '--json', REVIEW_FIELDS]));
+}
+
+/** A PR's state: OPEN, MERGED or CLOSED. */
+export async function fetchPrState({ repo, number }) {
+  return JSON.parse(await run('gh', ['pr', 'view', String(number), '--repo', repo, '--json', 'state'])).state;
+}
+
 const withoutBotSuffix = (login) => login.replace(/\[bot\]$/i, '').toLowerCase();
 
 /** Reviews from a bot appear under its login without the "[bot]" suffix, so compare without it. */

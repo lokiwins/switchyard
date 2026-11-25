@@ -19,6 +19,7 @@ const VALUES = {
   workers: { permissionMode: 'acceptEdits', allowedTools: ['Bash(npm test)', 'Edit'] },
   providers: { default: 'claude', claude: { enabled: true, program: 'claude', options: '' } },
   checks: { commands: 'billing-api:\n  test: npm test', timeoutMinutes: 10 },
+  prReview: { instructions: 'Review {{pr.url}}.\n\n### Output\n- **Verdict:** `Approve` or not' },
 };
 
 test('each setting becomes a form field: lists one item per line, numbers as text', () => {
@@ -83,4 +84,11 @@ test('the appearance has its fields, and reads back as it was', () => {
 test('the form has a field for every setting the server lets the page edit, and reads each back as the server gave it', () => {
   const values = { ...editableSettings({}), roots: ['~/work'] };
   expect(toEdits(fieldsFromValues(values))).toStrictEqual(values);
+});
+
+test('the review agent\'s instructions keep their lines and blank lines, only the ends trimmed', () => {
+  const fields = fieldsFromValues(VALUES);
+  expect(fields['prReview.instructions']).toBe(VALUES.prReview.instructions);
+  const edits = editsFromFields({ ...fields, 'prReview.instructions': '\n  Review it.\n\n  Carefully.\n\n' });
+  expect(edits.prReview).toStrictEqual({ instructions: 'Review it.\n\n  Carefully.' });
 });
